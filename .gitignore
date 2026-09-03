@@ -1,0 +1,32 @@
+# Nuxt
+.nuxt
+.output
+.data
+.nitro
+.cache
+dist
+
+# Dependencies
+node_modules
+
+# Local runtime data (the docker volume equivalent for `pnpm dev`)
+data/
+
+# Logs and env
+*.log
+.env
+.env.*
+!.env.example
+
+# Python
+worker/.venv
+worker/**/__pycache__
+worker/.pytest_cache
+worker/.ruff_cache
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode/*
+!.vscode/extensions.json

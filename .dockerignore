@@ -1,0 +1,12 @@
+node_modules
+.nuxt
+.output
+.data
+data
+worker
+.scratch
+docs
+.git
+*.log
+.env
+.env.*

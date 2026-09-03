@@ -1,0 +1,48 @@
+# Presto: self-hosted karaoke.
+#
+#   docker compose up -d
+#
+# Two services share one data volume (ADR 0002): `app` serves the UI and API
+# and owns the database schema; `worker` runs imports and produces Mixes.
+#
+# Data lives in the named volume `presto-data` by default. To use a host
+# directory instead, set PRESTO_DATA=./some/dir in .env (see .env.example).
+# Backups are your job: copy that directory while the stack is stopped.
+
+services:
+  app:
+    build: .
+    ports:
+      - "${PRESTO_PORT:-3000}:3000"
+    environment:
+      NUXT_DATA_DIR: /data
+    volumes:
+      - ${PRESTO_DATA:-presto-data}:/data
+    restart: unless-stopped
+    # Recommended limits; adjust to taste.
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  worker:
+    build: ./worker
+    environment:
+      PRESTO_DATA_DIR: /data
+      PRESTO_POLL_INTERVAL: "1.0"
+    volumes:
+      - ${PRESTO_DATA:-presto-data}:/data
+    depends_on:
+      - app
+    restart: unless-stopped
+    # Imports are light; vocal removal (a later phase) wants several cores
+    # and a few GB of memory. Raise these when that lands.
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+volumes:
+  presto-data:
