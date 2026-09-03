@@ -25,7 +25,13 @@ const failure = computed(() => errorSummary(props.track.job?.error))
     class="group relative flex flex-col gap-3 rounded-[8px] bg-surface p-3 transition hover:bg-surface-mid"
     :aria-busy="track.importState === 'importing'"
   >
-    <div class="relative aspect-square overflow-hidden rounded-[6px] bg-surface-mid shadow-[var(--shadow-medium)]">
+    <NuxtLink
+      :to="`/tracks/${track.id}`"
+      class="absolute inset-0 rounded-[8px] outline-none focus-visible:ring-2 focus-visible:ring-text"
+      :aria-label="`Open ${track.title}`"
+    />
+
+    <div class="pointer-events-none relative aspect-square overflow-hidden rounded-[6px] bg-surface-mid shadow-[var(--shadow-medium)]">
       <img
         :src="`/api/tracks/${track.id}/cover?v=${track.updatedAt}`"
         :alt="`Cover art for ${track.title}`"
@@ -89,7 +95,7 @@ const failure = computed(() => errorSummary(props.track.job?.error))
         </p>
         <button
           type="button"
-          class="inline-flex items-center justify-center gap-2 self-start rounded-pill bg-surface-mid px-4 py-2 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card group-hover:bg-card"
+          class="relative inline-flex items-center justify-center gap-2 self-start rounded-pill bg-surface-mid px-4 py-2 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card group-hover:bg-card"
           @click="emit('retry')"
         >
           <RotateCcw class="size-3.5" />

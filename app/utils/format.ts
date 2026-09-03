@@ -9,6 +9,20 @@ export function formatDuration(ms: number | null | undefined): string {
   return hours ? `${hours}:${minutesAndSeconds}` : minutesAndSeconds
 }
 
+/** A pitch shift in semitones with its sign, to one decimal when it is not a whole semitone. */
+export function formatPitch(semitones: number): string {
+  const whole = Number.isInteger(semitones)
+  const rounded = whole ? semitones : Number(semitones.toFixed(1))
+  const text = whole ? String(Math.abs(rounded)) : Math.abs(rounded).toFixed(1)
+  const sign = rounded > 0 ? '+' : rounded < 0 ? '-' : ''
+  return `${sign}${text} st`
+}
+
+/** A tempo as a percentage of the original. */
+export function formatTempo(percent: number): string {
+  return `${percent}%`
+}
+
 /** The first line of a worker error, which is the human-readable summary before any traceback. */
 export function errorSummary(error: string | null | undefined): string {
   if (!error) return 'Import failed'

@@ -1,0 +1,1 @@
+ALTER TABLE `tracks` ADD `adjustments` text DEFAULT '{"pitchSemitones":0,"tempoPercent":100,"linked":false}' NOT NULL;

@@ -15,6 +15,13 @@
       "when": 1788465177658,
       "tag": "0001_tracks",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788468650839,
+      "tag": "0002_adjustments",
+      "breakpoints": true
     }
   ]
 }

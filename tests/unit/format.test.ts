@@ -1,5 +1,25 @@
 import { describe, expect, test } from 'vitest'
-import { errorSummary, formatDuration } from '../../app/utils/format'
+import { errorSummary, formatDuration, formatPitch, formatTempo } from '../../app/utils/format'
+
+describe('formatPitch', () => {
+  test('shows whole semitones with an explicit sign', () => {
+    expect(formatPitch(0)).toBe('0 st')
+    expect(formatPitch(2)).toBe('+2 st')
+    expect(formatPitch(-12)).toBe('-12 st')
+  })
+
+  test('shows one decimal when pitch follows tempo', () => {
+    expect(formatPitch(-3.157)).toBe('-3.2 st')
+    expect(formatPitch(1.96)).toBe('+2.0 st')
+  })
+})
+
+describe('formatTempo', () => {
+  test('shows a percentage', () => {
+    expect(formatTempo(100)).toBe('100%')
+    expect(formatTempo(85)).toBe('85%')
+  })
+})
 
 describe('formatDuration', () => {
   test('shows minutes and zero-padded seconds', () => {

@@ -87,7 +87,7 @@ async function onRetry(track: TrackWithJob) {
 </script>
 
 <template>
-  <main class="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:pt-8">
+  <main class="mx-auto max-w-6xl px-4 pb-36 pt-6 sm:pb-28 sm:pt-8">
     <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-2xl font-bold tracking-tight">
         Your Library

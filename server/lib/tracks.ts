@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { desc, eq, sql } from 'drizzle-orm'
 import { jobs, tracks, type Job, type SourceKind, type Track } from '../db/schema'
+import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
 import { UNSUPPORTED_UPLOAD_MESSAGE, uploadExtension } from '../../shared/upload'
 import {
   INVALID_YOUTUBE_URL_MESSAGE,
@@ -90,6 +91,7 @@ function startImport(
     sourceKind: input.sourceKind,
     sourceRef: input.sourceRef,
     importState: 'importing',
+    adjustments: { ...DEFAULT_ADJUSTMENTS },
     createdAt: now,
     updatedAt: now,
   }
@@ -149,6 +151,17 @@ export function deleteTrack(presto: Presto, id: string): boolean {
   })
   if (deleted) rmSync(trackDir(presto, id), { recursive: true, force: true })
   return deleted
+}
+
+/** Remembers the Adjustments last used on a Track so they come back when it is opened again. */
+export function saveAdjustments(presto: Presto, track: TrackWithJob, adjustments: Adjustments): TrackWithJob {
+  const now = Date.now()
+  presto.db
+    .update(tracks)
+    .set({ adjustments, updatedAt: now })
+    .where(eq(tracks.id, track.id))
+    .run()
+  return { ...track, adjustments, updatedAt: now }
 }
 
 /** Puts a failed Track back into importing state and enqueues a fresh import job. */

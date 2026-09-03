@@ -8,6 +8,7 @@ const POLL_MS = 1000
  * progress, completion, and failure show up without a reload.
  */
 export function useLibrary() {
+  const player = usePlayer()
   const query = ref('')
   const uploadError = ref<string | null>(null)
   const uploading = ref(0)
@@ -66,6 +67,7 @@ export function useLibrary() {
 
   async function remove(track: TrackWithJob) {
     await $fetch(`/api/tracks/${track.id}`, { method: 'DELETE' })
+    if (player.state.value.track?.id === track.id) player.close()
     await refresh()
   }
 

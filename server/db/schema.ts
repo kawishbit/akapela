@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
 
 export const JOB_TYPES = ['noop', 'import'] as const
 export type JobType = (typeof JOB_TYPES)[number]
@@ -48,6 +49,11 @@ export const tracks = sqliteTable('tracks', {
   /** The YouTube URL or the original upload's filename. */
   sourceRef: text('source_ref').notNull(),
   importState: text('import_state', { enum: IMPORT_STATES }).notNull().default('importing'),
+  /** The last Adjustments used on this Track, restored when it is opened again. */
+  adjustments: text('adjustments', { mode: 'json' })
+    .$type<Adjustments>()
+    .notNull()
+    .default(DEFAULT_ADJUSTMENTS),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })

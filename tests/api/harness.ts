@@ -13,6 +13,7 @@ import tracksIdDelete from '../../server/api/tracks/[id].delete'
 import tracksIdRetryPost from '../../server/api/tracks/[id]/retry.post'
 import tracksIdCoverGet from '../../server/api/tracks/[id]/cover.get'
 import tracksIdBackingGet from '../../server/api/tracks/[id]/backing.get'
+import tracksIdAdjustmentsPut from '../../server/api/tracks/[id]/adjustments.put'
 
 /**
  * Boots the real route handlers on an in-process h3 app backed by a fresh
@@ -41,6 +42,7 @@ export async function createTestApi() {
   router.post('/api/tracks/:id/retry', tracksIdRetryPost)
   router.get('/api/tracks/:id/cover', tracksIdCoverGet)
   router.get('/api/tracks/:id/backing', tracksIdBackingGet)
+  router.put('/api/tracks/:id/adjustments', tracksIdAdjustmentsPut)
   app.use(router)
 
   const server: Server = createServer(toNodeListener(app))
@@ -57,6 +59,12 @@ export async function createTestApi() {
     post: (path: string, body: unknown) =>
       fetch(baseUrl + path, {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    put: (path: string, body: unknown) =>
+      fetch(baseUrl + path, {
+        method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
