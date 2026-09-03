@@ -1,9 +1,9 @@
 # Presto worker (Python). Shares /data with the app container.
 FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-# yt-dlp needs a JavaScript runtime to solve YouTube's player challenges; Deno
-# is the one it enables by default. Without it many formats go missing.
-COPY --from=denoland/deno:bin-2.9.6 /deno /usr/local/bin/deno
+# yt-dlp needs a JavaScript runtime (Node 22+) to solve YouTube's player
+# challenges; without one many formats go missing. Only the binary is needed.
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
 # ffmpeg (with ffprobe) normalizes every Source into the Backing Track WAV.
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
   && rm -rf /var/lib/apt/lists/*

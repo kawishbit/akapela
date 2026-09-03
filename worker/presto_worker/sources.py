@@ -66,6 +66,9 @@ class YtDlpFetcher:
         "noplaylist": True,
         "color": {"stdout": "never", "stderr": "never"},
         "logger": logging.getLogger("yt_dlp"),
+        # YouTube's player challenges are solved by running JavaScript in an
+        # external runtime. Node (22+) is what the image and dev machines have.
+        "js_runtimes": {"node": {}},
         # Audio only when the site offers it; otherwise the best muxed file, which
         # ffmpeg strips to audio while normalizing.
         "format": "bestaudio/best",
