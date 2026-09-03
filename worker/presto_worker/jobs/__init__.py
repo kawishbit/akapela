@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from .import_track import run_import
+from ..sources import YtDlpFetcher
+from .import_track import import_handler
 from .noop import run_noop
 
 DEFAULT_HANDLERS = {
     "noop": run_noop,
-    "import": run_import,
+    "import": import_handler(YtDlpFetcher()),
 }

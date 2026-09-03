@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { Loader2, Music2, Plus, Search, X } from 'lucide-vue-next'
+import { Link, Loader2, Music2, Plus, Search, X } from 'lucide-vue-next'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { UPLOAD_ACCEPT, UPLOAD_EXTENSIONS_SENTENCE } from '~~/shared/upload'
+import { INVALID_YOUTUBE_URL_MESSAGE, youtubeVideoId } from '~~/shared/youtube'
 
-const { query, tracks, loading, uploading, uploadError, upload, remove, retry } = useLibrary()
+const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry } = useLibrary()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const pendingDelete = ref<TrackWithJob | null>(null)
 const deleting = ref(false)
 const actionError = ref<string | null>(null)
+
+const urlInput = ref<HTMLInputElement | null>(null)
+const urlFormOpen = ref(false)
+const url = ref('')
+const urlError = ref<string | null>(null)
+const importingUrl = ref(false)
 
 function pickFiles() {
   fileInput.value?.click()
@@ -19,6 +26,37 @@ async function onFilesChosen(event: Event) {
   const files = Array.from(input.files ?? [])
   input.value = ''
   if (files.length) await upload(files)
+}
+
+async function openUrlForm() {
+  urlFormOpen.value = true
+  await nextTick()
+  urlInput.value?.focus()
+}
+
+function closeUrlForm() {
+  urlFormOpen.value = false
+  url.value = ''
+  urlError.value = null
+}
+
+async function submitUrl() {
+  if (!youtubeVideoId(url.value)) {
+    urlError.value = INVALID_YOUTUBE_URL_MESSAGE
+    return
+  }
+  importingUrl.value = true
+  urlError.value = null
+  try {
+    await importUrl(url.value)
+    closeUrlForm()
+  }
+  catch (error) {
+    urlError.value = describeError(error)
+  }
+  finally {
+    importingUrl.value = false
+  }
 }
 
 async function confirmDelete() {
@@ -54,22 +92,32 @@ async function onRetry(track: TrackWithJob) {
       <h1 class="text-2xl font-bold tracking-tight">
         Your Library
       </h1>
-      <button
-        type="button"
-        class="inline-flex items-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60"
-        :disabled="uploading"
-        @click="pickFiles"
-      >
-        <Loader2
-          v-if="uploading"
-          class="size-4 animate-spin"
-        />
-        <Plus
-          v-else
-          class="size-4"
-        />
-        Import file
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-pill border border-border-light px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:border-text"
+          @click="openUrlForm"
+        >
+          <Link class="size-4" />
+          From YouTube
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60"
+          :disabled="uploading"
+          @click="pickFiles"
+        >
+          <Loader2
+            v-if="uploading"
+            class="size-4 animate-spin"
+          />
+          <Plus
+            v-else
+            class="size-4"
+          />
+          Import file
+        </button>
+      </div>
       <input
         ref="fileInput"
         type="file"
@@ -80,6 +128,70 @@ async function onRetry(track: TrackWithJob) {
         @change="onFilesChosen"
       >
     </header>
+
+    <form
+      v-if="urlFormOpen"
+      class="mb-6 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)]"
+      aria-label="Import from YouTube"
+      novalidate
+      @submit.prevent="submitUrl"
+    >
+      <label
+        for="youtube-url"
+        class="mb-2 block text-sm font-bold"
+      >
+        Paste a YouTube link
+      </label>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <input
+          id="youtube-url"
+          ref="urlInput"
+          v-model.trim="url"
+          type="url"
+          inputmode="url"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="https://www.youtube.com/watch?v="
+          class="min-w-0 flex-1 appearance-none rounded-pill bg-surface-mid px-5 py-3 text-base text-text shadow-[var(--shadow-inset-border)] outline-none placeholder:text-text-muted focus:shadow-[var(--shadow-inset-border),0_0_0_2px_var(--color-text)]"
+          :aria-invalid="urlError !== null"
+          :aria-describedby="urlError ? 'youtube-url-error' : undefined"
+          @keydown.escape="closeUrlForm"
+        >
+        <div class="flex gap-2">
+          <button
+            type="submit"
+            class="inline-flex flex-1 items-center justify-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60 sm:flex-none"
+            :disabled="importingUrl || !url"
+          >
+            <Loader2
+              v-if="importingUrl"
+              class="size-4 animate-spin"
+            />
+            <Plus
+              v-else
+              class="size-4"
+            />
+            Import
+          </button>
+          <button
+            type="button"
+            class="flex size-12 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
+            aria-label="Cancel"
+            @click="closeUrlForm"
+          >
+            <X class="size-4" />
+          </button>
+        </div>
+      </div>
+      <p
+        v-if="urlError"
+        id="youtube-url-error"
+        class="mt-3 text-sm text-negative"
+        role="alert"
+      >
+        {{ urlError }}
+      </p>
+    </form>
 
     <label class="relative mb-6 block">
       <Search class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
@@ -150,16 +262,26 @@ async function onRetry(track: TrackWithJob) {
           Nothing to sing yet
         </h2>
         <p class="mt-2 max-w-sm text-sm text-text-muted">
-          Import an {{ UPLOAD_EXTENSIONS_SENTENCE }} file to add your first Track.
+          Paste a YouTube link or import an {{ UPLOAD_EXTENSIONS_SENTENCE }} file to add your first Track.
         </p>
-        <button
-          type="button"
-          class="mt-6 inline-flex items-center gap-2 rounded-pill bg-accent px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110"
-          @click="pickFiles"
-        >
-          <Plus class="size-4" />
-          Import file
-        </button>
+        <div class="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-pill border border-border-light px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:border-text"
+            @click="openUrlForm"
+          >
+            <Link class="size-4" />
+            From YouTube
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-pill bg-accent px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110"
+            @click="pickFiles"
+          >
+            <Plus class="size-4" />
+            Import file
+          </button>
+        </div>
       </template>
     </section>
 

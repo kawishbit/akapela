@@ -56,7 +56,82 @@ describe('importing an uploaded file as a Track', () => {
   })
 })
 
+describe('importing a YouTube URL as a Track', () => {
+  test('a YouTube URL creates a Track in importing state with a queued import job', async () => {
+    const res = await api.post('/api/tracks', { url: 'https://youtu.be/dQw4w9WgXcQ?t=43' })
+    expect(res.status).toBe(201)
+    const track = await res.json()
+
+    expect(track).toMatchObject({
+      title: 'youtu.be/dQw4w9WgXcQ',
+      artist: null,
+      durationMs: null,
+      coverPath: 'cover.svg',
+      sourceKind: 'youtube',
+      sourceRef: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      importState: 'importing',
+    })
+    expect(track.job).toMatchObject({ type: 'import', targetId: track.id, state: 'queued' })
+    expect(existsSync(join(api.dataDir, 'tracks', track.id, 'cover.svg'))).toBe(true)
+
+    const job = await (await api.get(`/api/jobs/${track.job.id}`)).json()
+    expect(job).toMatchObject({ type: 'import', targetId: track.id, state: 'queued' })
+  })
+
+  test('a watch URL inside a playlist stores only the video as the Source reference', async () => {
+    const res = await api.post('/api/tracks', {
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf&index=2',
+    })
+    expect(res.status).toBe(201)
+    expect((await res.json()).sourceRef).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+  })
+
+  test.each([
+    'https://vimeo.com/123456789',
+    'never gonna give you up',
+    'https://www.youtube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf',
+    '',
+  ])('%j is rejected with a clear message and creates nothing', async (url) => {
+    const res = await api.post('/api/tracks', { url })
+    expect(res.status).toBe(400)
+    expect(res.statusText).toMatch(/single YouTube video/)
+    expect(existsSync(join(api.dataDir, 'tracks'))).toBe(false)
+    expect(await (await api.get('/api/tracks')).json()).toEqual([])
+  })
+
+  test('a request with no url is rejected', async () => {
+    expect((await api.post('/api/tracks', {})).status).toBe(400)
+    expect((await api.post('/api/tracks', { url: 42 })).status).toBe(400)
+  })
+
+  test('a failed YouTube import can be retried', async () => {
+    const track = await (await api.post('/api/tracks', { url: 'https://youtu.be/dQw4w9WgXcQ' })).json()
+    api.failImport(track.id, track.job.id, 'SourceError: [youtube] dQw4w9WgXcQ: Video unavailable')
+
+    const res = await api.post(`/api/tracks/${track.id}/retry`, {})
+    expect(res.status).toBe(200)
+    const retried = await res.json()
+    expect(retried).toMatchObject({
+      sourceRef: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      importState: 'importing',
+      job: { type: 'import', state: 'queued' },
+    })
+    expect(retried.job.id).not.toBe(track.job.id)
+  })
+})
+
 describe('the library', () => {
+  test('lists YouTube and uploaded Tracks together, newest first', async () => {
+    const uploaded = await (await api.upload('/api/tracks', 'Yesterday.mp3', MP3_BYTES)).json()
+    const fromUrl = await (await api.post('/api/tracks', { url: 'https://youtu.be/dQw4w9WgXcQ' })).json()
+
+    const list = await (await api.get('/api/tracks')).json()
+    expect(list.map((t: { id: string, sourceKind: string }) => [t.id, t.sourceKind])).toEqual([
+      [fromUrl.id, 'youtube'],
+      [uploaded.id, 'upload'],
+    ])
+  })
+
   test('lists every Track with its latest job, newest first', async () => {
     const first = await (await api.upload('/api/tracks', 'Yesterday.mp3', MP3_BYTES)).json()
     const second = await (await api.upload('/api/tracks', 'Bohemian Rhapsody.m4a', MP3_BYTES)).json()

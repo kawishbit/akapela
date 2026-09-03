@@ -27,7 +27,7 @@ const failure = computed(() => errorSummary(props.track.job?.error))
   >
     <div class="relative aspect-square overflow-hidden rounded-[6px] bg-surface-mid shadow-[var(--shadow-medium)]">
       <img
-        :src="`/api/tracks/${track.id}/cover`"
+        :src="`/api/tracks/${track.id}/cover?v=${track.updatedAt}`"
         :alt="`Cover art for ${track.title}`"
         class="size-full object-cover"
         :class="{ 'opacity-40': track.importState !== 'ready' }"

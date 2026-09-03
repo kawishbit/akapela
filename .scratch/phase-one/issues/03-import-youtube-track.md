@@ -4,12 +4,12 @@
 
 **Blocked by:** 02 (Import an uploaded file as a Track)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Pasting a valid YouTube URL creates a Track in importing state with the URL as its Source reference and enqueues an import job; invalid URLs are rejected with a clear message
-- [ ] The worker wraps yt-dlp behind a Source fetcher interface with two steps: fetch metadata (title, thumbnail, duration) and download best audio
-- [ ] Metadata is written to the Track before the download starts, so the card shows title and thumbnail early
-- [ ] The downloaded audio is stored as delivered and normalized to the Backing Track WAV, then the Track is marked ready
-- [ ] A failed fetch records the yt-dlp error on the job and Track, and retry re-enqueues without automatic retries
-- [ ] Worker tests use a fake Source fetcher that returns canned metadata and copies a fixture file, and cover the early metadata write, the successful import, and the failure path
-- [ ] API tests cover URL validation and Track creation from a URL
+- [x] Pasting a valid YouTube URL creates a Track in importing state with the URL as its Source reference and enqueues an import job; invalid URLs are rejected with a clear message
+- [x] The worker wraps yt-dlp behind a Source fetcher interface with two steps: fetch metadata (title, thumbnail, duration) and download best audio
+- [x] Metadata is written to the Track before the download starts, so the card shows title and thumbnail early
+- [x] The downloaded audio is stored as delivered and normalized to the Backing Track WAV, then the Track is marked ready
+- [x] A failed fetch records the yt-dlp error on the job and Track, and retry re-enqueues without automatic retries
+- [x] Worker tests use a fake Source fetcher that returns canned metadata and copies a fixture file, and cover the early metadata write, the successful import, and the failure path
+- [x] API tests cover URL validation and Track creation from a URL

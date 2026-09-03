@@ -5,7 +5,9 @@ description = "Presto background worker: runs import and Mix jobs from the share
 readme = "README.md"
 license = "GPL-3.0-only"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "yt-dlp[default]>=2026.8",
+]
 
 [project.scripts]
 presto-worker = "presto_worker.main:main"

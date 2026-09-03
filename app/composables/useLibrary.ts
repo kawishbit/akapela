@@ -58,6 +58,12 @@ export function useLibrary() {
     if (failures.length) uploadError.value = failures.join('\n')
   }
 
+  /** Starts an import from a YouTube URL. Rejects with the server's message when the URL is refused. */
+  async function importUrl(url: string) {
+    await $fetch('/api/tracks', { method: 'POST', body: { url } })
+    await refresh()
+  }
+
   async function remove(track: TrackWithJob) {
     await $fetch(`/api/tracks/${track.id}`, { method: 'DELETE' })
     await refresh()
@@ -75,6 +81,7 @@ export function useLibrary() {
     uploading: computed(() => uploading.value > 0),
     uploadError,
     upload,
+    importUrl,
     remove,
     retry,
   }

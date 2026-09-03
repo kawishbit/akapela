@@ -2,8 +2,14 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { desc, eq, sql } from 'drizzle-orm'
-import { jobs, tracks, type Job, type Track } from '../db/schema'
+import { jobs, tracks, type Job, type SourceKind, type Track } from '../db/schema'
 import { UNSUPPORTED_UPLOAD_MESSAGE, uploadExtension } from '../../shared/upload'
+import {
+  INVALID_YOUTUBE_URL_MESSAGE,
+  canonicalYoutubeUrl,
+  youtubePlaceholderTitle,
+  youtubeVideoId,
+} from '../../shared/youtube'
 import { placeholderCoverSvg } from './cover'
 import { enqueueJob } from './jobs'
 import type { Presto } from './presto'
@@ -20,9 +26,9 @@ export function trackDir(presto: Presto, trackId: string): string {
 }
 
 /**
- * Creates a Track from an uploaded file: writes the original as delivered and a
- * placeholder cover under the Track's directory, then enqueues the import job
- * the worker turns into a Backing Track.
+ * Creates a Track from an uploaded file: writes the original as delivered
+ * under the Track's directory, then starts the import the worker turns into
+ * a Backing Track.
  */
 export function createTrackFromUpload(
   presto: Presto,
@@ -32,28 +38,63 @@ export function createTrackFromUpload(
   if (!ext) throw new Error(UNSUPPORTED_UPLOAD_MESSAGE)
 
   const id = randomUUID()
-  const title = input.filename.slice(0, -(ext.length + 1)).trim() || input.filename
   const dir = trackDir(presto, id)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, `original.${ext}`), input.bytes)
+
+  return startImport(presto, {
+    id,
+    title: input.filename.slice(0, -(ext.length + 1)).trim() || input.filename,
+    sourceKind: 'upload',
+    sourceRef: input.filename,
+  })
+}
+
+/**
+ * Creates a Track from a YouTube URL. The Track carries a stand-in title until
+ * the worker fetches the video's own title and thumbnail, which it does before
+ * downloading the audio so the card fills in early.
+ */
+export function createTrackFromYoutube(presto: Presto, input: { url: string }): TrackWithJob {
+  const videoId = youtubeVideoId(input.url)
+  if (!videoId) throw new Error(INVALID_YOUTUBE_URL_MESSAGE)
+
+  return startImport(presto, {
+    id: randomUUID(),
+    title: youtubePlaceholderTitle(videoId),
+    sourceKind: 'youtube',
+    sourceRef: canonicalYoutubeUrl(videoId),
+  })
+}
+
+/**
+ * Writes a placeholder cover into the Track's directory, inserts the Track in
+ * importing state, and enqueues the import job.
+ */
+function startImport(
+  presto: Presto,
+  input: { id: string, title: string, sourceKind: SourceKind, sourceRef: string },
+): TrackWithJob {
+  const dir = trackDir(presto, input.id)
+  mkdirSync(dir, { recursive: true })
   const coverPath = 'cover.svg'
-  writeFileSync(join(dir, coverPath), placeholderCoverSvg(title))
+  writeFileSync(join(dir, coverPath), placeholderCoverSvg(input.title))
 
   const now = Date.now()
   const track: Track = {
-    id,
-    title,
+    id: input.id,
+    title: input.title,
     artist: null,
     durationMs: null,
     coverPath,
-    sourceKind: 'upload',
-    sourceRef: input.filename,
+    sourceKind: input.sourceKind,
+    sourceRef: input.sourceRef,
     importState: 'importing',
     createdAt: now,
     updatedAt: now,
   }
   presto.db.insert(tracks).values(track).run()
-  const job = enqueueJob(presto, { type: 'import', targetId: id })
+  const job = enqueueJob(presto, { type: 'import', targetId: input.id })
   return { ...track, job }
 }
 

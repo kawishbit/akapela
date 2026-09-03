@@ -9,6 +9,7 @@ const COVER_TYPES: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
+  webp: 'image/webp',
 }
 
 /** The Track's cover art, read from its directory on the data volume. */
