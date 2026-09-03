@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 from pathlib import Path
 
 
@@ -13,3 +14,8 @@ def connect(db_path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout = 5000")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+def now_ms() -> int:
+    """Timestamps are integer milliseconds, matching the app's Date.now()."""
+    return int(time.time() * 1000)

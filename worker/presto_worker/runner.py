@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from .db import now_ms
 from .jobs import DEFAULT_HANDLERS
 
 log = logging.getLogger(__name__)
@@ -50,10 +51,6 @@ class JobContext:
 Handler = Callable[[JobContext], None]
 
 
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-
 class Runner:
     def __init__(
         self,
@@ -84,7 +81,7 @@ class Runner:
             "   ORDER BY created_at, rowid LIMIT 1"
             " )"
             " RETURNING id, type, target_id",
-            (JobState.RUNNING, _now_ms(), JobState.QUEUED),
+            (JobState.RUNNING, now_ms(), JobState.QUEUED),
         ).fetchone()
         if row is None:
             return None
@@ -106,12 +103,12 @@ class Runner:
             message = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
             self.conn.execute(
                 "UPDATE jobs SET state = ?, error = ?, finished_at = ? WHERE id = ?",
-                (JobState.FAILED, message, _now_ms(), job.id),
+                (JobState.FAILED, message, now_ms(), job.id),
             )
         else:
             self.conn.execute(
                 "UPDATE jobs SET state = ?, progress = 100, finished_at = ? WHERE id = ?",
-                (JobState.SUCCEEDED, _now_ms(), job.id),
+                (JobState.SUCCEEDED, now_ms(), job.id),
             )
             log.info("job %s succeeded", job.id)
         return True

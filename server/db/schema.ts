@@ -1,6 +1,6 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-export const JOB_TYPES = ['noop'] as const
+export const JOB_TYPES = ['noop', 'import'] as const
 export type JobType = (typeof JOB_TYPES)[number]
 
 export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed'] as const
@@ -24,3 +24,32 @@ export const jobs = sqliteTable('jobs', {
 })
 
 export type Job = typeof jobs.$inferSelect
+
+export const SOURCE_KINDS = ['upload', 'youtube'] as const
+export type SourceKind = (typeof SOURCE_KINDS)[number]
+
+export const IMPORT_STATES = ['importing', 'ready', 'failed'] as const
+export type ImportState = (typeof IMPORT_STATES)[number]
+
+/**
+ * An entry in the library, created by importing one Source. Every file the
+ * Track owns lives under `<dataDir>/tracks/<id>/`: the original Source audio
+ * as delivered, the normalized Backing Track WAV, and the cover art.
+ * Paths stored here are relative to that directory.
+ */
+export const tracks = sqliteTable('tracks', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  artist: text('artist'),
+  /** Duration of the Backing Track; null until the import has run. */
+  durationMs: integer('duration_ms'),
+  coverPath: text('cover_path'),
+  sourceKind: text('source_kind', { enum: SOURCE_KINDS }).notNull(),
+  /** The YouTube URL or the original upload's filename. */
+  sourceRef: text('source_ref').notNull(),
+  importState: text('import_state', { enum: IMPORT_STATES }).notNull().default('importing'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export type Track = typeof tracks.$inferSelect
