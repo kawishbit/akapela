@@ -4,13 +4,32 @@
 
 **Blocked by:** 07 (Record a Take)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] The review screen loads the Take WAV and the Backing Track and plays them together through the Rubber Band engine with the Take's Adjustments applied to the backing
-- [ ] The nudge slider offsets the vocal in milliseconds during playback with no restart, with a sensible default
-- [ ] The nudge value is stored in browser storage as the per-device default and pre-filled on the next Take
-- [ ] Vocal gain and backing gain are separate gain stages, audible live
-- [ ] Pitch can be changed on the review screen and is saved to the Take; tempo is displayed but locked, with a short note that the vocal was sung to it
-- [ ] Keep saves nudge, gains, and pitch to the Take; discard deletes the Take and its file after one confirmation
-- [ ] API tests cover updating a Take's review parameters and rejecting a tempo change
+- [x] The review screen loads the Take WAV and the Backing Track and plays them together through the Rubber Band engine with the Take's Adjustments applied to the backing
+- [x] The nudge slider offsets the vocal in milliseconds during playback with no restart, with a sensible default
+- [x] The nudge value is stored in browser storage as the per-device default and pre-filled on the next Take
+- [x] Vocal gain and backing gain are separate gain stages, audible live
+- [x] Pitch can be changed on the review screen and is saved to the Take; tempo is displayed but locked, with a short note that the vocal was sung to it
+- [x] Keep saves nudge, gains, and pitch to the Take; discard deletes the Take and its file after one confirmation
+- [x] API tests cover updating a Take's review parameters and rejecting a tempo change
 - [ ] Alignment by ear with the nudge slider is verified manually on a laptop and a phone
+
+## Comments
+
+Implemented. Every checklist item is done except the last: alignment by ear
+needs a human actually listening on real hardware, which isn't something an
+agent in this environment can judge. The Review screen (`/tracks/:id/takes/:takeId`)
+plays the Take's dry vocal over the Backing Track on one shared AudioContext
+(ADR 0006), seeked to the Take's start position; nudge, vocal gain, and
+backing gain apply live with no restart, and pitch is adjustable while tempo
+is shown locked and rejected server-side if a client tries to change it
+(ADR 0003). Keep flushes a debounced save of the review settings; Discard
+reuses the existing delete-Take endpoint behind one confirmation. Landing on
+Review happens both from stopping a recording and from tapping a Take in the
+Takes list, per the ticket's "What to build."
+
+Automated coverage: `tests/api/takes.test.ts` (review update, tempo rejection,
+audio streaming) and `tests/unit/format.test.ts` (the two new formatters)
+pass, alongside the full existing suite. `pnpm typecheck` and `pnpm lint` are
+clean.
