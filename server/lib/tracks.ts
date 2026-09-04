@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { desc, eq, sql } from 'drizzle-orm'
-import { jobs, tracks, type Job, type SourceKind, type Track } from '../db/schema'
+import { jobs, tracks, type Job, type Lyrics, type SourceKind, type Track } from '../db/schema'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
 import { UNSUPPORTED_UPLOAD_MESSAGE, uploadExtension } from '../../shared/upload'
 import {
@@ -11,8 +11,10 @@ import {
   youtubePlaceholderTitle,
   youtubeVideoId,
 } from '../../shared/youtube'
+import type { Song } from '../../shared/song'
 import { placeholderCoverSvg } from './cover'
 import { enqueueJob } from './jobs'
+import { getLyrics } from './lyrics'
 import type { Presto } from './presto'
 
 /** Filename of the normalized 44.1 kHz stereo WAV the worker writes into the Track directory (ADR 0005). */
@@ -20,6 +22,16 @@ export const BACKING_TRACK_FILE = 'backing.wav'
 
 /** A Track together with its most recent Job, which carries import progress and error. */
 export type TrackWithJob = Track & { job: Job | null }
+
+/** Everything the Track detail and Sing pages need in one response. */
+export type TrackDetail = TrackWithJob & {
+  lyrics: Lyrics | null
+  /**
+   * Why the Lyrics Provider could not be asked, when a request that would have
+   * fetched Lyrics failed. Never stored; absent unless this response tried.
+   */
+  lyricsError?: string
+}
 
 /** Absolute path of the directory owning every file of one Track. */
 export function trackDir(presto: Presto, trackId: string): string {
@@ -92,6 +104,11 @@ function startImport(
     sourceRef: input.sourceRef,
     importState: 'importing',
     adjustments: { ...DEFAULT_ADJUSTMENTS },
+    songArtist: null,
+    songTitle: null,
+    songProviderIds: null,
+    songAlbumArtUrl: null,
+    lyricsOffsetMs: 0,
     createdAt: now,
     updatedAt: now,
   }
@@ -139,6 +156,54 @@ function foldCase(text: string): string {
 export function getTrack(presto: Presto, id: string): TrackWithJob | undefined {
   const row = selectTracksWithJob(presto).where(eq(tracks.id, id)).get()
   return row && { ...row.track, job: row.job }
+}
+
+/** The Track with its Lyrics, which is what opening one is for. */
+export function trackDetail(presto: Presto, track: TrackWithJob): TrackDetail {
+  return { ...track, lyrics: getLyrics(presto, track.id) }
+}
+
+/** The Song confirmed on a Track, or null while none is. */
+export function confirmedSong(track: Track): Song | null {
+  if (!track.songTitle) return null
+  return {
+    artist: track.songArtist ?? '',
+    title: track.songTitle,
+    providerIds: track.songProviderIds ?? {},
+    albumArtUrl: track.songAlbumArtUrl,
+  }
+}
+
+/**
+ * Confirms the Song a Track represents. The Song's artist becomes the Track's
+ * too, since confirming one is what gives a Track the artist the library
+ * lists it by.
+ */
+export function saveSong(presto: Presto, track: TrackWithJob, song: Song): TrackWithJob {
+  const saved = {
+    songArtist: song.artist,
+    songTitle: song.title,
+    songProviderIds: song.providerIds,
+    songAlbumArtUrl: song.albumArtUrl,
+    artist: song.artist,
+    updatedAt: Date.now(),
+  }
+  presto.db.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
+  return { ...track, ...saved }
+}
+
+/**
+ * Saves the Lyrics Offset that lines this Track's Lyrics up with its Backing
+ * Track. It lives on the Track, not the Lyrics, so refetching does not reset it.
+ */
+export function saveLyricsOffset(presto: Presto, track: TrackWithJob, lyricsOffsetMs: number): TrackWithJob {
+  const now = Date.now()
+  presto.db
+    .update(tracks)
+    .set({ lyricsOffsetMs, updatedAt: now })
+    .where(eq(tracks.id, track.id))
+    .run()
+  return { ...track, lyricsOffsetMs, updatedAt: now }
 }
 
 /** Deletes the Track's rows, its jobs, and its directory. Returns false when no such Track exists. */

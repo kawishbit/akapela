@@ -18,6 +18,12 @@ export function formatPitch(semitones: number): string {
   return `${sign}${text} st`
 }
 
+/** A Lyrics Offset in seconds with its sign, always to one decimal, since it moves in tenths. */
+export function formatLyricsOffset(offsetMs: number): string {
+  const seconds = offsetMs / 1000
+  return `${offsetMs > 0 ? '+' : offsetMs < 0 ? '-' : ''}${Math.abs(seconds).toFixed(1)} s`
+}
+
 /** A tempo as a percentage of the original. */
 export function formatTempo(percent: number): string {
   return `${percent}%`

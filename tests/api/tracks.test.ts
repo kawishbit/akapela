@@ -147,7 +147,7 @@ describe('the library', () => {
   test('search filters by title or artist, case-insensitively', async () => {
     await api.upload('/api/tracks', 'Yesterday.mp3', MP3_BYTES)
     const queen = await (await api.upload('/api/tracks', 'Bohemian Rhapsody.m4a', MP3_BYTES)).json()
-    api.setArtist(queen.id, 'Queen')
+    await api.confirmSong(queen.id, { artist: 'Queen', title: 'Bohemian Rhapsody' })
 
     const byTitle = await (await api.get('/api/tracks?q=rhap')).json()
     expect(byTitle.map((t: { title: string }) => t.title)).toEqual(['Bohemian Rhapsody'])
@@ -162,7 +162,7 @@ describe('the library', () => {
   test('search ignores case beyond ASCII', async () => {
     await api.upload('/api/tracks', 'Jóga.mp3', MP3_BYTES)
     const bjork = await (await api.upload('/api/tracks', 'Army of Me.mp3', MP3_BYTES)).json()
-    api.setArtist(bjork.id, 'Björk')
+    await api.confirmSong(bjork.id, { artist: 'Björk', title: 'Army of Me' })
 
     const byArtist = await (await api.get('/api/tracks?q=BJÖRK')).json()
     expect(byArtist.map((t: { title: string }) => t.title)).toEqual(['Army of Me'])

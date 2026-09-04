@@ -14,18 +14,25 @@ import tracksIdRetryPost from '../../server/api/tracks/[id]/retry.post'
 import tracksIdCoverGet from '../../server/api/tracks/[id]/cover.get'
 import tracksIdBackingGet from '../../server/api/tracks/[id]/backing.get'
 import tracksIdAdjustmentsPut from '../../server/api/tracks/[id]/adjustments.put'
+import tracksIdSongsGet from '../../server/api/tracks/[id]/songs.get'
+import tracksIdSongPut from '../../server/api/tracks/[id]/song.put'
+import tracksIdLyricsOffsetPut from '../../server/api/tracks/[id]/lyrics-offset.put'
+import { createFakeLyricsProvider } from './fake-lyrics-provider'
 
 /**
  * Boots the real route handlers on an in-process h3 app backed by a fresh
  * SQLite database and data directory in a temp folder. Mirrors what Nitro
  * does in production: the presto middleware sets `event.context.presto`,
- * then the file-based handlers run.
+ * then the file-based handlers run. The Lyrics Provider is a fake, so no test
+ * touches the network.
  */
 export async function createTestApi() {
   const dataDir = mkdtempSync(join(tmpdir(), 'presto-test-'))
+  const lyricsProvider = createFakeLyricsProvider()
   const presto = createPresto({
     dataDir,
     migrationsDir: join(process.cwd(), 'server/db/migrations'),
+    lyricsProviders: [lyricsProvider.provider],
   })
 
   const app = createApp()
@@ -43,6 +50,9 @@ export async function createTestApi() {
   router.get('/api/tracks/:id/cover', tracksIdCoverGet)
   router.get('/api/tracks/:id/backing', tracksIdBackingGet)
   router.put('/api/tracks/:id/adjustments', tracksIdAdjustmentsPut)
+  router.get('/api/tracks/:id/songs', tracksIdSongsGet)
+  router.put('/api/tracks/:id/song', tracksIdSongPut)
+  router.put('/api/tracks/:id/lyrics-offset', tracksIdLyricsOffsetPut)
   app.use(router)
 
   const server: Server = createServer(toNodeListener(app))
@@ -55,6 +65,8 @@ export async function createTestApi() {
     presto,
     dataDir,
     baseUrl,
+    /** What the stand-in Lyrics Provider knows and what it was asked. */
+    lyrics: lyricsProvider.canned,
     get: (path: string) => fetch(baseUrl + path),
     post: (path: string, body: unknown) =>
       fetch(baseUrl + path, {
@@ -75,9 +87,9 @@ export async function createTestApi() {
       form.append('file', new Blob([bytes]), filename)
       return fetch(baseUrl + path, { method: 'POST', body: form })
     },
-    /** Stand in for Song confirmation (a later ticket), which is what gives a Track an artist. */
-    setArtist(trackId: string, artist: string) {
-      presto.sqlite.prepare(`UPDATE tracks SET artist = ? WHERE id = ?`).run(artist, trackId)
+    /** Confirms a Song on a Track, which is what gives the Track an artist. */
+    confirmSong(trackId: string, song: { artist: string, title: string }) {
+      return this.put(`/api/tracks/${trackId}/song`, song)
     },
     /** Stand in for the worker, which owns every state change after `queued`. */
     finishJob(id: string, state: 'succeeded' | 'failed', error: string | null = null) {

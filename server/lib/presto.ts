@@ -4,12 +4,16 @@ import Database from 'better-sqlite3'
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as schema from '../db/schema'
+import { createLrclibProvider } from '../lyrics/lrclib'
+import type { LyricsProvider } from '../lyrics/provider'
 
 export interface PrestoOptions {
   /** Directory holding the database and every Track's files. */
   dataDir: string
   /** Folder of drizzle-kit generated SQL migrations. */
   migrationsDir: string
+  /** The Lyrics Providers this instance can reach. Defaults to LRCLIB; tests pass fakes. */
+  lyricsProviders?: LyricsProvider[]
 }
 
 export interface Presto {
@@ -17,6 +21,7 @@ export interface Presto {
   db: BetterSQLite3Database<typeof schema>
   /** The raw connection, for the rare statement drizzle cannot express. */
   sqlite: Database.Database
+  lyricsProviders: readonly LyricsProvider[]
   close(): void
 }
 
@@ -39,6 +44,7 @@ export function createPresto(options: PrestoOptions): Presto {
     dataDir: options.dataDir,
     db,
     sqlite,
+    lyricsProviders: options.lyricsProviders ?? [createLrclibProvider()],
     close() {
       sqlite.close()
     },

@@ -1,0 +1,237 @@
+<script setup lang="ts">
+import { ChevronDown, Loader2, Pause, Play } from 'lucide-vue-next'
+import { effectivePitchSemitones } from '~~/shared/adjustments'
+
+// The Lyrics fill the screen here; the persistent player bar would only steal
+// room from them, so this page carries its own transport.
+definePageMeta({ playerBar: false })
+
+const SAVE_DEBOUNCE_MS = 400
+
+const route = useRoute()
+const id = computed(() => String(route.params.id))
+const player = usePlayer()
+const playerState = player.state
+
+const { track, notFound } = useTrackDetail(id)
+
+onMounted(() => {
+  watch(track, (value) => {
+    if (value?.importState === 'ready') player.open(value)
+  }, { immediate: true })
+})
+
+const isCurrent = computed(() => playerState.value.track?.id === id.value)
+const positionMs = computed(() => (isCurrent.value ? playerState.value.positionMs : 0))
+const durationMs = computed(() => track.value?.durationMs ?? playerState.value.durationMs)
+const adjustments = computed(() => (isCurrent.value ? playerState.value.adjustments : track.value?.adjustments) ?? null)
+
+const songLabel = computed(() => {
+  const current = track.value
+  if (!current) return ''
+  return current.songTitle ? `${current.songArtist} · ${current.songTitle}` : current.title
+})
+
+// The Lyrics Offset moves under the singer's thumb and is saved once the
+// nudging stops, so a run of taps is one request.
+const offsetMs = ref(0)
+watch(track, value => (offsetMs.value = value?.lyricsOffsetMs ?? 0), { immediate: true })
+
+const saveError = ref<string | null>(null)
+let pendingSave: { timer: ReturnType<typeof setTimeout>, run: () => void } | undefined
+
+function setOffset(next: number) {
+  offsetMs.value = next
+  if (pendingSave) clearTimeout(pendingSave.timer)
+  const run = () => {
+    pendingSave = undefined
+    $fetch(`/api/tracks/${id.value}/lyrics-offset`, {
+      method: 'PUT',
+      body: { offsetMs: next },
+      keepalive: true,
+    })
+      .then(() => {
+        if (track.value) track.value.lyricsOffsetMs = next
+        saveError.value = null
+      })
+      .catch((error) => {
+        saveError.value = describeError(error)
+      })
+  }
+  pendingSave = { timer: setTimeout(run, SAVE_DEBOUNCE_MS), run }
+}
+
+/** A nudge made just before leaving still counts, the way Adjustments do. */
+function flushSave() {
+  if (!pendingSave) return
+  clearTimeout(pendingSave.timer)
+  pendingSave.run()
+}
+
+onMounted(() => window.addEventListener('pagehide', flushSave))
+onBeforeUnmount(() => {
+  window.removeEventListener('pagehide', flushSave)
+  flushSave()
+})
+
+/** Position shown while the thumb is being dragged, before the seek is committed. */
+const scrubbing = ref<number | null>(null)
+const shownMs = computed(() => scrubbing.value ?? positionMs.value)
+
+function onScrub(event: Event) {
+  scrubbing.value = Number((event.target as HTMLInputElement).value)
+}
+
+function onSeek(event: Event) {
+  scrubbing.value = null
+  player.seek(Number((event.target as HTMLInputElement).value))
+}
+
+useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Presto` : 'Presto' }))
+</script>
+
+<template>
+  <main class="fixed inset-0 flex flex-col overflow-hidden bg-ground">
+    <!-- The cover art is the only colour on the page (DESIGN.md §1). -->
+    <div
+      v-if="track"
+      class="pointer-events-none absolute inset-0"
+      aria-hidden="true"
+    >
+      <img
+        :src="`/api/tracks/${track.id}/cover?v=${track.updatedAt}`"
+        alt=""
+        class="size-full scale-125 object-cover opacity-40 blur-3xl"
+      >
+      <div class="absolute inset-0 bg-gradient-to-b from-ground/60 via-ground/75 to-ground" />
+    </div>
+
+    <header class="relative z-10 flex items-center gap-3 px-4 pt-3 sm:px-6 sm:pt-4">
+      <NuxtLink
+        :to="`/tracks/${id}`"
+        class="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
+        aria-label="Back to the Track"
+      >
+        <ChevronDown class="size-6" />
+      </NuxtLink>
+      <div class="min-w-0 flex-1 text-center">
+        <p class="truncate text-sm font-bold text-text">
+          {{ songLabel }}
+        </p>
+        <p
+          v-if="adjustments"
+          class="truncate text-xs text-text-muted"
+        >
+          {{ formatPitch(effectivePitchSemitones(adjustments)) }} · {{ formatTempo(adjustments.tempoPercent) }}
+        </p>
+      </div>
+      <div class="size-11 shrink-0" />
+    </header>
+
+    <div class="relative z-10 min-h-0 flex-1">
+      <LyricsView
+        v-if="track?.lyrics"
+        :kind="track.lyrics.kind"
+        :lines="track.lyrics.lines"
+        :position-ms="positionMs"
+        :duration-ms="durationMs"
+        :offset-ms="offsetMs"
+        @seek="player.seek($event)"
+      />
+      <div
+        v-else
+        class="flex h-full flex-col items-center justify-center px-6 text-center"
+      >
+        <h1 class="text-lg font-semibold">
+          {{ notFound ? 'Track not found' : 'No Lyrics yet' }}
+        </h1>
+        <p class="mt-2 max-w-sm text-sm text-text-muted">
+          <template v-if="notFound">
+            It may have been deleted.
+          </template>
+          <template v-else-if="track?.songTitle">
+            No Lyrics Provider has words for {{ track.songArtist }} · {{ track.songTitle }}.
+          </template>
+          <template v-else>
+            Confirm which Song this Track is and Presto will fetch its Lyrics.
+          </template>
+        </p>
+        <NuxtLink
+          :to="`/tracks/${id}`"
+          class="mt-6 inline-flex h-12 items-center rounded-pill bg-surface-mid px-6 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
+        >
+          Open the Track
+        </NuxtLink>
+      </div>
+    </div>
+
+    <footer
+      class="relative z-10 flex flex-col items-center gap-3 px-4 pb-4 pt-2 sm:px-6"
+      style="padding-bottom: max(1rem, env(safe-area-inset-bottom))"
+    >
+      <p
+        v-if="saveError"
+        class="text-xs text-negative"
+        role="alert"
+      >
+        The Lyrics Offset could not be saved: {{ saveError }}
+      </p>
+
+      <LyricsOffsetControl
+        v-if="track?.lyrics"
+        :offset-ms="offsetMs"
+        @change="setOffset"
+      />
+
+      <div
+        v-if="track?.importState === 'ready'"
+        class="flex w-full max-w-3xl items-center gap-3"
+      >
+        <span class="w-12 text-right text-xs tabular-nums text-text-muted">{{ formatDuration(shownMs) }}</span>
+        <input
+          type="range"
+          class="h-11 min-w-0 flex-1 cursor-pointer accent-accent disabled:cursor-default"
+          min="0"
+          :max="Math.max(durationMs, 1)"
+          step="100"
+          :value="shownMs"
+          :disabled="!isCurrent || playerState.loading || playerState.error !== null"
+          aria-label="Seek"
+          @input="onScrub"
+          @change="onSeek"
+        >
+        <span class="w-12 text-xs tabular-nums text-text-muted">-{{ formatDuration(Math.max(0, durationMs - shownMs)) }}</span>
+        <button
+          type="button"
+          class="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent text-ground transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
+          :disabled="!isCurrent || playerState.error !== null"
+          :aria-label="playerState.playing ? 'Pause' : 'Play'"
+          @click="player.toggle()"
+        >
+          <Loader2
+            v-if="playerState.loading"
+            class="size-6 animate-spin"
+          />
+          <Pause
+            v-else-if="playerState.playing"
+            class="size-6"
+            fill="currentColor"
+          />
+          <Play
+            v-else
+            class="size-6 translate-x-px"
+            fill="currentColor"
+          />
+        </button>
+      </div>
+
+      <p
+        v-if="isCurrent && playerState.error"
+        class="text-sm text-negative"
+        role="alert"
+      >
+        {{ playerState.error }}
+      </p>
+    </footer>
+  </main>
+</template>

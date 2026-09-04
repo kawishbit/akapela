@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Loader2, Pause, Play, XCircle } from 'lucide-vue-next'
-import type { TrackWithJob } from '~~/server/lib/tracks'
+import { ArrowLeft, Loader2, Mic2, Pause, Play, XCircle } from 'lucide-vue-next'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -9,13 +8,7 @@ const playerState = player.state
 
 const POLL_MS = 1000
 
-const { data: track, error, refresh } = await useAsyncData<TrackWithJob>(
-  () => `track-${id.value}`,
-  () => $fetch<TrackWithJob>(`/api/tracks/${id.value}`),
-  { watch: [id] },
-)
-
-const notFound = computed(() => (error.value as { statusCode?: number } | null)?.statusCode === 404)
+const { track, error, notFound, refresh } = useTrackDetail(id)
 
 // Keep the page current while the worker is still importing.
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -162,8 +155,16 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Presto` : 'Presto
               />
               {{ isCurrent && playerState.playing ? 'Pause' : 'Play' }}
             </button>
+            <NuxtLink
+              v-if="track.importState === 'ready'"
+              :to="`/tracks/${track.id}/sing`"
+              class="inline-flex h-12 items-center gap-2 rounded-pill bg-surface-mid px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
+            >
+              <Mic2 class="size-4" />
+              Sing
+            </NuxtLink>
             <button
-              v-else-if="track.importState === 'failed'"
+              v-if="track.importState === 'failed'"
               type="button"
               class="inline-flex h-12 items-center gap-2 rounded-pill bg-surface-mid px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card disabled:opacity-60"
               :disabled="retrying"
@@ -200,6 +201,13 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Presto` : 'Presto
           </p>
         </div>
       </header>
+
+      <SongPanel
+        v-if="track.importState === 'ready'"
+        class="mb-4"
+        :track="track"
+        @confirmed="track = $event"
+      />
 
       <AdjustmentsPanel
         v-if="track.importState === 'ready' && adjustments"

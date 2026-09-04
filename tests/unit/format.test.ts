@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { errorSummary, formatDuration, formatPitch, formatTempo } from '../../app/utils/format'
+import { errorSummary, formatDuration, formatLyricsOffset, formatPitch, formatTempo } from '../../app/utils/format'
 
 describe('formatPitch', () => {
   test('shows whole semitones with an explicit sign', () => {
@@ -18,6 +18,15 @@ describe('formatTempo', () => {
   test('shows a percentage', () => {
     expect(formatTempo(100)).toBe('100%')
     expect(formatTempo(85)).toBe('85%')
+  })
+})
+
+describe('formatLyricsOffset', () => {
+  test('shows tenths of a second with an explicit sign', () => {
+    expect(formatLyricsOffset(0)).toBe('0.0 s')
+    expect(formatLyricsOffset(300)).toBe('+0.3 s')
+    expect(formatLyricsOffset(-1500)).toBe('-1.5 s')
+    expect(formatLyricsOffset(10000)).toBe('+10.0 s')
   })
 })
 

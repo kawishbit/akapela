@@ -1,0 +1,39 @@
+import { eq } from 'drizzle-orm'
+import { lyrics, type Lyrics } from '../db/schema'
+import type { LyricsProviderName } from '../../shared/lyrics'
+import type { FetchedLyrics, LyricsProvider } from '../lyrics/provider'
+import type { Presto } from './presto'
+
+/** The Lyrics Provider of that name, or undefined when this instance cannot reach it. */
+export function lyricsProviderNamed(presto: Presto, name: LyricsProviderName): LyricsProvider | undefined {
+  return presto.lyricsProviders.find(provider => provider.name === name)
+}
+
+/** The Lyrics attached to a Track, or null when it has none. */
+export function getLyrics(presto: Presto, trackId: string): Lyrics | null {
+  return presto.db.select().from(lyrics).where(eq(lyrics.trackId, trackId)).get() ?? null
+}
+
+/**
+ * Puts what a provider returned in place of whatever the Track had. Passing
+ * null clears the Lyrics, which is what a Song with none deserves: leaving the
+ * previous Song's words on screen would be worse than showing none.
+ */
+export function replaceLyrics(
+  presto: Presto,
+  trackId: string,
+  found: (FetchedLyrics & { provider: LyricsProviderName }) | null,
+): Lyrics | null {
+  const row: Lyrics | null = found && {
+    trackId,
+    provider: found.provider,
+    kind: found.kind,
+    lines: found.lines,
+    fetchedAt: Date.now(),
+  }
+  presto.db.transaction((tx) => {
+    tx.delete(lyrics).where(eq(lyrics.trackId, trackId)).run()
+    if (row) tx.insert(lyrics).values(row).run()
+  })
+  return row
+}

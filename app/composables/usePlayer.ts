@@ -80,14 +80,20 @@ export function usePlayer() {
   /** Makes a ready Track the player's current one and loads its Backing Track, without starting playback. */
   async function open(track: TrackWithJob): Promise<void> {
     if (import.meta.server) return
-    if (state.value.track?.id === track.id && !state.value.error) return
-    flushSave()
-    state.value.track = {
+    // The bar always shows the Track as it is now: confirming a Song changes
+    // the artist and the cover under a Track that is already loaded.
+    const display: PlayerTrack = {
       id: track.id,
       title: track.title,
       artist: track.artist,
       coverVersion: track.updatedAt,
     }
+    if (state.value.track?.id === track.id && !state.value.error) {
+      state.value.track = display
+      return
+    }
+    flushSave()
+    state.value.track = display
     state.value.adjustments = { ...track.adjustments }
     state.value.positionMs = 0
     state.value.durationMs = track.durationMs ?? 0

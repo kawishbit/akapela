@@ -1,5 +1,7 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
+import { LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
+import type { SongProviderIds } from '../../shared/song'
 
 export const JOB_TYPES = ['noop', 'import'] as const
 export type JobType = (typeof JOB_TYPES)[number]
@@ -54,8 +56,41 @@ export const tracks = sqliteTable('tracks', {
     .$type<Adjustments>()
     .notNull()
     .default(DEFAULT_ADJUSTMENTS),
+  /**
+   * The confirmed Song, embedded because a Track has at most one. All four
+   * columns are null together, until the singer confirms a match or types the
+   * artist and title by hand.
+   */
+  songArtist: text('song_artist'),
+  songTitle: text('song_title'),
+  /** Per Lyrics Provider handle for fetching this Song again, keyed by provider name. */
+  songProviderIds: text('song_provider_ids', { mode: 'json' }).$type<SongProviderIds>(),
+  songAlbumArtUrl: text('song_album_art_url'),
+  /**
+   * Shift applied to this Track's Lyrics, positive to hold them back for a
+   * longer intro. Belongs to the Track rather than the Lyrics, so refetching
+   * Lyrics leaves it alone.
+   */
+  lyricsOffsetMs: integer('lyrics_offset_ms').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })
 
 export type Track = typeof tracks.$inferSelect
+
+/**
+ * The Lyrics of one Track: at most one row per Track, replaced wholesale when
+ * they are fetched again. `lines` holds the text in order, each with the song
+ * time it is sung at when the Lyrics are Synced.
+ */
+export const lyrics = sqliteTable('lyrics', {
+  trackId: text('track_id')
+    .primaryKey()
+    .references(() => tracks.id, { onDelete: 'cascade' }),
+  provider: text('provider', { enum: LYRICS_PROVIDERS }).notNull(),
+  kind: text('kind', { enum: LYRICS_KINDS }).notNull(),
+  lines: text('lines', { mode: 'json' }).$type<LyricsLine[]>().notNull(),
+  fetchedAt: integer('fetched_at').notNull(),
+})
+
+export type Lyrics = typeof lyrics.$inferSelect
