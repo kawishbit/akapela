@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown, Loader2, Pause, Play } from 'lucide-vue-next'
 import { effectivePitchSemitones } from '~~/shared/adjustments'
+import { LYRICS_PROVIDER_LABELS } from '~~/shared/lyrics'
 
 // The Lyrics fill the screen here; the persistent player bar would only steal
 // room from them, so this page carries its own transport.
@@ -30,6 +31,13 @@ const songLabel = computed(() => {
   const current = track.value
   if (!current) return ''
   return current.songTitle ? `${current.songArtist} · ${current.songTitle}` : current.title
+})
+
+/** Where the words on screen came from, so a singer knows what to change if they are wrong. */
+const lyricsLabel = computed(() => {
+  const lyrics = track.value?.lyrics
+  if (!lyrics) return null
+  return `${lyrics.kind === 'synced' ? 'Synced' : 'Plain'} Lyrics from ${LYRICS_PROVIDER_LABELS[lyrics.provider]}`
 })
 
 // The Lyrics Offset moves under the singer's thumb and is saved once the
@@ -123,6 +131,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Presto` : 'P
           class="truncate text-xs text-text-muted"
         >
           {{ formatPitch(effectivePitchSemitones(adjustments)) }} · {{ formatTempo(adjustments.tempoPercent) }}
+          <template v-if="lyricsLabel"> · {{ lyricsLabel }}</template>
         </p>
       </div>
       <div class="size-11 shrink-0" />
@@ -150,7 +159,9 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Presto` : 'P
             It may have been deleted.
           </template>
           <template v-else-if="track?.songTitle">
-            No Lyrics Provider has words for {{ track.songArtist }} · {{ track.songTitle }}.
+            {{ LYRICS_PROVIDER_LABELS[track.lyricsProvider] }} has no words for
+            {{ track.songArtist }} · {{ track.songTitle }}. Open the Track to try another provider or
+            paste them yourself.
           </template>
           <template v-else>
             Confirm which Song this Track is and Presto will fetch its Lyrics.

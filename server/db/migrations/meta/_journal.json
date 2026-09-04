@@ -29,6 +29,13 @@
       "when": 1788505444140,
       "tag": "0003_song_and_lyrics",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788508140513,
+      "tag": "0004_lyrics_provider_and_settings",
+      "breakpoints": true
     }
   ]
 }

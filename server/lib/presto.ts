@@ -4,6 +4,7 @@ import Database from 'better-sqlite3'
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as schema from '../db/schema'
+import { createGeniusProvider } from '../lyrics/genius'
 import { createLrclibProvider } from '../lyrics/lrclib'
 import type { LyricsProvider } from '../lyrics/provider'
 
@@ -12,8 +13,12 @@ export interface PrestoOptions {
   dataDir: string
   /** Folder of drizzle-kit generated SQL migrations. */
   migrationsDir: string
-  /** The Lyrics Providers this instance can reach. Defaults to LRCLIB; tests pass fakes. */
+  /** The Lyrics Providers this instance can reach. Defaults to LRCLIB and Genius; tests pass fakes. */
   lyricsProviders?: LyricsProvider[]
+  /** Genius API token, from the environment. Without one the Genius provider is unavailable. */
+  geniusToken?: string
+  /** How this instance reaches the web outside a provider, which is cover art. Tests pass a stub. */
+  fetch?: typeof globalThis.fetch
 }
 
 export interface Presto {
@@ -22,6 +27,8 @@ export interface Presto {
   /** The raw connection, for the rare statement drizzle cannot express. */
   sqlite: Database.Database
   lyricsProviders: readonly LyricsProvider[]
+  /** Fetches things that belong to no provider, such as album art. */
+  fetch: typeof globalThis.fetch
   close(): void
 }
 
@@ -44,7 +51,9 @@ export function createPresto(options: PrestoOptions): Presto {
     dataDir: options.dataDir,
     db,
     sqlite,
-    lyricsProviders: options.lyricsProviders ?? [createLrclibProvider()],
+    lyricsProviders: options.lyricsProviders
+      ?? [createLrclibProvider(), createGeniusProvider({ token: options.geniusToken ?? '' })],
+    fetch: options.fetch ?? ((...args) => globalThis.fetch(...args)),
     close() {
       sqlite.close()
     },

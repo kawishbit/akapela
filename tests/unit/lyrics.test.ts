@@ -1,12 +1,19 @@
 import { describe, expect, test } from 'vitest'
 import {
+  INVALID_LYRICS_PROVIDER_MESSAGE,
+  INVALID_MANUAL_LYRICS_MESSAGE,
   LYRICS_OFFSET_MAX_MS,
   LYRICS_OFFSET_MIN_MS,
+  LYRICS_PROVIDERS,
+  MANUAL_LYRICS_MAX_LENGTH,
   currentLineIndex,
+  lyricsText,
   nudgeLyricsOffset,
   parseLrc,
-  parsePlainLyrics,
   parseLyricsOffset,
+  parseLyricsProviderName,
+  parseManualLyricsText,
+  parsePlainLyrics,
   plainScrollFraction,
   type LyricsLine,
 } from '../../shared/lyrics'
@@ -225,5 +232,49 @@ describe('parseLyricsOffset', () => {
     Number.NaN,
   ])('rejects %j because it is not a whole tenth of a second in range', (offsetMs) => {
     expect(() => parseLyricsOffset(offsetMs)).toThrow()
+  })
+})
+
+describe('reading a Lyrics Provider name off the wire', () => {
+  test.each(LYRICS_PROVIDERS)('%s is a provider', (name) => {
+    expect(parseLyricsProviderName(name)).toBe(name)
+  })
+
+  test.each([null, '', 'LRCLIB', 'spotify', 42, {}])('%j is not', (input) => {
+    expect(() => parseLyricsProviderName(input)).toThrow(INVALID_LYRICS_PROVIDER_MESSAGE)
+  })
+})
+
+describe('Lyrics pasted by hand', () => {
+  test('become one Plain line per line of text', () => {
+    expect(parseManualLyricsText('Yesterday\r\nAll my troubles\n')).toEqual([
+      { text: 'Yesterday' },
+      { text: 'All my troubles' },
+    ])
+  })
+
+  test('keep the blank lines between verses', () => {
+    expect(parseManualLyricsText('One\n\nTwo')).toEqual([{ text: 'One' }, { text: '' }, { text: 'Two' }])
+  })
+
+  test.each([null, 42, '', '   \n  '])('%j is not Lyrics', (input) => {
+    expect(() => parseManualLyricsText(input)).toThrow(INVALID_MANUAL_LYRICS_MESSAGE)
+  })
+
+  test('a paste longer than a song is refused', () => {
+    expect(() => parseManualLyricsText('a\n'.repeat(MANUAL_LYRICS_MAX_LENGTH))).toThrow(
+      INVALID_MANUAL_LYRICS_MESSAGE,
+    )
+  })
+})
+
+describe('the text of Lyrics being edited', () => {
+  test('is the lines as they are sung, timings dropped', () => {
+    expect(lyricsText([{ text: 'Yesterday', atMs: 12_340 }, { text: 'All my troubles' }]))
+      .toBe('Yesterday\nAll my troubles')
+  })
+
+  test('of no lines is empty', () => {
+    expect(lyricsText([])).toBe('')
   })
 })

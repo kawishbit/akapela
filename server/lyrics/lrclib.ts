@@ -66,6 +66,9 @@ export function createLrclibProvider(options: LrclibOptions = {}): LyricsProvide
   return {
     name: 'lrclib',
 
+    /** LRCLIB needs no account, so it is always there. */
+    available: true,
+
     async searchSongs(query: SongSearchQuery): Promise<SongMatch[]> {
       const title = query.title.trim()
       if (!title) return []

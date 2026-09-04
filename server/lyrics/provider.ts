@@ -1,4 +1,4 @@
-import type { LyricsKind, LyricsLine, LyricsProviderName } from '../../shared/lyrics'
+import { LYRICS_PROVIDER_LABELS, type LyricsKind, type LyricsLine, type LyricsProviderName } from '../../shared/lyrics'
 import type { Song, SongGuess } from '../../shared/song'
 
 /**
@@ -9,6 +9,12 @@ import type { Song, SongGuess } from '../../shared/song'
  */
 export interface LyricsProvider {
   readonly name: LyricsProviderName
+  /**
+   * Whether this instance can be used. A provider that needs a credential the
+   * self-hoster has not configured is still here, so the app can say what it
+   * would take to have it, but the singer is not offered it.
+   */
+  readonly available: boolean
   /** Songs the provider knows that match the guess, best first. */
   searchSongs(query: SongSearchQuery): Promise<SongMatch[]>
   /** The Lyrics for a confirmed Song, or null when the provider has none. */
@@ -36,7 +42,7 @@ export interface FetchedLyrics {
 /** Raised when a provider is reachable but unhappy, so the singer sees why rather than a blank list. */
 export class LyricsProviderError extends Error {
   constructor(provider: LyricsProviderName, detail: string) {
-    super(`${provider} could not be reached: ${detail}`)
+    super(`${LYRICS_PROVIDER_LABELS[provider]} could not be reached: ${detail}`)
     this.name = 'LyricsProviderError'
   }
 }

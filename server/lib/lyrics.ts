@@ -4,9 +4,12 @@ import type { LyricsProviderName } from '../../shared/lyrics'
 import type { FetchedLyrics, LyricsProvider } from '../lyrics/provider'
 import type { Presto } from './presto'
 
-/** The Lyrics Provider of that name, or undefined when this instance cannot reach it. */
+/**
+ * The Lyrics Provider of that name, or undefined when this instance cannot
+ * reach it: either it was never built, or it needs a token nobody configured.
+ */
 export function lyricsProviderNamed(presto: Presto, name: LyricsProviderName): LyricsProvider | undefined {
-  return presto.lyricsProviders.find(provider => provider.name === name)
+  return presto.lyricsProviders.find(provider => provider.name === name && provider.available)
 }
 
 /** The Lyrics attached to a Track, or null when it has none. */

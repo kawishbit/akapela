@@ -209,6 +209,13 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Presto` : 'Presto
         @confirmed="track = $event"
       />
 
+      <LyricsPanel
+        v-if="track.importState === 'ready'"
+        class="mb-4"
+        :track="track"
+        @changed="track = $event"
+      />
+
       <AdjustmentsPanel
         v-if="track.importState === 'ready' && adjustments"
         :adjustments="adjustments"

@@ -1,6 +1,6 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
-import { LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
+import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
 
 export const JOB_TYPES = ['noop', 'import'] as const
@@ -67,6 +67,15 @@ export const tracks = sqliteTable('tracks', {
   songProviderIds: text('song_provider_ids', { mode: 'json' }).$type<SongProviderIds>(),
   songAlbumArtUrl: text('song_album_art_url'),
   /**
+   * The Lyrics Provider this Track's Lyrics are looked up in. Set from the
+   * default when the Track is created and changed per Track afterwards, since
+   * one Song may only be on Genius and the next only on LRCLIB. It becomes
+   * Manual when the singer pastes or edits the words themselves.
+   */
+  lyricsProvider: text('lyrics_provider', { enum: LYRICS_PROVIDERS })
+    .notNull()
+    .default(DEFAULT_LYRICS_PROVIDER),
+  /**
    * Shift applied to this Track's Lyrics, positive to hold them back for a
    * longer intro. Belongs to the Track rather than the Lyrics, so refetching
    * Lyrics leaves it alone.
@@ -94,3 +103,22 @@ export const lyrics = sqliteTable('lyrics', {
 })
 
 export type Lyrics = typeof lyrics.$inferSelect
+
+/** The one settings row; Presto is one singer's app, so there is nothing to key them by. */
+export const SETTINGS_ROW_ID = 1
+
+/**
+ * The choices that apply to the whole app rather than to one Track. Kept in
+ * the database rather than the environment because the singer sets them from
+ * the app, not the self-hoster from compose.
+ */
+export const settings = sqliteTable('settings', {
+  id: integer('id').primaryKey(),
+  /** The Lyrics Provider new Tracks start out looking their Lyrics up in. */
+  defaultLyricsProvider: text('default_lyrics_provider', { enum: LYRICS_PROVIDERS })
+    .notNull()
+    .default(DEFAULT_LYRICS_PROVIDER),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export type Settings = typeof settings.$inferSelect

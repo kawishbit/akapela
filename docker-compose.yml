@@ -16,6 +16,9 @@ services:
       - "${PRESTO_PORT:-3000}:3000"
     environment:
       NUXT_DATA_DIR: /data
+      # Optional. With a token, Genius joins LRCLIB and Manual as a Lyrics
+      # Provider; without one it is hidden and the others carry on.
+      PRESTO_GENIUS_TOKEN: "${PRESTO_GENIUS_TOKEN:-}"
     volumes:
       - ${PRESTO_DATA:-presto-data}:/data
     restart: unless-stopped

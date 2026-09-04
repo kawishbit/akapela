@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { desc, eq, sql } from 'drizzle-orm'
 import { jobs, tracks, type Job, type Lyrics, type SourceKind, type Track } from '../db/schema'
@@ -12,10 +12,12 @@ import {
   youtubeVideoId,
 } from '../../shared/youtube'
 import type { Song } from '../../shared/song'
-import { placeholderCoverSvg } from './cover'
+import type { LyricsProviderName } from '../../shared/lyrics'
+import { COVER_BASENAME, coverExtension, placeholderCoverSvg } from './cover'
 import { enqueueJob } from './jobs'
 import { getLyrics } from './lyrics'
 import type { Presto } from './presto'
+import { getSettings } from './settings'
 
 /** Filename of the normalized 44.1 kHz stereo WAV the worker writes into the Track directory (ADR 0005). */
 export const BACKING_TRACK_FILE = 'backing.wav'
@@ -90,7 +92,7 @@ function startImport(
 ): TrackWithJob {
   const dir = trackDir(presto, input.id)
   mkdirSync(dir, { recursive: true })
-  const coverPath = 'cover.svg'
+  const coverPath = `${COVER_BASENAME}.svg`
   writeFileSync(join(dir, coverPath), placeholderCoverSvg(input.title))
 
   const now = Date.now()
@@ -108,6 +110,8 @@ function startImport(
     songTitle: null,
     songProviderIds: null,
     songAlbumArtUrl: null,
+    // New Tracks start where the singer said Lyrics should come from.
+    lyricsProvider: getSettings(presto).defaultLyricsProvider,
     lyricsOffsetMs: 0,
     createdAt: now,
     updatedAt: now,
@@ -190,6 +194,77 @@ export function saveSong(presto: Presto, track: TrackWithJob, song: Song): Track
   }
   presto.db.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
   return { ...track, ...saved }
+}
+
+/** Larger than any album cover, so a body this big is not one. */
+const MAX_COVER_BYTES = 8 * 1024 * 1024
+
+/**
+ * Replaces a Track's cover art with the album art of the Song confirmed on it.
+ * DESIGN.md asks for exactly this: the artwork is the only colour on the Sing
+ * screen, so an album cover beats a video thumbnail. Genius is the provider
+ * that has album art; LRCLIB has none, so nothing happens for it.
+ *
+ * Artwork is a nicety, so every failure — an unreachable host, a body that is
+ * not an image — leaves the Track's current cover in place: a Song is still
+ * confirmed when its art will not load.
+ */
+export async function replaceCoverWithAlbumArt(
+  presto: Presto,
+  track: TrackWithJob,
+  albumArtUrl: string,
+): Promise<TrackWithJob> {
+  let bytes: Uint8Array
+  let ext: string | undefined
+  try {
+    const response = await presto.fetch(albumArtUrl, { headers: { accept: 'image/*' } })
+    if (!response.ok) return track
+    const contentType = (response.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase()
+    const body = await response.arrayBuffer()
+    if (body.byteLength === 0 || body.byteLength > MAX_COVER_BYTES) return track
+    bytes = new Uint8Array(body)
+    ext = coverExtension(contentType, albumArtUrl)
+  }
+  catch {
+    return track
+  }
+  if (!ext) return track
+
+  const dir = trackDir(presto, track.id)
+  const coverPath = `${COVER_BASENAME}.${ext}`
+  // Written beside the old cover and moved into place, so a half-written file
+  // is never what the page asks for.
+  const partial = join(dir, `${COVER_BASENAME}.part`)
+  writeFileSync(partial, bytes)
+  renameSync(partial, join(dir, coverPath))
+  // The art may be a different type than the cover it replaces.
+  for (const name of readdirSync(dir)) {
+    if (name.startsWith(`${COVER_BASENAME}.`) && name !== coverPath) rmSync(join(dir, name), { force: true })
+  }
+
+  const updatedAt = Date.now()
+  presto.db.update(tracks).set({ coverPath, updatedAt }).where(eq(tracks.id, track.id)).run()
+  return { ...track, coverPath, updatedAt }
+}
+
+/**
+ * Saves the Lyrics Provider this Track's Lyrics are looked up in, which the
+ * singer changes per Track because one Song is on Genius and the next on
+ * LRCLIB.
+ */
+export function saveLyricsProvider(
+  presto: Presto,
+  track: TrackWithJob,
+  lyricsProvider: LyricsProviderName,
+): TrackWithJob {
+  if (track.lyricsProvider === lyricsProvider) return track
+  const now = Date.now()
+  presto.db
+    .update(tracks)
+    .set({ lyricsProvider, updatedAt: now })
+    .where(eq(tracks.id, track.id))
+    .run()
+  return { ...track, lyricsProvider, updatedAt: now }
 }
 
 /**

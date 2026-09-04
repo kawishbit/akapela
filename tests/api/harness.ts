@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { createServer, type Server } from 'node:http'
 import { createApp, createRouter, eventHandler, toNodeListener } from 'h3'
 import { createPresto } from '../../server/lib/presto'
+import type { SongMatch } from '../../server/lyrics/provider'
 import jobsPost from '../../server/api/jobs.post'
 import jobsIdGet from '../../server/api/jobs/[id].get'
 import tracksPost from '../../server/api/tracks.post'
@@ -17,7 +18,12 @@ import tracksIdAdjustmentsPut from '../../server/api/tracks/[id]/adjustments.put
 import tracksIdSongsGet from '../../server/api/tracks/[id]/songs.get'
 import tracksIdSongPut from '../../server/api/tracks/[id]/song.put'
 import tracksIdLyricsOffsetPut from '../../server/api/tracks/[id]/lyrics-offset.put'
+import tracksIdLyricsPost from '../../server/api/tracks/[id]/lyrics.post'
+import tracksIdLyricsPut from '../../server/api/tracks/[id]/lyrics.put'
+import settingsGet from '../../server/api/settings.get'
+import settingsPut from '../../server/api/settings.put'
 import { createFakeLyricsProvider } from './fake-lyrics-provider'
+import { createFakeImages } from './fake-images'
 
 /**
  * Boots the real route handlers on an in-process h3 app backed by a fresh
@@ -28,11 +34,14 @@ import { createFakeLyricsProvider } from './fake-lyrics-provider'
  */
 export async function createTestApi() {
   const dataDir = mkdtempSync(join(tmpdir(), 'presto-test-'))
-  const lyricsProvider = createFakeLyricsProvider()
+  const lrclib = createFakeLyricsProvider('lrclib')
+  const genius = createFakeLyricsProvider('genius')
+  const images = createFakeImages()
   const presto = createPresto({
     dataDir,
     migrationsDir: join(process.cwd(), 'server/db/migrations'),
-    lyricsProviders: [lyricsProvider.provider],
+    lyricsProviders: [lrclib.provider, genius.provider],
+    fetch: images.fetch,
   })
 
   const app = createApp()
@@ -53,6 +62,10 @@ export async function createTestApi() {
   router.get('/api/tracks/:id/songs', tracksIdSongsGet)
   router.put('/api/tracks/:id/song', tracksIdSongPut)
   router.put('/api/tracks/:id/lyrics-offset', tracksIdLyricsOffsetPut)
+  router.post('/api/tracks/:id/lyrics', tracksIdLyricsPost)
+  router.put('/api/tracks/:id/lyrics', tracksIdLyricsPut)
+  router.get('/api/settings', settingsGet)
+  router.put('/api/settings', settingsPut)
   app.use(router)
 
   const server: Server = createServer(toNodeListener(app))
@@ -65,8 +78,12 @@ export async function createTestApi() {
     presto,
     dataDir,
     baseUrl,
-    /** What the stand-in Lyrics Provider knows and what it was asked. */
-    lyrics: lyricsProvider.canned,
+    /** What the stand-in LRCLIB knows and what it was asked. */
+    lyrics: lrclib.canned,
+    /** The same for the stand-in Genius, which is where album art comes from. */
+    genius: genius.canned,
+    /** The album art the stand-in web answers with, and what was asked for. */
+    images,
     get: (path: string) => fetch(baseUrl + path),
     post: (path: string, body: unknown) =>
       fetch(baseUrl + path, {
@@ -88,7 +105,10 @@ export async function createTestApi() {
       return fetch(baseUrl + path, { method: 'POST', body: form })
     },
     /** Confirms a Song on a Track, which is what gives the Track an artist. */
-    confirmSong(trackId: string, song: { artist: string, title: string }) {
+    confirmSong(
+      trackId: string,
+      song: Partial<SongMatch> & { artist: string, title: string, overwriteManual?: boolean },
+    ) {
       return this.put(`/api/tracks/${trackId}/song`, song)
     },
     /** Stand in for the worker, which owns every state change after `queued`. */

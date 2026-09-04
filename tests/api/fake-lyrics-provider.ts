@@ -1,3 +1,4 @@
+import type { LyricsProviderName } from '../../shared/lyrics'
 import type { FetchedLyrics, LyricsProvider, SongMatch } from '../../server/lyrics/provider'
 
 /** What the fake will answer with, set per test before the call that reads it. */
@@ -9,24 +10,33 @@ export interface CannedLyricsProvider {
   /** When set, the matching call rejects with it instead of answering. */
   searchError: Error | null
   fetchError: Error | null
+  /** Whether the provider is configured on this instance, as a token would decide. */
+  available: boolean
 }
 
 /**
- * A Lyrics Provider standing in for LRCLIB, so API tests exercise Song
+ * A Lyrics Provider standing in for a remote one, so API tests exercise Song
  * identification and Lyrics fetching without the network. It matches a search
  * on the title alone, which is what makes a wrong reading of a video title
  * ("Yesterday - The Beatles" read artist-first) come back empty.
  */
-export function createFakeLyricsProvider(): { provider: LyricsProvider, canned: CannedLyricsProvider } {
+export function createFakeLyricsProvider(
+  name: LyricsProviderName = 'lrclib',
+): { provider: LyricsProvider, canned: CannedLyricsProvider } {
   const canned: CannedLyricsProvider = {
     songs: [],
     lyrics: {},
     searchError: null,
     fetchError: null,
+    available: true,
   }
 
   const provider: LyricsProvider = {
-    name: 'lrclib',
+    name,
+
+    get available() {
+      return canned.available
+    },
 
     async searchSongs(query) {
       if (canned.searchError) throw canned.searchError
@@ -44,15 +54,20 @@ export function createFakeLyricsProvider(): { provider: LyricsProvider, canned: 
 }
 
 /** A Song the fake knows, with the detail a real provider would fill in. */
-export function fakeSongMatch(artist: string, title: string, extra: Partial<SongMatch> = {}): SongMatch {
+export function fakeSongMatch(
+  artist: string,
+  title: string,
+  extra: Partial<SongMatch> & { provider?: LyricsProviderName } = {},
+): SongMatch {
+  const { provider = 'lrclib', ...rest } = extra
   return {
     artist,
     title,
     album: null,
     durationMs: null,
     instrumental: false,
-    providerIds: { lrclib: `${artist}:${title}` },
+    providerIds: { [provider]: `${artist}:${title}` },
     albumArtUrl: null,
-    ...extra,
+    ...rest,
   }
 }

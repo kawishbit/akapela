@@ -11,6 +11,9 @@ export function usePresto(): Presto {
     instance = createPresto({
       dataDir: resolve(String(config.dataDir)),
       migrationsDir: resolve(String(config.migrationsDir)),
+      // Read here rather than from runtimeConfig so a self-hoster can set it
+      // on the running container without rebuilding the image.
+      geniusToken: process.env.PRESTO_GENIUS_TOKEN ?? '',
     })
   }
   return instance

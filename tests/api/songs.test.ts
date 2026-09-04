@@ -40,6 +40,7 @@ describe('searching for the Song a Track represents', () => {
     expect(await res.json()).toEqual({
       artist: 'The Beatles',
       title: 'Yesterday',
+      provider: 'lrclib',
       matches: [YESTERDAY],
     })
   })
@@ -70,6 +71,7 @@ describe('searching for the Song a Track represents', () => {
     expect(await (await api.get(`/api/tracks/${track.id}/songs`)).json()).toEqual({
       artist: 'The Beatles',
       title: 'Yesterday',
+      provider: 'lrclib',
       matches: [],
     })
   })
@@ -80,7 +82,7 @@ describe('searching for the Song a Track represents', () => {
 
     const res = await api.get(`/api/tracks/${track.id}/songs`)
     expect(res.status).toBe(502)
-    expect(res.statusText).toMatch(/lrclib could not be reached/)
+    expect(res.statusText).toMatch(/LRCLIB could not be reached/)
   })
 
   test('searching an unknown Track is a 404', async () => {
@@ -173,7 +175,7 @@ describe('confirming the Song a Track represents', () => {
     const confirmed = await (await api.confirmSong(track.id, YESTERDAY)).json()
 
     expect(confirmed).toMatchObject({ songTitle: 'Yesterday', lyrics: null })
-    expect(confirmed.lyricsError).toMatch(/lrclib could not be reached/)
+    expect(confirmed.lyricsError).toMatch(/LRCLIB could not be reached/)
   })
 
   test('a Song changed while the provider is down does not keep the words of the one before', async () => {

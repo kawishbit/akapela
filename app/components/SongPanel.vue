@@ -20,16 +20,11 @@ const searchError = ref<string | null>(null)
 const confirmingKey = ref<string | null>(null)
 const confirmError = ref<string | null>(null)
 
+/** The Song the singer is being asked about, held until they answer the dialog. */
+const pendingConfirm = ref<{ song: { artist: string, title: string } & Partial<SongMatch>, key: string } | null>(null)
+
 const confirmedSong = computed(() =>
   props.track.songTitle ? { artist: props.track.songArtist ?? '', title: props.track.songTitle } : null)
-
-const lyricsSummary = computed(() => {
-  const lyrics = props.track.lyrics
-  if (!lyrics) return null
-  const kind = lyrics.kind === 'synced' ? 'Synced' : 'Plain'
-  const count = lyrics.lines.length
-  return `${kind} Lyrics from ${LYRICS_PROVIDER_LABELS[lyrics.provider]} · ${count} line${count === 1 ? '' : 's'}`
-})
 
 const typedSongLabel = computed(() => `${artist.value.trim()} · ${title.value.trim()}`)
 const canConfirmTyped = computed(() => artist.value.trim().length > 0 && title.value.trim().length > 0)
@@ -65,7 +60,11 @@ async function runSearch(useTyped = false) {
   }
 }
 
-async function confirm(song: { artist: string, title: string } & Partial<SongMatch>, key: string) {
+async function confirm(
+  song: { artist: string, title: string } & Partial<SongMatch>,
+  key: string,
+  overwriteManual = false,
+) {
   confirmingKey.value = key
   confirmError.value = null
   try {
@@ -76,14 +75,23 @@ async function confirm(song: { artist: string, title: string } & Partial<SongMat
         title: song.title,
         providerIds: song.providerIds,
         albumArtUrl: song.albumArtUrl,
+        overwriteManual,
       },
     })
     emit('confirmed', detail)
+    pendingConfirm.value = null
     choosing.value = false
     search.value = null
   }
   catch (error) {
-    confirmError.value = describeError(error)
+    // Confirming a Song fetches its Lyrics, which would replace ones the
+    // singer typed; the server refuses until they have been asked.
+    if ((error as { statusCode?: number }).statusCode === 409) {
+      pendingConfirm.value = { song, key }
+    }
+    else {
+      confirmError.value = describeError(error)
+    }
   }
   finally {
     confirmingKey.value = null
@@ -91,7 +99,7 @@ async function confirm(song: { artist: string, title: string } & Partial<SongMat
 }
 
 function matchKey(match: SongMatch, index: number) {
-  return match.providerIds.lrclib ?? `${index}`
+  return search.value ? match.providerIds[search.value.provider] ?? `${index}` : `${index}`
 }
 </script>
 
@@ -110,23 +118,8 @@ function matchKey(match: SongMatch, index: number) {
         <p class="truncate text-base font-bold">
           {{ confirmedSong.artist }} · {{ confirmedSong.title }}
         </p>
-        <p
-          v-if="lyricsSummary"
-          class="mt-0.5 truncate text-sm text-text-muted"
-        >
-          {{ lyricsSummary }}
-        </p>
-        <p
-          v-else-if="track.lyricsError"
-          class="mt-0.5 text-sm text-negative"
-        >
-          {{ track.lyricsError }}
-        </p>
-        <p
-          v-else
-          class="mt-0.5 text-sm text-text-muted"
-        >
-          No Lyrics found for this Song. Try another match or a different spelling.
+        <p class="mt-0.5 truncate text-sm text-text-muted">
+          Looked up on {{ LYRICS_PROVIDER_LABELS[track.lyricsProvider] }}
         </p>
       </div>
 
@@ -272,5 +265,15 @@ function matchKey(match: SongMatch, index: number) {
         {{ confirmError }}
       </p>
     </div>
+
+    <ConfirmDialog
+      :open="pendingConfirm !== null"
+      title="Replace the Lyrics you typed?"
+      message="Confirming a Song fetches its Lyrics, which replaces the ones typed on this Track."
+      confirm-label="Replace"
+      :busy="confirmingKey !== null"
+      @confirm="pendingConfirm && confirm(pendingConfirm.song, pendingConfirm.key, true)"
+      @cancel="pendingConfirm = null"
+    />
   </section>
 </template>

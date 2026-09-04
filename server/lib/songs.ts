@@ -1,26 +1,32 @@
 import { guessSongs, type Song, type SongGuess } from '../../shared/song'
-import { LyricsProviderError, type FetchedLyrics, type SongMatch } from '../lyrics/provider'
-import { lyricsProviderNamed, replaceLyrics } from './lyrics'
+import type { LyricsProviderName } from '../../shared/lyrics'
+import type { SongMatch } from '../lyrics/provider'
+import { lyricsProviderNamed } from './lyrics'
 import type { Presto } from './presto'
+import {
+  ManualLyricsOverwriteError,
+  fetchLyricsForTrack,
+  overwritesManualLyrics,
+  withAlbumArt,
+} from './track-lyrics'
 import { confirmedSong, saveSong, type TrackDetail, type TrackWithJob } from './tracks'
 
-/**
- * LRCLIB is the only Lyrics Provider in phase one; choosing between providers
- * per Track arrives with Genius and Manual.
- */
-const LYRICS_PROVIDER = 'lrclib' as const
-
-/** What the Track detail page shows: the guess it searched for, and what came back. */
+/** What the Track detail page shows: the guess it searched for, where it looked, and what came back. */
 export interface SongSearch extends SongGuess {
+  /** The Lyrics Provider the matches came from, which is the Track's own. */
+  provider: LyricsProviderName
   matches: SongMatch[]
 }
 
 /**
- * The Songs that might be this Track's, best first. A guess typed by the
- * singer wins; otherwise the confirmed Song is tried, then the artist and
- * title read out of the Track's title, in both orders. The first guess the
- * provider recognises is the one whose matches come back, so the page also
- * knows what to put in the hand-edit fields.
+ * The Songs that might be this Track's, best first, as its Lyrics Provider
+ * knows them. A guess typed by the singer wins; otherwise the confirmed Song
+ * is tried, then the artist and title read out of the Track's title, in both
+ * orders. The first guess the provider recognises is the one whose matches
+ * come back, so the page also knows what to put in the hand-edit fields.
+ *
+ * A Track set to Manual searches nowhere: its Song is whatever the singer says
+ * it is.
  */
 export async function searchSongs(
   presto: Presto,
@@ -28,17 +34,18 @@ export async function searchSongs(
   requested: Partial<SongGuess> = {},
 ): Promise<SongSearch> {
   const guesses = requestedGuess(requested) ?? trackGuesses(track)
-  const first = guesses[0]
-  if (!first) return { artist: '', title: '', matches: [] }
+  const first = guesses[0] ?? { artist: '', title: '' }
+  const empty = { ...first, provider: track.lyricsProvider, matches: [] }
+  if (!first.title) return empty
 
-  const provider = lyricsProviderNamed(presto, LYRICS_PROVIDER)
-  if (!provider) return { ...first, matches: [] }
+  const provider = lyricsProviderNamed(presto, track.lyricsProvider)
+  if (!provider) return empty
 
   for (const guess of guesses) {
     const matches = await provider.searchSongs({ ...guess, durationMs: track.durationMs })
-    if (matches.length) return { ...guess, matches }
+    if (matches.length) return { ...guess, provider: provider.name, matches }
   }
-  return { ...first, matches: [] }
+  return empty
 }
 
 function requestedGuess(requested: Partial<SongGuess>): SongGuess[] | null {
@@ -54,29 +61,21 @@ function trackGuesses(track: TrackWithJob): SongGuess[] {
 }
 
 /**
- * Confirms the Song a Track represents and fetches its Lyrics. Whatever the
- * Track had before is replaced, so changing the Song later never leaves the
- * previous Song's words behind. A provider that cannot be reached leaves the
- * existing Lyrics alone and says why.
+ * Confirms the Song a Track represents and fetches its Lyrics from the Track's
+ * Lyrics Provider. Whatever the Track had before is replaced, so changing the
+ * Song later never leaves the previous Song's words behind, and a Song that
+ * came with album art brings it to the Track's cover.
  */
-export async function confirmSong(presto: Presto, track: TrackWithJob, song: Song): Promise<TrackDetail> {
-  const confirmed = saveSong(presto, track, song)
-  const provider = lyricsProviderNamed(presto, LYRICS_PROVIDER)
-
-  let found: FetchedLyrics | null = null
-  let lyricsError: string | undefined
-  if (provider) {
-    try {
-      found = await provider.fetchLyrics(song)
-    }
-    catch (error) {
-      lyricsError = error instanceof LyricsProviderError ? error.message : String(error)
-    }
+export async function confirmSong(
+  presto: Presto,
+  track: TrackWithJob,
+  song: Song,
+  options: { overwriteManual?: boolean } = {},
+): Promise<TrackDetail> {
+  // Checked before the Song is stored, so a refusal changes nothing at all.
+  if (!options.overwriteManual && overwritesManualLyrics(presto, track, track.lyricsProvider)) {
+    throw new ManualLyricsOverwriteError()
   }
-
-  // The Lyrics on a Track always belong to the Song confirmed on it, so the
-  // ones the Song before had go even when nothing arrives to replace them.
-  // Confirming again is how a singer retries a provider that was down.
-  const lyrics = replaceLyrics(presto, track.id, found && { provider: LYRICS_PROVIDER, ...found })
-  return lyricsError === undefined ? { ...confirmed, lyrics } : { ...confirmed, lyrics, lyricsError }
+  const confirmed = await withAlbumArt(presto, saveSong(presto, track, song))
+  return fetchLyricsForTrack(presto, confirmed, { overwriteManual: true })
 }

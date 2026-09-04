@@ -15,6 +15,29 @@ export const LYRICS_PROVIDER_LABELS: Record<LyricsProviderName, string> = {
   manual: 'Manual',
 }
 
+/** Where Lyrics come from until the singer says otherwise: the provider that needs no account. */
+export const DEFAULT_LYRICS_PROVIDER: LyricsProviderName = 'lrclib'
+
+export const INVALID_LYRICS_PROVIDER_MESSAGE
+  = `A Lyrics Provider is one of ${LYRICS_PROVIDERS.join(', ')}.`
+
+/** Turns untrusted input into a Lyrics Provider name, or throws with `INVALID_LYRICS_PROVIDER_MESSAGE`. */
+export function parseLyricsProviderName(input: unknown): LyricsProviderName {
+  if (typeof input !== 'string' || !isLyricsProviderName(input)) {
+    throw new Error(INVALID_LYRICS_PROVIDER_MESSAGE)
+  }
+  return input
+}
+
+export function isLyricsProviderName(name: string): name is LyricsProviderName {
+  return (LYRICS_PROVIDERS as readonly string[]).includes(name)
+}
+
+/** What the app says when a Lyrics Provider is asked for that this instance cannot offer. */
+export function unavailableProviderMessage(name: LyricsProviderName): string {
+  return `${LYRICS_PROVIDER_LABELS[name]} is not configured on this Presto.`
+}
+
 export const LYRICS_KINDS = ['synced', 'plain'] as const
 export type LyricsKind = (typeof LYRICS_KINDS)[number]
 
@@ -92,6 +115,31 @@ export function parsePlainLyrics(text: string): LyricsLine[] {
   while (lines.length && !lines[0]!.text) lines.shift()
   while (lines.length && !lines[lines.length - 1]!.text) lines.pop()
   return lines
+}
+
+/** Longer than the wordiest song, short enough that nothing silly is stored. */
+export const MANUAL_LYRICS_MAX_LENGTH = 50_000
+
+export const INVALID_MANUAL_LYRICS_MESSAGE
+  = `Lyrics are one line of text per line sung, at most ${MANUAL_LYRICS_MAX_LENGTH} characters.`
+
+/**
+ * Turns pasted or edited text into Plain Lyrics, or throws with
+ * `INVALID_MANUAL_LYRICS_MESSAGE`. Manual Lyrics are always Plain: a singer
+ * types the words, not the timings.
+ */
+export function parseManualLyricsText(input: unknown): LyricsLine[] {
+  if (typeof input !== 'string' || input.length > MANUAL_LYRICS_MAX_LENGTH) {
+    throw new Error(INVALID_MANUAL_LYRICS_MESSAGE)
+  }
+  const lines = parsePlainLyrics(input)
+  if (lines.length === 0) throw new Error(INVALID_MANUAL_LYRICS_MESSAGE)
+  return lines
+}
+
+/** Lyrics as text to edit: the words alone, since editing them makes them Manual and so Plain. */
+export function lyricsText(lines: LyricsLine[]): string {
+  return lines.map(line => line.text).join('\n')
 }
 
 export interface CurrentLineQuery {
