@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { desc, eq, sql } from 'drizzle-orm'
-import { jobs, tracks, type Job, type Lyrics, type SourceKind, type Track } from '../db/schema'
+import { jobs, tracks, type Job, type Lyrics, type SourceKind, type Take, type Track } from '../db/schema'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
 import { UNSUPPORTED_UPLOAD_MESSAGE, uploadExtension } from '../../shared/upload'
 import {
@@ -18,6 +18,7 @@ import { enqueueJob } from './jobs'
 import { getLyrics } from './lyrics'
 import type { Presto } from './presto'
 import { getSettings } from './settings'
+import { listTakes } from './takes'
 
 /** Filename of the normalized 44.1 kHz stereo WAV the worker writes into the Track directory (ADR 0005). */
 export const BACKING_TRACK_FILE = 'backing.wav'
@@ -28,6 +29,8 @@ export type TrackWithJob = Track & { job: Job | null }
 /** Everything the Track detail and Sing pages need in one response. */
 export type TrackDetail = TrackWithJob & {
   lyrics: Lyrics | null
+  /** Newest first. */
+  takes: Take[]
   /**
    * Why the Lyrics Provider could not be asked, when a request that would have
    * fetched Lyrics failed. Never stored; absent unless this response tried.
@@ -162,9 +165,9 @@ export function getTrack(presto: Presto, id: string): TrackWithJob | undefined {
   return row && { ...row.track, job: row.job }
 }
 
-/** The Track with its Lyrics, which is what opening one is for. */
+/** The Track with its Lyrics and Takes, which is what opening one is for. */
 export function trackDetail(presto: Presto, track: TrackWithJob): TrackDetail {
-  return { ...track, lyrics: getLyrics(presto, track.id) }
+  return { ...track, lyrics: getLyrics(presto, track.id), takes: listTakes(presto, track.id) }
 }
 
 /** The Song confirmed on a Track, or null while none is. */

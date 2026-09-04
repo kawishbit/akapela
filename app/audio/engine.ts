@@ -6,6 +6,9 @@ import { songTimeAfter } from './song-time'
 const PROCESSOR_URL = '/audio/rubberband-processor.js'
 const PROCESSOR_NAME = 'backing-track-processor'
 
+/** Every stored audio master is 44.1 kHz (ADR 0005); pinning the context to match avoids resampling the Backing Track on load. */
+const SAMPLE_RATE = 44_100
+
 export interface EngineListener {
   /** A fresh position report from the audio thread, in song time. */
   onPosition(positionMs: number, playing: boolean): void
@@ -39,6 +42,15 @@ export class BackingTrackEngine {
   durationMs = 0
 
   constructor(private readonly listener: EngineListener) {}
+
+  /**
+   * The context Backing Track playback runs on, once loading has created it.
+   * A Take recording shares it (rather than opening its own) so the mic
+   * capture and the Backing Track advance on the same audio clock.
+   */
+  get audioContext(): AudioContext | undefined {
+    return this.context
+  }
 
   /** Song position in milliseconds, interpolated from the last report while playing. */
   get positionMs(): number {
@@ -122,7 +134,7 @@ export class BackingTrackEngine {
   }
 
   private async createNode(): Promise<AudioWorkletNode> {
-    const context = new AudioContext()
+    const context = new AudioContext({ sampleRate: SAMPLE_RATE })
     this.context = context
     const [wasm] = await Promise.all([
       fetch(rubberBandWasmUrl).then((response) => {

@@ -9,6 +9,7 @@ import { parseManualLyricsText, unavailableProviderMessage, type LyricsProviderN
 import { LyricsProviderError, type FetchedLyrics } from '../lyrics/provider'
 import { getLyrics, lyricsProviderNamed, replaceLyrics } from './lyrics'
 import type { Presto } from './presto'
+import { listTakes } from './takes'
 import {
   confirmedSong,
   replaceCoverWithAlbumArt,
@@ -95,7 +96,7 @@ export async function fetchLyricsForTrack(
   // ones the Song before had go even when nothing arrives to replace them.
   // Asking again is how a singer retries a provider that was down.
   const stored = replaceLyrics(presto, chosen.id, found && { provider: name, ...found })
-  const detail = { ...chosen, lyrics: stored }
+  const detail = { ...chosen, lyrics: stored, takes: listTakes(presto, chosen.id) }
   return lyricsError === undefined ? detail : { ...detail, lyricsError }
 }
 
@@ -120,5 +121,9 @@ export async function withAlbumArt(presto: Presto, track: TrackWithJob): Promise
 export function saveManualLyrics(presto: Presto, track: TrackWithJob, text: unknown): TrackDetail {
   const lines = parseManualLyricsText(text)
   const owned = saveLyricsProvider(presto, track, 'manual')
-  return { ...owned, lyrics: replaceLyrics(presto, owned.id, { provider: 'manual', kind: 'plain', lines }) }
+  return {
+    ...owned,
+    lyrics: replaceLyrics(presto, owned.id, { provider: 'manual', kind: 'plain', lines }),
+    takes: listTakes(presto, owned.id),
+  }
 }

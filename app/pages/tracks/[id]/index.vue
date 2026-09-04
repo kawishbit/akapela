@@ -216,6 +216,13 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Presto` : 'Presto
         @changed="track = $event"
       />
 
+      <TakesPanel
+        v-if="track.importState === 'ready'"
+        class="mb-4"
+        :track="track"
+        @deleted="refresh()"
+      />
+
       <AdjustmentsPanel
         v-if="track.importState === 'ready' && adjustments"
         :adjustments="adjustments"

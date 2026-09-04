@@ -16,6 +16,12 @@ const playerState = player.state
 
 const { track, notFound } = useTrackDetail(id)
 
+const recorder = useTakeRecorder(id)
+onBeforeUnmount(() => recorder.destroy())
+/** The regular transport drives the same play/pause the recorder does; hide it while that is in the recorder's hands. */
+const transportAvailable = computed(() =>
+  recorder.state.value.phase !== 'counting-down' && recorder.state.value.phase !== 'recording')
+
 onMounted(() => {
   watch(track, (value) => {
     if (value?.importState === 'ready') player.open(value)
@@ -189,13 +195,13 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Presto` : 'P
       </p>
 
       <LyricsOffsetControl
-        v-if="track?.lyrics"
+        v-if="track?.lyrics && transportAvailable"
         :offset-ms="offsetMs"
         @change="setOffset"
       />
 
       <div
-        v-if="track?.importState === 'ready'"
+        v-if="track?.importState === 'ready' && transportAvailable"
         class="flex w-full max-w-3xl items-center gap-3"
       >
         <span class="w-12 text-right text-xs tabular-nums text-text-muted">{{ formatDuration(shownMs) }}</span>
@@ -243,6 +249,11 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Presto` : 'P
       >
         {{ playerState.error }}
       </p>
+
+      <RecordControl
+        v-if="track?.importState === 'ready'"
+        :recorder="recorder"
+      />
     </footer>
   </main>
 </template>

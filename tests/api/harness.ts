@@ -20,6 +20,9 @@ import tracksIdSongPut from '../../server/api/tracks/[id]/song.put'
 import tracksIdLyricsOffsetPut from '../../server/api/tracks/[id]/lyrics-offset.put'
 import tracksIdLyricsPost from '../../server/api/tracks/[id]/lyrics.post'
 import tracksIdLyricsPut from '../../server/api/tracks/[id]/lyrics.put'
+import tracksIdTakesGet from '../../server/api/tracks/[id]/takes.get'
+import tracksIdTakesPost from '../../server/api/tracks/[id]/takes.post'
+import tracksIdTakesTakeIdDelete from '../../server/api/tracks/[id]/takes/[takeId].delete'
 import settingsGet from '../../server/api/settings.get'
 import settingsPut from '../../server/api/settings.put'
 import { createFakeLyricsProvider } from './fake-lyrics-provider'
@@ -64,6 +67,9 @@ export async function createTestApi() {
   router.put('/api/tracks/:id/lyrics-offset', tracksIdLyricsOffsetPut)
   router.post('/api/tracks/:id/lyrics', tracksIdLyricsPost)
   router.put('/api/tracks/:id/lyrics', tracksIdLyricsPut)
+  router.get('/api/tracks/:id/takes', tracksIdTakesGet)
+  router.post('/api/tracks/:id/takes', tracksIdTakesPost)
+  router.delete('/api/tracks/:id/takes/:takeId', tracksIdTakesTakeIdDelete)
   router.get('/api/settings', settingsGet)
   router.put('/api/settings', settingsPut)
   app.use(router)
@@ -103,6 +109,13 @@ export async function createTestApi() {
       const form = new FormData()
       form.append('file', new Blob([bytes]), filename)
       return fetch(baseUrl + path, { method: 'POST', body: form })
+    },
+    /** Uploads a Take: the WAV bytes under `file`, its metadata as JSON text under `meta`. */
+    uploadTake: (trackId: string, bytes: Uint8Array, meta: Record<string, unknown>) => {
+      const form = new FormData()
+      form.append('file', new Blob([bytes]), 'take.wav')
+      form.append('meta', JSON.stringify(meta))
+      return fetch(`${baseUrl}/api/tracks/${trackId}/takes`, { method: 'POST', body: form })
     },
     /** Confirms a Song on a Track, which is what gives the Track an artist. */
     confirmSong(

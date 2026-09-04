@@ -29,6 +29,14 @@ export function formatTempo(percent: number): string {
   return `${percent}%`
 }
 
+/** A timestamp such as a Take's `createdAt`, in the browser's own locale and time zone. */
+export function formatDate(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 /** The first line of a worker error, which is the human-readable summary before any traceback. */
 export function errorSummary(error: string | null | undefined): string {
   if (!error) return 'Import failed'

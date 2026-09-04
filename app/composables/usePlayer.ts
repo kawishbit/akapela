@@ -167,6 +167,11 @@ export function usePlayer() {
     pendingSave.run()
   }
 
+  /** The Backing Track's AudioContext, once loading a Track has created it; undefined before then. */
+  function getAudioContext(): AudioContext | undefined {
+    return engine?.audioContext
+  }
+
   /** Drops the current Track, for instance after it was deleted from the library. */
   function close(): void {
     flushSave()
@@ -180,5 +185,5 @@ export function usePlayer() {
     state.value.adjustments = { ...DEFAULT_ADJUSTMENTS }
   }
 
-  return { state, open, play, pause, toggle, seek, setAdjustments, resetAdjustments, close }
+  return { state, open, play, pause, toggle, seek, setAdjustments, resetAdjustments, close, getAudioContext }
 }

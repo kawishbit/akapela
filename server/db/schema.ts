@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
@@ -103,6 +103,35 @@ export const lyrics = sqliteTable('lyrics', {
 })
 
 export type Lyrics = typeof lyrics.$inferSelect
+
+/**
+ * One recorded attempt at singing a Track: the dry vocal WAV, where in the
+ * Backing Track it started, and the Adjustments it was sung to. Latency nudge
+ * and the gain pair default to no correction and unity until the Review
+ * screen (ticket 08) lets the singer set them.
+ */
+export const takes = sqliteTable('takes', {
+  id: text('id').primaryKey(),
+  trackId: text('track_id')
+    .notNull()
+    .references(() => tracks.id, { onDelete: 'cascade' }),
+  /** Song position, in milliseconds, the Backing Track was at when this Take began. */
+  startPositionMs: integer('start_position_ms').notNull(),
+  durationMs: integer('duration_ms').notNull(),
+  /** Relative to the Track directory (`../lib/tracks#trackDir`). */
+  filePath: text('file_path').notNull(),
+  /** What was heard while singing, so a rendered Mix reproduces it. */
+  adjustments: text('adjustments', { mode: 'json' }).$type<Adjustments>().notNull(),
+  /** Vocal delay correction in milliseconds, set on the Review screen. */
+  latencyNudgeMs: integer('latency_nudge_ms').notNull().default(0),
+  /** Linear gain multipliers applied at Mix render; 1 is unity. */
+  vocalGain: real('vocal_gain').notNull().default(1),
+  backingGain: real('backing_gain').notNull().default(1),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export type Take = typeof takes.$inferSelect
 
 /** The one settings row; Presto is one singer's app, so there is nothing to key them by. */
 export const SETTINGS_ROW_ID = 1
