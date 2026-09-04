@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ArrowLeft, Loader2, Pause, Play, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Disc3, Loader2, Pause, Play, Trash2 } from 'lucide-vue-next'
 import { PITCH_SEMITONES_MAX, PITCH_SEMITONES_MIN } from '~~/shared/adjustments'
+import { toMixRequest } from '~~/shared/mix'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 
 // This screen carries its own playback (the Take over the Backing Track); the
@@ -12,13 +13,57 @@ const id = computed(() => String(route.params.id))
 const takeId = computed(() => String(route.params.takeId))
 
 const player = usePlayer()
-const { track, notFound } = useTrackDetail(id)
+const { track, notFound, refresh } = useTrackDetail(id)
 const take = computed(() => track.value?.takes.find(t => t.id === takeId.value))
 const takeMissing = computed(() => !notFound.value && track.value?.importState === 'ready' && !take.value)
+const mixes = computed(() => track.value?.mixes.filter(mix => mix.takeId === takeId.value) ?? [])
 
 const review = useTakeReview(id, take)
 const state = review.state
 const heardPitch = review.heardPitch
+
+const wavRequested = ref(false)
+const rendering = ref(false)
+const renderError = ref<string | null>(null)
+
+/** Renders using exactly what is on screen right now, so the Mix sounds like this playback (story 69). */
+async function renderMix() {
+  const current = take.value
+  if (!current || rendering.value) return
+  rendering.value = true
+  renderError.value = null
+  try {
+    await $fetch(`/api/tracks/${id.value}/takes/${current.id}/mixes`, {
+      method: 'POST',
+      body: toMixRequest(state.value, wavRequested.value),
+    })
+    await refresh()
+  }
+  catch (e) {
+    renderError.value = describeError(e)
+  }
+  finally {
+    rendering.value = false
+  }
+}
+
+// While any of this Take's Mixes is still queued or rendering, keep the page
+// current so progress, completion, and failure show up without a reload.
+const MIX_POLL_MS = 1000
+let mixPollTimer: ReturnType<typeof setTimeout> | undefined
+function stopMixPolling() {
+  if (mixPollTimer) clearTimeout(mixPollTimer)
+  mixPollTimer = undefined
+}
+function scheduleMixPoll() {
+  stopMixPolling()
+  if (!mixes.value.some(mix => mix.job && (mix.job.state === 'queued' || mix.job.state === 'running'))) return
+  mixPollTimer = setTimeout(async () => {
+    await refresh()
+    scheduleMixPoll()
+  }, MIX_POLL_MS)
+}
+watch(mixes, scheduleMixPoll, { immediate: true })
 
 onMounted(() => {
   // Only one engine should own the speakers at a time.
@@ -27,6 +72,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   window.removeEventListener('pagehide', review.flushSave)
+  stopMixPolling()
   review.destroy()
 })
 
@@ -278,6 +324,57 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Pr
         >
           Review settings could not be saved: {{ state.saveError }}
         </p>
+      </section>
+
+      <section
+        class="mb-4 flex flex-col gap-3 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
+        aria-label="Render"
+      >
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+            Mixes
+          </h2>
+          <label class="flex items-center gap-2 text-sm text-text-muted">
+            <input
+              v-model="wavRequested"
+              type="checkbox"
+              class="size-4 accent-accent"
+            >
+            Also render WAV
+          </label>
+        </div>
+
+        <button
+          type="button"
+          class="inline-flex h-12 items-center justify-center gap-2 rounded-pill bg-surface-mid px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card disabled:opacity-60"
+          :disabled="rendering"
+          @click="renderMix"
+        >
+          <Loader2
+            v-if="rendering"
+            class="size-4 animate-spin"
+          />
+          <Disc3
+            v-else
+            class="size-4"
+          />
+          Render Mix
+        </button>
+        <p
+          v-if="renderError"
+          class="text-sm text-negative"
+          role="alert"
+        >
+          {{ renderError }}
+        </p>
+
+        <MixList
+          v-if="mixes.length > 0"
+          :track-id="id"
+          :take="take"
+          :mixes="mixes"
+          @changed="refresh()"
+        />
       </section>
 
       <div class="flex items-center gap-3">

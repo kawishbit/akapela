@@ -25,6 +25,11 @@ import tracksIdTakesPost from '../../server/api/tracks/[id]/takes.post'
 import tracksIdTakesTakeIdDelete from '../../server/api/tracks/[id]/takes/[takeId].delete'
 import tracksIdTakesTakeIdPut from '../../server/api/tracks/[id]/takes/[takeId].put'
 import tracksIdTakesTakeIdAudioGet from '../../server/api/tracks/[id]/takes/[takeId]/audio.get'
+import tracksIdTakesTakeIdMixesGet from '../../server/api/tracks/[id]/takes/[takeId]/mixes.get'
+import tracksIdTakesTakeIdMixesPost from '../../server/api/tracks/[id]/takes/[takeId]/mixes.post'
+import tracksIdTakesTakeIdMixesMixIdDelete from '../../server/api/tracks/[id]/takes/[takeId]/mixes/[mixId].delete'
+import tracksIdTakesTakeIdMixesMixIdAudioGet from '../../server/api/tracks/[id]/takes/[takeId]/mixes/[mixId]/audio.get'
+import tracksIdTakesTakeIdMixesMixIdRetryPost from '../../server/api/tracks/[id]/takes/[takeId]/mixes/[mixId]/retry.post'
 import settingsGet from '../../server/api/settings.get'
 import settingsPut from '../../server/api/settings.put'
 import { createFakeLyricsProvider } from './fake-lyrics-provider'
@@ -74,6 +79,11 @@ export async function createTestApi() {
   router.delete('/api/tracks/:id/takes/:takeId', tracksIdTakesTakeIdDelete)
   router.put('/api/tracks/:id/takes/:takeId', tracksIdTakesTakeIdPut)
   router.get('/api/tracks/:id/takes/:takeId/audio', tracksIdTakesTakeIdAudioGet)
+  router.get('/api/tracks/:id/takes/:takeId/mixes', tracksIdTakesTakeIdMixesGet)
+  router.post('/api/tracks/:id/takes/:takeId/mixes', tracksIdTakesTakeIdMixesPost)
+  router.delete('/api/tracks/:id/takes/:takeId/mixes/:mixId', tracksIdTakesTakeIdMixesMixIdDelete)
+  router.get('/api/tracks/:id/takes/:takeId/mixes/:mixId/audio', tracksIdTakesTakeIdMixesMixIdAudioGet)
+  router.post('/api/tracks/:id/takes/:takeId/mixes/:mixId/retry', tracksIdTakesTakeIdMixesMixIdRetryPost)
   router.get('/api/settings', settingsGet)
   router.put('/api/settings', settingsPut)
   app.use(router)
@@ -121,6 +131,14 @@ export async function createTestApi() {
       form.append('meta', JSON.stringify(meta))
       return fetch(`${baseUrl}/api/tracks/${trackId}/takes`, { method: 'POST', body: form })
     },
+    /** Requests a Mix on a Take. */
+    requestMix(trackId: string, takeId: string, body: unknown) {
+      return this.post(`/api/tracks/${trackId}/takes/${takeId}/mixes`, body)
+    },
+    /** Retries a failed Mix's render. */
+    retryMix(trackId: string, takeId: string, mixId: string) {
+      return fetch(`${baseUrl}/api/tracks/${trackId}/takes/${takeId}/mixes/${mixId}/retry`, { method: 'POST' })
+    },
     /** Confirms a Song on a Track, which is what gives the Track an artist. */
     confirmSong(
       trackId: string,
@@ -138,6 +156,13 @@ export async function createTestApi() {
     failImport(trackId: string, jobId: string, error: string) {
       this.finishJob(jobId, 'failed', error)
       presto.sqlite.prepare(`UPDATE tracks SET import_state = 'failed' WHERE id = ?`).run(trackId)
+    },
+    /** Stand in for the worker's render job succeeding: it writes the Mix's file paths and finishes the job. */
+    finishMix(mixId: string, jobId: string, paths: { mp3Path: string, wavPath?: string | null }) {
+      presto.sqlite
+        .prepare(`UPDATE mixes SET mp3_path = ?, wav_path = ?, updated_at = ? WHERE id = ?`)
+        .run(paths.mp3Path, paths.wavPath ?? null, Date.now(), mixId)
+      this.finishJob(jobId, 'succeeded')
     },
     async close() {
       await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())))

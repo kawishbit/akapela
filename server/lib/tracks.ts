@@ -16,6 +16,7 @@ import type { LyricsProviderName } from '../../shared/lyrics'
 import { COVER_BASENAME, coverExtension, placeholderCoverSvg } from './cover'
 import { enqueueJob } from './jobs'
 import { getLyrics } from './lyrics'
+import { listMixesForTrack, type MixWithJob } from './mixes'
 import type { Presto } from './presto'
 import { getSettings } from './settings'
 import { listTakes } from './takes'
@@ -31,6 +32,8 @@ export type TrackDetail = TrackWithJob & {
   lyrics: Lyrics | null
   /** Newest first. */
   takes: Take[]
+  /** Every Mix of every Take on this Track, newest first, each with its render Job. */
+  mixes: MixWithJob[]
   /**
    * Why the Lyrics Provider could not be asked, when a request that would have
    * fetched Lyrics failed. Never stored; absent unless this response tried.
@@ -167,7 +170,12 @@ export function getTrack(presto: Presto, id: string): TrackWithJob | undefined {
 
 /** The Track with its Lyrics and Takes, which is what opening one is for. */
 export function trackDetail(presto: Presto, track: TrackWithJob): TrackDetail {
-  return { ...track, lyrics: getLyrics(presto, track.id), takes: listTakes(presto, track.id) }
+  return {
+    ...track,
+    lyrics: getLyrics(presto, track.id),
+    takes: listTakes(presto, track.id),
+    mixes: listMixesForTrack(presto, track.id),
+  }
 }
 
 /** The Song confirmed on a Track, or null while none is. */

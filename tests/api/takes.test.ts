@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { createTestApi, type TestApi } from './harness'
@@ -113,6 +113,29 @@ describe('deleting a Take', () => {
 
     expect(existsSync(file)).toBe(false)
     expect(await (await api.get(`/api/tracks/${track.id}/takes`)).json()).toEqual([])
+  })
+
+  test('also removes every Mix rendered from it, rows and files, not just the Take', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
+    const mix = await (await api.requestMix(track.id, take.id, {
+      adjustments: VALID_META.adjustments,
+      latencyNudgeMs: 0,
+      vocalGain: 1,
+      backingGain: 1,
+      wav: true,
+    })).json()
+    const mixesDir = join(api.dataDir, 'tracks', track.id, 'mixes')
+    mkdirSync(mixesDir, { recursive: true })
+    writeFileSync(join(mixesDir, `${mix.id}.mp3`), Buffer.from('mp3'))
+    writeFileSync(join(mixesDir, `${mix.id}.wav`), Buffer.from('wav'))
+    api.finishMix(mix.id, mix.jobId, { mp3Path: `mixes/${mix.id}.mp3`, wavPath: `mixes/${mix.id}.wav` })
+
+    const res = await api.del(`/api/tracks/${track.id}/takes/${take.id}`)
+    expect(res.status).toBe(204)
+
+    expect(existsSync(join(mixesDir, `${mix.id}.mp3`))).toBe(false)
+    expect(existsSync(join(mixesDir, `${mix.id}.wav`))).toBe(false)
   })
 
   test('deleting an unknown Take is a 404', async () => {

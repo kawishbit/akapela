@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { and, desc, eq, sql } from 'drizzle-orm'
-import { takes, type Take } from '../db/schema'
+import { mixes, takes, type Take } from '../db/schema'
 import type { TakeReviewUpdate, TakeUploadMeta } from '../../shared/take'
 import type { Presto } from './presto'
 import { trackDir } from './tracks'
@@ -74,14 +74,30 @@ export function updateTakeReview(presto: Presto, take: Take, input: TakeReviewUp
   return { ...take, ...input, updatedAt: now }
 }
 
-/** Deletes a Take's row and its WAV file. Returns false when no such Take exists on that Track. */
+/**
+ * Deletes a Take's row and its WAV file, and every Mix rendered from it.
+ * The `mixes` table cascades on the Take's row (`server/db/schema.ts`), but a
+ * cascade only removes rows — their MP3 and WAV files are reclaimed here,
+ * read out before the delete takes the rows (and the join to reach them) away.
+ */
 export function deleteTake(presto: Presto, trackId: string, takeId: string): boolean {
+  const dir = trackDir(presto, trackId)
+  const orphanedMixFiles = presto.db
+    .select({ mp3Path: mixes.mp3Path, wavPath: mixes.wavPath })
+    .from(mixes)
+    .where(eq(mixes.takeId, takeId))
+    .all()
+
   const removed = presto.db
     .delete(takes)
     .where(and(eq(takes.trackId, trackId), eq(takes.id, takeId)))
     .returning({ filePath: takes.filePath })
     .all()
   if (removed.length === 0) return false
-  rmSync(join(trackDir(presto, trackId), removed[0]!.filePath), { force: true })
+  rmSync(join(dir, removed[0]!.filePath), { force: true })
+  for (const { mp3Path, wavPath } of orphanedMixFiles) {
+    if (mp3Path) rmSync(join(dir, mp3Path), { force: true })
+    if (wavPath) rmSync(join(dir, wavPath), { force: true })
+  }
   return true
 }

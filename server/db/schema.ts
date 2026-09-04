@@ -3,7 +3,7 @@ import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
 
-export const JOB_TYPES = ['noop', 'import'] as const
+export const JOB_TYPES = ['noop', 'import', 'render'] as const
 export type JobType = (typeof JOB_TYPES)[number]
 
 export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed'] as const
@@ -132,6 +132,39 @@ export const takes = sqliteTable('takes', {
 })
 
 export type Take = typeof takes.$inferSelect
+
+/**
+ * A rendered export of one Take: its vocal placed at the Take's start
+ * position (plus nudge) over the full, Adjustments-applied Backing Track.
+ * `mp3Path` and `wavPath` are null until the worker's render job finishes;
+ * `wavRequested` records whether a WAV was asked for, since `wavPath` alone
+ * cannot distinguish "not requested" from "still rendering". Every render
+ * parameter is copied onto the row at request time so a later re-render (a
+ * fresh Mix, ticket 09) never changes what an existing Mix reproduces.
+ * Tempo always equals the Take's own — locked, never requested (ADR 0003).
+ */
+export const mixes = sqliteTable('mixes', {
+  id: text('id').primaryKey(),
+  takeId: text('take_id')
+    .notNull()
+    .references(() => takes.id, { onDelete: 'cascade' }),
+  /** Relative to the Track directory (`../lib/tracks#trackDir`), set once the render succeeds. */
+  mp3Path: text('mp3_path'),
+  wavPath: text('wav_path'),
+  wavRequested: integer('wav_requested', { mode: 'boolean' }).notNull().default(false),
+  pitchSemitones: integer('pitch_semitones').notNull(),
+  tempoPercent: integer('tempo_percent').notNull(),
+  linked: integer('linked', { mode: 'boolean' }).notNull(),
+  latencyNudgeMs: integer('latency_nudge_ms').notNull(),
+  vocalGain: real('vocal_gain').notNull(),
+  backingGain: real('backing_gain').notNull(),
+  /** The render Job that produces this Mix's files. */
+  jobId: text('job_id').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export type Mix = typeof mixes.$inferSelect
 
 /** The one settings row; Presto is one singer's app, so there is nothing to key them by. */
 export const SETTINGS_ROW_ID = 1

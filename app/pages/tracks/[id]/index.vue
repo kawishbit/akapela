@@ -10,7 +10,11 @@ const POLL_MS = 1000
 
 const { track, error, notFound, refresh } = useTrackDetail(id)
 
-// Keep the page current while the worker is still importing.
+// Keep the page current while the worker is still importing or rendering a Mix.
+const active = computed(() =>
+  track.value?.importState === 'importing'
+  || (track.value?.mixes.some(mix => mix.job && (mix.job.state === 'queued' || mix.job.state === 'running')) ?? false),
+)
 let timer: ReturnType<typeof setTimeout> | undefined
 function stopPolling() {
   if (timer) clearTimeout(timer)
@@ -18,13 +22,13 @@ function stopPolling() {
 }
 function schedulePoll() {
   stopPolling()
-  if (track.value?.importState !== 'importing') return
+  if (!active.value) return
   timer = setTimeout(async () => {
     await refresh()
     schedulePoll()
   }, POLL_MS)
 }
-watch(() => track.value?.importState, schedulePoll, { immediate: true })
+watch(active, schedulePoll, { immediate: true })
 onBeforeUnmount(stopPolling)
 
 // Opening a ready Track makes it the player's current one, so play is a tap away.
@@ -220,7 +224,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Presto` : 'Presto
         v-if="track.importState === 'ready'"
         class="mb-4"
         :track="track"
-        @deleted="refresh()"
+        @changed="refresh()"
       />
 
       <AdjustmentsPanel
