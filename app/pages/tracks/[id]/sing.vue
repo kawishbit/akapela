@@ -18,6 +18,10 @@ const { track, notFound } = useTrackDetail(id)
 
 const recorder = useTakeRecorder(id)
 onBeforeUnmount(() => recorder.destroy())
+// A saved Take lands on its Review screen (ticket 08) rather than staying here.
+watch(() => recorder.state.value.savedTake, (take) => {
+  if (take) navigateTo(`/tracks/${id.value}/takes/${take.id}`)
+})
 /** The regular transport drives the same play/pause the recorder does; hide it while that is in the recorder's hands. */
 const transportAvailable = computed(() =>
   recorder.state.value.phase !== 'counting-down' && recorder.state.value.phase !== 'recording')

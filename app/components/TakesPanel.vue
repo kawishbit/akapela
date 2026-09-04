@@ -51,14 +51,17 @@ async function confirmDelete() {
         class="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
       >
         <Mic2 class="size-4 shrink-0 text-text-muted" />
-        <div class="min-w-0 flex-1">
+        <NuxtLink
+          :to="`/tracks/${track.id}/takes/${take.id}`"
+          class="min-w-0 flex-1 rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-text"
+        >
           <p class="truncate text-sm font-bold">
             {{ formatDate(take.createdAt) }}
           </p>
           <p class="truncate text-xs text-text-muted">
             {{ formatDuration(take.durationMs) }} · from {{ formatDuration(take.startPositionMs) }}
           </p>
-        </div>
+        </NuxtLink>
         <button
           type="button"
           class="flex size-10 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:text-negative disabled:opacity-60"

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { errorSummary, formatDuration, formatLyricsOffset, formatPitch, formatTempo } from '../../app/utils/format'
+import { errorSummary, formatDuration, formatGain, formatLatencyNudge, formatLyricsOffset, formatPitch, formatTempo } from '../../app/utils/format'
 
 describe('formatPitch', () => {
   test('shows whole semitones with an explicit sign', () => {
@@ -27,6 +27,22 @@ describe('formatLyricsOffset', () => {
     expect(formatLyricsOffset(300)).toBe('+0.3 s')
     expect(formatLyricsOffset(-1500)).toBe('-1.5 s')
     expect(formatLyricsOffset(10000)).toBe('+10.0 s')
+  })
+})
+
+describe('formatLatencyNudge', () => {
+  test('shows milliseconds with an explicit sign', () => {
+    expect(formatLatencyNudge(0)).toBe('0 ms')
+    expect(formatLatencyNudge(80)).toBe('+80 ms')
+    expect(formatLatencyNudge(-40)).toBe('-40 ms')
+  })
+})
+
+describe('formatGain', () => {
+  test('shows a linear gain as a percentage of unity', () => {
+    expect(formatGain(1)).toBe('100%')
+    expect(formatGain(0)).toBe('0%')
+    expect(formatGain(1.5)).toBe('150%')
   })
 })
 

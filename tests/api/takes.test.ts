@@ -130,3 +130,91 @@ describe('deleting a Take', () => {
     expect(await (await api.get(`/api/tracks/${trackA.id}/takes`)).json()).toHaveLength(1)
   })
 })
+
+describe('streaming a Take\'s audio', () => {
+  test('serves the stored WAV bytes, for the Review screen to play alongside the Backing Track', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
+
+    const res = await api.get(`/api/tracks/${track.id}/takes/${take.id}/audio`)
+    expect(res.status).toBe(200)
+    expect(Buffer.from(await res.arrayBuffer()).equals(WAV_BYTES)).toBe(true)
+  })
+
+  test('an unknown Take is a 404', async () => {
+    const track = await createTrack()
+    expect((await api.get(`/api/tracks/${track.id}/takes/nope/audio`)).status).toBe(404)
+  })
+
+  test('a Take id from another Track is a 404', async () => {
+    const trackA = await createTrack()
+    const trackB = await createTrack()
+    const take = await (await api.uploadTake(trackA.id, WAV_BYTES, VALID_META)).json()
+
+    expect((await api.get(`/api/tracks/${trackB.id}/takes/${take.id}/audio`)).status).toBe(404)
+  })
+})
+
+describe('updating a Take\'s review parameters', () => {
+  const REVIEW_UPDATE = {
+    latencyNudgeMs: 80,
+    vocalGain: 1.2,
+    backingGain: 0.9,
+    adjustments: { pitchSemitones: 3, tempoPercent: VALID_META.adjustments.tempoPercent, linked: false },
+  }
+
+  test('saves nudge, gains, and pitch to the Take', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
+
+    const res = await api.put(`/api/tracks/${track.id}/takes/${take.id}`, REVIEW_UPDATE)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject(REVIEW_UPDATE)
+
+    const list = await (await api.get(`/api/tracks/${track.id}/takes`)).json()
+    expect(list[0]).toMatchObject(REVIEW_UPDATE)
+  })
+
+  test('rejects a tempo change and leaves the Take unchanged', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
+
+    const res = await api.put(`/api/tracks/${track.id}/takes/${take.id}`, {
+      ...REVIEW_UPDATE,
+      adjustments: { ...REVIEW_UPDATE.adjustments, tempoPercent: VALID_META.adjustments.tempoPercent + 10 },
+    })
+    expect(res.status).toBe(400)
+
+    const list = await (await api.get(`/api/tracks/${track.id}/takes`)).json()
+    expect(list[0]).toMatchObject({ latencyNudgeMs: 0, vocalGain: 1, backingGain: 1, adjustments: VALID_META.adjustments })
+  })
+
+  test.each([
+    {},
+    { latencyNudgeMs: 600, vocalGain: 1, backingGain: 1, adjustments: VALID_META.adjustments },
+    { latencyNudgeMs: 0, vocalGain: -1, backingGain: 1, adjustments: VALID_META.adjustments },
+    { latencyNudgeMs: 0, vocalGain: 1, backingGain: 3, adjustments: VALID_META.adjustments },
+    { latencyNudgeMs: 0.5, vocalGain: 1, backingGain: 1, adjustments: VALID_META.adjustments },
+    { latencyNudgeMs: 0, vocalGain: 1, backingGain: 1, adjustments: { pitchSemitones: 99, tempoPercent: 100, linked: false } },
+  ])('invalid review settings %j are rejected', async (body) => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
+
+    const res = await api.put(`/api/tracks/${track.id}/takes/${take.id}`, body)
+    expect(res.status).toBe(400)
+  })
+
+  test('updating an unknown Take is a 404', async () => {
+    const track = await createTrack()
+    expect((await api.put(`/api/tracks/${track.id}/takes/nope`, REVIEW_UPDATE)).status).toBe(404)
+  })
+
+  test('a Take id from another Track is a 404, not cross-Track updatable', async () => {
+    const trackA = await createTrack()
+    const trackB = await createTrack()
+    const take = await (await api.uploadTake(trackA.id, WAV_BYTES, VALID_META)).json()
+
+    const res = await api.put(`/api/tracks/${trackB.id}/takes/${take.id}`, REVIEW_UPDATE)
+    expect(res.status).toBe(404)
+  })
+})

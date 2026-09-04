@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { takes, type Take } from '../db/schema'
-import type { TakeUploadMeta } from '../../shared/take'
+import type { TakeReviewUpdate, TakeUploadMeta } from '../../shared/take'
 import type { Presto } from './presto'
 import { trackDir } from './tracks'
 
@@ -52,6 +52,26 @@ export function createTake(
   }
   presto.db.insert(takes).values(take).run()
   return take
+}
+
+/** One Take of a Track by id, or undefined when there is none — including a Take id from another Track. */
+export function getTake(presto: Presto, trackId: string, takeId: string): Take | undefined {
+  return presto.db
+    .select()
+    .from(takes)
+    .where(and(eq(takes.trackId, trackId), eq(takes.id, takeId)))
+    .get()
+}
+
+/** Saves what the Review screen (ticket 08) lets a singer change on a Take: latency nudge, the gain pair, and Adjustments. */
+export function updateTakeReview(presto: Presto, take: Take, input: TakeReviewUpdate): Take {
+  const now = Date.now()
+  presto.db
+    .update(takes)
+    .set({ ...input, updatedAt: now })
+    .where(eq(takes.id, take.id))
+    .run()
+  return { ...take, ...input, updatedAt: now }
 }
 
 /** Deletes a Take's row and its WAV file. Returns false when no such Take exists on that Track. */

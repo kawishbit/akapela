@@ -32,6 +32,7 @@ type WorkletMessage
 export class BackingTrackEngine {
   private context: AudioContext | undefined
   private node: AudioWorkletNode | undefined
+  private gainNode: GainNode | undefined
   private setup: Promise<AudioWorkletNode> | undefined
   private waiting = new Map<string, { resolve: (message: WorkletMessage) => void, reject: (error: Error) => void }>()
   private loadGeneration = 0
@@ -115,6 +116,11 @@ export class BackingTrackEngine {
     }
   }
 
+  /** Sets a linear gain stage on the Backing Track's output; 1 is unity. Used by the Review screen's backing gain (ticket 08). */
+  setGain(gain: number): void {
+    if (this.gainNode) this.gainNode.gain.value = gain
+  }
+
   unload(): void {
     this.loadGeneration++
     this.loaded = false
@@ -149,9 +155,11 @@ export class BackingTrackEngine {
       outputChannelCount: [2],
     })
     node.port.onmessage = (event: MessageEvent<WorkletMessage>) => this.onMessage(event.data)
-    node.connect(context.destination)
+    const gainNode = context.createGain()
+    node.connect(gainNode).connect(context.destination)
     await this.request(node, { type: 'init', wasm }, 'ready', [wasm])
     this.node = node
+    this.gainNode = gainNode
     return node
   }
 

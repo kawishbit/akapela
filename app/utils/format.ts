@@ -29,6 +29,17 @@ export function formatTempo(percent: number): string {
   return `${percent}%`
 }
 
+/** A latency nudge in milliseconds with its sign, since it moves the vocal earlier or later. */
+export function formatLatencyNudge(nudgeMs: number): string {
+  const sign = nudgeMs > 0 ? '+' : nudgeMs < 0 ? '-' : ''
+  return `${sign}${Math.abs(nudgeMs)} ms`
+}
+
+/** A linear gain multiplier as a percentage of unity, matching the Tempo readout's style. */
+export function formatGain(gain: number): string {
+  return `${Math.round(gain * 100)}%`
+}
+
 /** A timestamp such as a Take's `createdAt`, in the browser's own locale and time zone. */
 export function formatDate(ms: number): string {
   return new Date(ms).toLocaleString(undefined, {

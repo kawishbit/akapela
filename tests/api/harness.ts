@@ -23,6 +23,8 @@ import tracksIdLyricsPut from '../../server/api/tracks/[id]/lyrics.put'
 import tracksIdTakesGet from '../../server/api/tracks/[id]/takes.get'
 import tracksIdTakesPost from '../../server/api/tracks/[id]/takes.post'
 import tracksIdTakesTakeIdDelete from '../../server/api/tracks/[id]/takes/[takeId].delete'
+import tracksIdTakesTakeIdPut from '../../server/api/tracks/[id]/takes/[takeId].put'
+import tracksIdTakesTakeIdAudioGet from '../../server/api/tracks/[id]/takes/[takeId]/audio.get'
 import settingsGet from '../../server/api/settings.get'
 import settingsPut from '../../server/api/settings.put'
 import { createFakeLyricsProvider } from './fake-lyrics-provider'
@@ -70,6 +72,8 @@ export async function createTestApi() {
   router.get('/api/tracks/:id/takes', tracksIdTakesGet)
   router.post('/api/tracks/:id/takes', tracksIdTakesPost)
   router.delete('/api/tracks/:id/takes/:takeId', tracksIdTakesTakeIdDelete)
+  router.put('/api/tracks/:id/takes/:takeId', tracksIdTakesTakeIdPut)
+  router.get('/api/tracks/:id/takes/:takeId/audio', tracksIdTakesTakeIdAudioGet)
   router.get('/api/settings', settingsGet)
   router.put('/api/settings', settingsPut)
   app.use(router)
