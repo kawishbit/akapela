@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const track = requireTrack(event)
   const body = (await readBody(event)) as { text?: unknown } | null
   try {
-    return saveManualLyrics(event.context.presto, track, body?.text)
+    return saveManualLyrics(event.context.akapela, track, body?.text)
   }
   catch {
     throw createError({ statusCode: 400, statusMessage: INVALID_MANUAL_LYRICS_MESSAGE })

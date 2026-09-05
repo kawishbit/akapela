@@ -13,7 +13,7 @@ export default defineEventHandler((event) => {
   }
   return sendFile(
     event,
-    join(trackDir(event.context.presto, track.id), track.coverPath),
+    join(trackDir(event.context.akapela, track.id), track.coverPath),
     coverContentType(track.coverPath),
   )
 })

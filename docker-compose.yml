@@ -1,26 +1,26 @@
-# Presto: self-hosted karaoke.
+# Akapela: self-hosted karaoke.
 #
 #   docker compose up -d
 #
 # Two services share one data volume (ADR 0002): `app` serves the UI and API
 # and owns the database schema; `worker` runs imports and produces Mixes.
 #
-# Data lives in the named volume `presto-data` by default. To use a host
-# directory instead, set PRESTO_DATA=./some/dir in .env (see .env.example).
+# Data lives in the named volume `akapela-data` by default. To use a host
+# directory instead, set AKAPELA_DATA=./some/dir in .env (see .env.example).
 # Backups are your job: copy that directory while the stack is stopped.
 
 services:
   app:
     build: .
     ports:
-      - "${PRESTO_PORT:-3000}:3000"
+      - "${AKAPELA_PORT:-3000}:3000"
     environment:
       NUXT_DATA_DIR: /data
       # Optional. With a token, Genius joins LRCLIB and Manual as a Lyrics
       # Provider; without one it is hidden and the others carry on.
-      PRESTO_GENIUS_TOKEN: "${PRESTO_GENIUS_TOKEN:-}"
+      AKAPELA_GENIUS_TOKEN: "${AKAPELA_GENIUS_TOKEN:-}"
     volumes:
-      - ${PRESTO_DATA:-presto-data}:/data
+      - ${AKAPELA_DATA:-akapela-data}:/data
     restart: unless-stopped
     # Recommended limits; adjust to taste.
     deploy:
@@ -32,10 +32,10 @@ services:
   worker:
     build: ./worker
     environment:
-      PRESTO_DATA_DIR: /data
-      PRESTO_POLL_INTERVAL: "1.0"
+      AKAPELA_DATA_DIR: /data
+      AKAPELA_POLL_INTERVAL: "1.0"
     volumes:
-      - ${PRESTO_DATA:-presto-data}:/data
+      - ${AKAPELA_DATA:-akapela-data}:/data
     depends_on:
       - app
     restart: unless-stopped
@@ -48,4 +48,4 @@ services:
           memory: 2G
 
 volumes:
-  presto-data:
+  akapela-data:

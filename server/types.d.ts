@@ -1,8 +1,8 @@
-import type { Presto } from './lib/presto'
+import type { Akapela } from './lib/akapela'
 
 declare module 'h3' {
   interface H3EventContext {
-    presto: Presto
+    akapela: Akapela
   }
 }
 

@@ -137,7 +137,7 @@ function matchKey(match: SongMatch, index: number) {
     <!-- Picking one, either from what the provider knows or by hand. -->
     <div v-else>
       <p class="mt-1 text-sm text-text-muted">
-        Confirm which Song this Track is and Presto fetches its Lyrics.
+        Confirm which Song this Track is and Akapela fetches its Lyrics.
       </p>
 
       <form

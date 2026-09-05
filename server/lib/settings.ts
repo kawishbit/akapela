@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { SETTINGS_ROW_ID, settings } from '../db/schema'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_PROVIDERS, type LyricsProviderName } from '../../shared/lyrics'
-import type { Presto } from './presto'
+import type { Akapela } from './akapela'
 
 /**
  * The settings as a page reads them: what the singer has chosen, and the
@@ -15,8 +15,8 @@ export interface AppSettings {
 }
 
 /** What a singer may pick: Manual always, plus every remote provider this instance can reach. */
-export function availableLyricsProviders(presto: Presto): LyricsProviderName[] {
-  const reachable = new Set(presto.lyricsProviders.filter(p => p.available).map(p => p.name))
+export function availableLyricsProviders(akapela: Akapela): LyricsProviderName[] {
+  const reachable = new Set(akapela.lyricsProviders.filter(p => p.available).map(p => p.name))
   return LYRICS_PROVIDERS.filter(name => name === 'manual' || reachable.has(name))
 }
 
@@ -24,10 +24,10 @@ export function availableLyricsProviders(presto: Presto): LyricsProviderName[] {
  * The singer's choices. The row is written only once something is changed, so
  * a fresh install reads the defaults rather than needing a seeded row.
  */
-export function getSettings(presto: Presto): AppSettings {
-  const row = presto.db.select().from(settings).where(eq(settings.id, SETTINGS_ROW_ID)).get()
+export function getSettings(akapela: Akapela): AppSettings {
+  const row = akapela.db.select().from(settings).where(eq(settings.id, SETTINGS_ROW_ID)).get()
   const chosen = row?.defaultLyricsProvider ?? DEFAULT_LYRICS_PROVIDER
-  const offered = availableLyricsProviders(presto)
+  const offered = availableLyricsProviders(akapela)
   return {
     // A default whose provider has since lost its token would send every new
     // Track to a provider that cannot answer, so it falls back.
@@ -37,12 +37,12 @@ export function getSettings(presto: Presto): AppSettings {
 }
 
 /** Saves the choices that apply to every Track. */
-export function saveSettings(presto: Presto, changes: { defaultLyricsProvider: LyricsProviderName }): AppSettings {
+export function saveSettings(akapela: Akapela, changes: { defaultLyricsProvider: LyricsProviderName }): AppSettings {
   const row = { id: SETTINGS_ROW_ID, ...changes, updatedAt: Date.now() }
-  presto.db
+  akapela.db
     .insert(settings)
     .values(row)
     .onConflictDoUpdate({ target: settings.id, set: row })
     .run()
-  return getSettings(presto)
+  return getSettings(akapela)
 }

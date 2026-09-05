@@ -16,7 +16,7 @@ import { ManualLyricsOverwriteError, fetchLyricsForTrack } from '../../../lib/tr
  */
 export default defineEventHandler(async (event) => {
   const track = requireTrack(event)
-  const presto = event.context.presto
+  const akapela = event.context.akapela
   const body = (await readBody(event)) as { provider?: unknown, overwriteManual?: unknown } | null
 
   let provider
@@ -27,13 +27,13 @@ export default defineEventHandler(async (event) => {
     catch {
       throw createError({ statusCode: 400, statusMessage: INVALID_LYRICS_PROVIDER_MESSAGE })
     }
-    if (!availableLyricsProviders(presto).includes(provider)) {
+    if (!availableLyricsProviders(akapela).includes(provider)) {
       throw createError({ statusCode: 400, statusMessage: unavailableProviderMessage(provider) })
     }
   }
 
   try {
-    return await fetchLyricsForTrack(presto, track, {
+    return await fetchLyricsForTrack(akapela, track, {
       provider,
       overwriteManual: body?.overwriteManual === true,
     })

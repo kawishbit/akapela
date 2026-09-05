@@ -4,15 +4,15 @@ import { join } from 'node:path'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { mixes, takes, type Take } from '../db/schema'
 import type { TakeReviewUpdate, TakeUploadMeta } from '../../shared/take'
-import type { Presto } from './presto'
+import type { Akapela } from './akapela'
 import { trackDir } from './tracks'
 
 /** Takes live under `takes/` inside their Track's directory (ADR 0006), one WAV per Take. */
 const TAKES_DIRNAME = 'takes'
 
 /** Every Take of a Track, newest first. */
-export function listTakes(presto: Presto, trackId: string): Take[] {
-  return presto.db
+export function listTakes(akapela: Akapela, trackId: string): Take[] {
+  return akapela.db
     .select()
     .from(takes)
     .where(eq(takes.trackId, trackId))
@@ -26,15 +26,15 @@ export function listTakes(presto: Presto, trackId: string): Take[] {
  * (ticket 08) is what lets the singer change them.
  */
 export function createTake(
-  presto: Presto,
+  akapela: Akapela,
   trackId: string,
   input: TakeUploadMeta & { bytes: Uint8Array },
 ): Take {
   const id = randomUUID()
   const filePath = `${TAKES_DIRNAME}/${id}.wav`
-  const dir = join(trackDir(presto, trackId), TAKES_DIRNAME)
+  const dir = join(trackDir(akapela, trackId), TAKES_DIRNAME)
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(trackDir(presto, trackId), filePath), input.bytes)
+  writeFileSync(join(trackDir(akapela, trackId), filePath), input.bytes)
 
   const now = Date.now()
   const take: Take = {
@@ -50,13 +50,13 @@ export function createTake(
     createdAt: now,
     updatedAt: now,
   }
-  presto.db.insert(takes).values(take).run()
+  akapela.db.insert(takes).values(take).run()
   return take
 }
 
 /** One Take of a Track by id, or undefined when there is none — including a Take id from another Track. */
-export function getTake(presto: Presto, trackId: string, takeId: string): Take | undefined {
-  return presto.db
+export function getTake(akapela: Akapela, trackId: string, takeId: string): Take | undefined {
+  return akapela.db
     .select()
     .from(takes)
     .where(and(eq(takes.trackId, trackId), eq(takes.id, takeId)))
@@ -64,9 +64,9 @@ export function getTake(presto: Presto, trackId: string, takeId: string): Take |
 }
 
 /** Saves what the Review screen (ticket 08) lets a singer change on a Take: latency nudge, the gain pair, and Adjustments. */
-export function updateTakeReview(presto: Presto, take: Take, input: TakeReviewUpdate): Take {
+export function updateTakeReview(akapela: Akapela, take: Take, input: TakeReviewUpdate): Take {
   const now = Date.now()
-  presto.db
+  akapela.db
     .update(takes)
     .set({ ...input, updatedAt: now })
     .where(eq(takes.id, take.id))
@@ -80,15 +80,15 @@ export function updateTakeReview(presto: Presto, take: Take, input: TakeReviewUp
  * cascade only removes rows — their MP3 and WAV files are reclaimed here,
  * read out before the delete takes the rows (and the join to reach them) away.
  */
-export function deleteTake(presto: Presto, trackId: string, takeId: string): boolean {
-  const dir = trackDir(presto, trackId)
-  const orphanedMixFiles = presto.db
+export function deleteTake(akapela: Akapela, trackId: string, takeId: string): boolean {
+  const dir = trackDir(akapela, trackId)
+  const orphanedMixFiles = akapela.db
     .select({ mp3Path: mixes.mp3Path, wavPath: mixes.wavPath })
     .from(mixes)
     .where(eq(mixes.takeId, takeId))
     .all()
 
-  const removed = presto.db
+  const removed = akapela.db
     .delete(takes)
     .where(and(eq(takes.trackId, trackId), eq(takes.id, takeId)))
     .returning({ filePath: takes.filePath })

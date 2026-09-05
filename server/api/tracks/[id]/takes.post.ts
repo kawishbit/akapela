@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   catch {
     throw createError({ statusCode: 400, statusMessage: INVALID_TAKE_META_MESSAGE })
   }
-  const take = createTake(event.context.presto, track.id, { ...meta, bytes: file.data })
+  const take = createTake(event.context.akapela, track.id, { ...meta, bytes: file.data })
   setResponseStatus(event, 201)
   return take
 })

@@ -11,7 +11,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: 'Presto',
+      title: 'Akapela',
       htmlAttrs: { lang: 'en', class: 'dark' },
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
@@ -26,8 +26,8 @@ export default defineNuxtConfig({
   pwa: {
     registerType: 'autoUpdate',
     manifest: {
-      name: 'Presto',
-      short_name: 'Presto',
+      name: 'Akapela',
+      short_name: 'Akapela',
       description: 'Self-hosted karaoke: import, sing, mix.',
       theme_color: '#121212',
       background_color: '#121212',

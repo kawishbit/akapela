@@ -13,5 +13,5 @@ export default defineEventHandler(async (event) => {
   catch {
     throw createError({ statusCode: 400, statusMessage: INVALID_ADJUSTMENTS_MESSAGE })
   }
-  return saveAdjustments(event.context.presto, track, adjustments)
+  return saveAdjustments(event.context.akapela, track, adjustments)
 })

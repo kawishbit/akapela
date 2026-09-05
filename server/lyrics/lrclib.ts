@@ -11,7 +11,7 @@ import {
 const DEFAULT_BASE_URL = 'https://lrclib.net'
 
 /** LRCLIB asks clients to say who they are; it has no key and no accounts. */
-const USER_AGENT = 'Presto/0.1.0 (self-hosted karaoke)'
+const USER_AGENT = 'Akapela/0.1.0 (self-hosted karaoke)'
 
 /** The spec asks for the top few; more than this is a wall of near-identical releases. */
 const MAX_MATCHES = 5

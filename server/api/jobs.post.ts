@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Unknown job type' })
   }
   const targetId = typeof body.targetId === 'string' ? body.targetId : null
-  const job = enqueueJob(event.context.presto, { type: body.type, targetId })
+  const job = enqueueJob(event.context.akapela, { type: body.type, targetId })
   setResponseStatus(event, 201)
   return job
 })

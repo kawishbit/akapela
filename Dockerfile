@@ -1,4 +1,4 @@
-# Presto app (Nuxt). The worker has its own image under ./worker.
+# Akapela app (Nuxt). The worker has its own image under ./worker.
 FROM node:24-bookworm-slim AS build
 RUN corepack enable
 WORKDIR /app

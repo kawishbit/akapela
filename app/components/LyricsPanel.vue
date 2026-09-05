@@ -110,7 +110,7 @@ async function saveTyped() {
         Lyrics
       </h2>
 
-      <!-- Where this Track's Lyrics come from. Providers this Presto has no
+      <!-- Where this Track's Lyrics come from. Providers this Akapela has no
            token for are not here at all. -->
       <div
         class="flex items-center gap-1 rounded-pill bg-surface-mid p-1"

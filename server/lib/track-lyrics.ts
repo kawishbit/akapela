@@ -9,7 +9,7 @@ import { parseManualLyricsText, unavailableProviderMessage, type LyricsProviderN
 import { LyricsProviderError, type FetchedLyrics } from '../lyrics/provider'
 import { getLyrics, lyricsProviderNamed, replaceLyrics } from './lyrics'
 import { listMixesForTrack } from './mixes'
-import type { Presto } from './presto'
+import type { Akapela } from './akapela'
 import { listTakes } from './takes'
 import {
   confirmedSong,
@@ -40,11 +40,11 @@ export class ManualLyricsOverwriteError extends Error {
  * Manual is never fetched from, so choosing it can lose nothing.
  */
 export function overwritesManualLyrics(
-  presto: Presto,
+  akapela: Akapela,
   track: TrackWithJob,
   name: LyricsProviderName,
 ): boolean {
-  return name !== 'manual' && getLyrics(presto, track.id)?.provider === 'manual'
+  return name !== 'manual' && getLyrics(akapela, track.id)?.provider === 'manual'
 }
 
 export interface FetchLyricsOptions {
@@ -63,7 +63,7 @@ export interface FetchLyricsOptions {
  * so whatever is on the Track is left alone.
  */
 export async function fetchLyricsForTrack(
-  presto: Presto,
+  akapela: Akapela,
   track: TrackWithJob,
   options: FetchLyricsOptions = {},
 ): Promise<TrackDetail> {
@@ -72,17 +72,17 @@ export async function fetchLyricsForTrack(
   // A Track with no confirmed Song has nothing to look up yet, so picking a
   // provider only records where to look once it has one.
   const fetching = name !== 'manual' && song !== null
-  if (fetching && !options.overwriteManual && overwritesManualLyrics(presto, track, name)) {
+  if (fetching && !options.overwriteManual && overwritesManualLyrics(akapela, track, name)) {
     throw new ManualLyricsOverwriteError()
   }
 
-  const chosen = saveLyricsProvider(presto, track, name)
-  if (!song || name === 'manual') return trackDetail(presto, chosen)
+  const chosen = saveLyricsProvider(akapela, track, name)
+  if (!song || name === 'manual') return trackDetail(akapela, chosen)
 
-  const provider = lyricsProviderNamed(presto, name)
+  const provider = lyricsProviderNamed(akapela, name)
   // The Track was set to a provider this instance has since lost, so the
   // singer is told rather than left wondering why nothing arrived.
-  if (!provider) return { ...trackDetail(presto, chosen), lyricsError: unavailableProviderMessage(name) }
+  if (!provider) return { ...trackDetail(akapela, chosen), lyricsError: unavailableProviderMessage(name) }
 
   let found: FetchedLyrics | null = null
   let lyricsError: string | undefined
@@ -96,12 +96,12 @@ export async function fetchLyricsForTrack(
   // The Lyrics on a Track always belong to the Song confirmed on it, so the
   // ones the Song before had go even when nothing arrives to replace them.
   // Asking again is how a singer retries a provider that was down.
-  const stored = replaceLyrics(presto, chosen.id, found && { provider: name, ...found })
+  const stored = replaceLyrics(akapela, chosen.id, found && { provider: name, ...found })
   const detail = {
     ...chosen,
     lyrics: stored,
-    takes: listTakes(presto, chosen.id),
-    mixes: listMixesForTrack(presto, chosen.id),
+    takes: listTakes(akapela, chosen.id),
+    mixes: listMixesForTrack(akapela, chosen.id),
   }
   return lyricsError === undefined ? detail : { ...detail, lyricsError }
 }
@@ -113,9 +113,9 @@ export async function fetchLyricsForTrack(
  * rather than on every fetch, since the art belongs to the Song and asking the
  * Lyrics again does not change it.
  */
-export async function withAlbumArt(presto: Presto, track: TrackWithJob): Promise<TrackWithJob> {
+export async function withAlbumArt(akapela: Akapela, track: TrackWithJob): Promise<TrackWithJob> {
   const albumArtUrl = confirmedSong(track)?.albumArtUrl
-  return albumArtUrl ? replaceCoverWithAlbumArt(presto, track, albumArtUrl) : track
+  return albumArtUrl ? replaceCoverWithAlbumArt(akapela, track, albumArtUrl) : track
 }
 
 /**
@@ -124,13 +124,13 @@ export async function withAlbumArt(presto: Presto, track: TrackWithJob): Promise
  * there: editing what a provider fetched makes the words the singer's own, and
  * a later fetch has to ask before replacing them.
  */
-export function saveManualLyrics(presto: Presto, track: TrackWithJob, text: unknown): TrackDetail {
+export function saveManualLyrics(akapela: Akapela, track: TrackWithJob, text: unknown): TrackDetail {
   const lines = parseManualLyricsText(text)
-  const owned = saveLyricsProvider(presto, track, 'manual')
+  const owned = saveLyricsProvider(akapela, track, 'manual')
   return {
     ...owned,
-    lyrics: replaceLyrics(presto, owned.id, { provider: 'manual', kind: 'plain', lines }),
-    takes: listTakes(presto, owned.id),
-    mixes: listMixesForTrack(presto, owned.id),
+    lyrics: replaceLyrics(akapela, owned.id, { provider: 'manual', kind: 'plain', lines }),
+    takes: listTakes(akapela, owned.id),
+    mixes: listMixesForTrack(akapela, owned.id),
   }
 }

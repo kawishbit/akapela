@@ -245,7 +245,7 @@ What distinguishes Spotify is its pill-and-circle geometry. Primary buttons use 
 5. Heavy shadows (0.3–0.5 opacity) for elevation — light shadows are invisible on dark
 6. Album art provides all the color — the UI stays achromatic
 
-## 8. Implementation Notes for Presto
+## 8. Implementation Notes for Akapela
 
-- **Fonts**: SpotifyMixUI and CircularSp are proprietary and cannot be bundled. Presto uses **Figtree**, self-hosted in the repo, as the substitute for both the title and UI families. No fonts are loaded from third-party CDNs, since the app is self-hosted.
+- **Fonts**: SpotifyMixUI and CircularSp are proprietary and cannot be bundled. Akapela uses **Figtree**, self-hosted in the repo, as the substitute for both the title and UI families. No fonts are loaded from third-party CDNs, since the app is self-hosted.
 - **Cover art**: the "album art as the only color source" rule is satisfied by the YouTube thumbnail at import, replaced by album art from Genius once the Song is confirmed. Uploads without a match use a generated achromatic placeholder.

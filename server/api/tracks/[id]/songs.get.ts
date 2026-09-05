@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   const track = requireTrack(event)
   const { artist, title } = getQuery(event)
   try {
-    return await searchSongs(event.context.presto, track, {
+    return await searchSongs(event.context.akapela, track, {
       artist: typeof artist === 'string' ? artist : undefined,
       title: typeof title === 'string' ? title : undefined,
     })

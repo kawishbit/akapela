@@ -219,7 +219,7 @@ describe('confirming the Song a Track represents', () => {
 
     await api.del(`/api/tracks/${track.id}`)
 
-    expect(api.presto.sqlite.prepare('SELECT count(*) AS n FROM lyrics').get()).toEqual({ n: 0 })
+    expect(api.akapela.sqlite.prepare('SELECT count(*) AS n FROM lyrics').get()).toEqual({ n: 0 })
   })
 
   test('a Track with no confirmed Song has none and no Lyrics', async () => {

@@ -135,7 +135,7 @@ def _download_thumbnail(url: object, directory: Path) -> str | None:
     if not isinstance(url, str) or not url:
         return None
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "Presto"})
+        request = urllib.request.Request(url, headers={"User-Agent": "Akapela"})
         with urllib.request.urlopen(request, timeout=THUMBNAIL_TIMEOUT_SECONDS) as response:
             content_type = str(response.headers.get("Content-Type", "")).split(";")[0].strip()
             body = response.read()

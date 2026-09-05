@@ -1,4 +1,4 @@
-import { usePresto } from '../lib/use-presto'
+import { useAkapela } from '../lib/use-akapela'
 
 /**
  * Opens the database and applies migrations as soon as the server boots, so
@@ -6,5 +6,5 @@ import { usePresto } from '../lib/use-presto'
  * having to open a page first.
  */
 export default defineNitroPlugin(() => {
-  usePresto()
+  useAkapela()
 })

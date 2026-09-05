@@ -22,5 +22,5 @@ export default defineEventHandler((event) => {
   if (!relativePath) {
     throw createError({ statusCode: 404, statusMessage: wav ? 'This Mix has no WAV file' : 'This Mix has not finished rendering' })
   }
-  return sendFile(event, join(trackDir(event.context.presto, track.id), relativePath), wav ? 'audio/wav' : 'audio/mpeg')
+  return sendFile(event, join(trackDir(event.context.akapela, track.id), relativePath), wav ? 'audio/wav' : 'audio/mpeg')
 })

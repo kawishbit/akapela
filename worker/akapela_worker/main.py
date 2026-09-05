@@ -1,4 +1,4 @@
-"""Entry point: `presto-worker`. Reads PRESTO_DATA_DIR and polls forever."""
+"""Entry point: `akapela-worker`. Reads AKAPELA_DATA_DIR and polls forever."""
 
 from __future__ import annotations
 
@@ -14,15 +14,15 @@ from .runner import Runner
 
 def main() -> None:
     logging.basicConfig(
-        level=os.environ.get("PRESTO_LOG_LEVEL", "INFO"),
+        level=os.environ.get("AKAPELA_LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         stream=sys.stdout,
     )
-    data_dir = Path(os.environ.get("PRESTO_DATA_DIR", "./data")).resolve()
-    db_path = data_dir / "presto.db"
-    poll_interval = float(os.environ.get("PRESTO_POLL_INTERVAL", "1.0"))
+    data_dir = Path(os.environ.get("AKAPELA_DATA_DIR", "./data")).resolve()
+    db_path = data_dir / "akapela.db"
+    poll_interval = float(os.environ.get("AKAPELA_POLL_INTERVAL", "1.0"))
 
-    log = logging.getLogger("presto_worker")
+    log = logging.getLogger("akapela_worker")
     log.info("data dir %s", data_dir)
     # The app owns the schema and creates the database on its first start.
     # In compose both services start together, so wait rather than crash.

@@ -166,7 +166,7 @@ export const mixes = sqliteTable('mixes', {
 
 export type Mix = typeof mixes.$inferSelect
 
-/** The one settings row; Presto is one singer's app, so there is nothing to key them by. */
+/** The one settings row; Akapela is one singer's app, so there is nothing to key them by. */
 export const SETTINGS_ROW_ID = 1
 
 /**

@@ -31,7 +31,7 @@ render parameter, and the render Job's id. Requesting a Mix
 (`POST .../takes/:takeId/mixes`) enqueues a `render` job and rejects a tempo
 that doesn't match the Take's own with the same "locked, visible rather than
 silently ignored" shape ticket 08 established for Review's tempo lock (ADR
-0003). The worker's `render` job (`worker/presto_worker/jobs/render.py`,
+0003). The worker's `render` job (`worker/akapela_worker/jobs/render.py`,
 `audio.py`'s `render_mix`) runs the Backing Track through ffmpeg's
 `rubberband` filter, works out the vocal's wall-clock placement from the
 Take's start position plus nudge scaled by the same time ratio the Review

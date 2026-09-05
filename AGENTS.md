@@ -1,4 +1,4 @@
-# Presto
+# Akapela
 
 A self-hosted karaoke app. Read `CONTEXT.md` for the vocabulary and `DESIGN.md` for the visual system before touching UI or domain code.
 

@@ -10,9 +10,9 @@ export default defineEventHandler((event) => {
   const track = requireTrack(event)
   const take = requireTake(event, track.id)
   const mix = requireMix(event, take.id)
-  const job = getJob(event.context.presto, mix.jobId)
+  const job = getJob(event.context.akapela, mix.jobId)
   if (job?.state !== 'failed') {
     throw createError({ statusCode: 409, statusMessage: 'Only a failed render can be retried' })
   }
-  return retryMix(event.context.presto, mix)
+  return retryMix(event.context.akapela, mix)
 })

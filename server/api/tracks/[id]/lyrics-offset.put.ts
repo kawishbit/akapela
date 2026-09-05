@@ -17,5 +17,5 @@ export default defineEventHandler(async (event) => {
   catch {
     throw createError({ statusCode: 400, statusMessage: INVALID_LYRICS_OFFSET_MESSAGE })
   }
-  return saveLyricsOffset(event.context.presto, track, offsetMs)
+  return saveLyricsOffset(event.context.akapela, track, offsetMs)
 })

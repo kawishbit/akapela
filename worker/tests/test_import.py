@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from presto_worker.runner import JobContext, Runner
+from akapela_worker.runner import JobContext, Runner
 
 from .conftest import get_job
 

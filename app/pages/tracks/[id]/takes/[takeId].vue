@@ -103,7 +103,7 @@ function onPitchInput(event: Event) {
   review.setPitch(Number((event.target as HTMLInputElement).value))
 }
 
-useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Presto` : 'Presto' }))
+useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Akapela` : 'Akapela' }))
 </script>
 
 <template>

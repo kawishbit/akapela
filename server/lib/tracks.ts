@@ -17,7 +17,7 @@ import { COVER_BASENAME, coverExtension, placeholderCoverSvg } from './cover'
 import { enqueueJob } from './jobs'
 import { getLyrics } from './lyrics'
 import { listMixesForTrack, type MixWithJob } from './mixes'
-import type { Presto } from './presto'
+import type { Akapela } from './akapela'
 import { getSettings } from './settings'
 import { listTakes } from './takes'
 
@@ -42,8 +42,8 @@ export type TrackDetail = TrackWithJob & {
 }
 
 /** Absolute path of the directory owning every file of one Track. */
-export function trackDir(presto: Presto, trackId: string): string {
-  return join(presto.dataDir, 'tracks', trackId)
+export function trackDir(akapela: Akapela, trackId: string): string {
+  return join(akapela.dataDir, 'tracks', trackId)
 }
 
 /**
@@ -52,18 +52,18 @@ export function trackDir(presto: Presto, trackId: string): string {
  * a Backing Track.
  */
 export function createTrackFromUpload(
-  presto: Presto,
+  akapela: Akapela,
   input: { filename: string, bytes: Uint8Array },
 ): TrackWithJob {
   const ext = uploadExtension(input.filename)
   if (!ext) throw new Error(UNSUPPORTED_UPLOAD_MESSAGE)
 
   const id = randomUUID()
-  const dir = trackDir(presto, id)
+  const dir = trackDir(akapela, id)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, `original.${ext}`), input.bytes)
 
-  return startImport(presto, {
+  return startImport(akapela, {
     id,
     title: input.filename.slice(0, -(ext.length + 1)).trim() || input.filename,
     sourceKind: 'upload',
@@ -76,11 +76,11 @@ export function createTrackFromUpload(
  * the worker fetches the video's own title and thumbnail, which it does before
  * downloading the audio so the card fills in early.
  */
-export function createTrackFromYoutube(presto: Presto, input: { url: string }): TrackWithJob {
+export function createTrackFromYoutube(akapela: Akapela, input: { url: string }): TrackWithJob {
   const videoId = youtubeVideoId(input.url)
   if (!videoId) throw new Error(INVALID_YOUTUBE_URL_MESSAGE)
 
-  return startImport(presto, {
+  return startImport(akapela, {
     id: randomUUID(),
     title: youtubePlaceholderTitle(videoId),
     sourceKind: 'youtube',
@@ -93,10 +93,10 @@ export function createTrackFromYoutube(presto: Presto, input: { url: string }): 
  * importing state, and enqueues the import job.
  */
 function startImport(
-  presto: Presto,
+  akapela: Akapela,
   input: { id: string, title: string, sourceKind: SourceKind, sourceRef: string },
 ): TrackWithJob {
-  const dir = trackDir(presto, input.id)
+  const dir = trackDir(akapela, input.id)
   mkdirSync(dir, { recursive: true })
   const coverPath = `${COVER_BASENAME}.svg`
   writeFileSync(join(dir, coverPath), placeholderCoverSvg(input.title))
@@ -117,13 +117,13 @@ function startImport(
     songProviderIds: null,
     songAlbumArtUrl: null,
     // New Tracks start where the singer said Lyrics should come from.
-    lyricsProvider: getSettings(presto).defaultLyricsProvider,
+    lyricsProvider: getSettings(akapela).defaultLyricsProvider,
     lyricsOffsetMs: 0,
     createdAt: now,
     updatedAt: now,
   }
-  presto.db.insert(tracks).values(track).run()
-  const job = enqueueJob(presto, { type: 'import', targetId: input.id })
+  akapela.db.insert(tracks).values(track).run()
+  const job = enqueueJob(akapela, { type: 'import', targetId: input.id })
   return { ...track, job }
 }
 
@@ -135,8 +135,8 @@ const latestJobId = sql<string | null>`(
   limit 1
 )`
 
-function selectTracksWithJob(presto: Presto) {
-  return presto.db
+function selectTracksWithJob(akapela: Akapela) {
+  return akapela.db
     .select({ track: tracks, job: jobs })
     .from(tracks)
     .leftJoin(jobs, eq(jobs.id, latestJobId))
@@ -147,9 +147,9 @@ function selectTracksWithJob(presto: Presto) {
  * contains `query`. Matching is case-insensitive for any script, which SQLite's
  * ASCII-only `lower()` cannot do, so the (single-user sized) list is filtered here.
  */
-export function listTracks(presto: Presto, query = ''): TrackWithJob[] {
+export function listTracks(akapela: Akapela, query = ''): TrackWithJob[] {
   const needle = foldCase(query.trim())
-  const rows = selectTracksWithJob(presto)
+  const rows = selectTracksWithJob(akapela)
     .orderBy(desc(tracks.createdAt), desc(sql`${tracks}.rowid`))
     .all()
     .map(row => ({ ...row.track, job: row.job }))
@@ -163,18 +163,18 @@ function foldCase(text: string): string {
   return text.normalize('NFC').toLocaleLowerCase('en')
 }
 
-export function getTrack(presto: Presto, id: string): TrackWithJob | undefined {
-  const row = selectTracksWithJob(presto).where(eq(tracks.id, id)).get()
+export function getTrack(akapela: Akapela, id: string): TrackWithJob | undefined {
+  const row = selectTracksWithJob(akapela).where(eq(tracks.id, id)).get()
   return row && { ...row.track, job: row.job }
 }
 
 /** The Track with its Lyrics and Takes, which is what opening one is for. */
-export function trackDetail(presto: Presto, track: TrackWithJob): TrackDetail {
+export function trackDetail(akapela: Akapela, track: TrackWithJob): TrackDetail {
   return {
     ...track,
-    lyrics: getLyrics(presto, track.id),
-    takes: listTakes(presto, track.id),
-    mixes: listMixesForTrack(presto, track.id),
+    lyrics: getLyrics(akapela, track.id),
+    takes: listTakes(akapela, track.id),
+    mixes: listMixesForTrack(akapela, track.id),
   }
 }
 
@@ -194,7 +194,7 @@ export function confirmedSong(track: Track): Song | null {
  * too, since confirming one is what gives a Track the artist the library
  * lists it by.
  */
-export function saveSong(presto: Presto, track: TrackWithJob, song: Song): TrackWithJob {
+export function saveSong(akapela: Akapela, track: TrackWithJob, song: Song): TrackWithJob {
   const saved = {
     songArtist: song.artist,
     songTitle: song.title,
@@ -203,7 +203,7 @@ export function saveSong(presto: Presto, track: TrackWithJob, song: Song): Track
     artist: song.artist,
     updatedAt: Date.now(),
   }
-  presto.db.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
+  akapela.db.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
   return { ...track, ...saved }
 }
 
@@ -221,14 +221,14 @@ const MAX_COVER_BYTES = 8 * 1024 * 1024
  * confirmed when its art will not load.
  */
 export async function replaceCoverWithAlbumArt(
-  presto: Presto,
+  akapela: Akapela,
   track: TrackWithJob,
   albumArtUrl: string,
 ): Promise<TrackWithJob> {
   let bytes: Uint8Array
   let ext: string | undefined
   try {
-    const response = await presto.fetch(albumArtUrl, { headers: { accept: 'image/*' } })
+    const response = await akapela.fetch(albumArtUrl, { headers: { accept: 'image/*' } })
     if (!response.ok) return track
     const contentType = (response.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase()
     const body = await response.arrayBuffer()
@@ -241,7 +241,7 @@ export async function replaceCoverWithAlbumArt(
   }
   if (!ext) return track
 
-  const dir = trackDir(presto, track.id)
+  const dir = trackDir(akapela, track.id)
   const coverPath = `${COVER_BASENAME}.${ext}`
   // Written beside the old cover and moved into place, so a half-written file
   // is never what the page asks for.
@@ -254,7 +254,7 @@ export async function replaceCoverWithAlbumArt(
   }
 
   const updatedAt = Date.now()
-  presto.db.update(tracks).set({ coverPath, updatedAt }).where(eq(tracks.id, track.id)).run()
+  akapela.db.update(tracks).set({ coverPath, updatedAt }).where(eq(tracks.id, track.id)).run()
   return { ...track, coverPath, updatedAt }
 }
 
@@ -264,13 +264,13 @@ export async function replaceCoverWithAlbumArt(
  * LRCLIB.
  */
 export function saveLyricsProvider(
-  presto: Presto,
+  akapela: Akapela,
   track: TrackWithJob,
   lyricsProvider: LyricsProviderName,
 ): TrackWithJob {
   if (track.lyricsProvider === lyricsProvider) return track
   const now = Date.now()
-  presto.db
+  akapela.db
     .update(tracks)
     .set({ lyricsProvider, updatedAt: now })
     .where(eq(tracks.id, track.id))
@@ -282,9 +282,9 @@ export function saveLyricsProvider(
  * Saves the Lyrics Offset that lines this Track's Lyrics up with its Backing
  * Track. It lives on the Track, not the Lyrics, so refetching does not reset it.
  */
-export function saveLyricsOffset(presto: Presto, track: TrackWithJob, lyricsOffsetMs: number): TrackWithJob {
+export function saveLyricsOffset(akapela: Akapela, track: TrackWithJob, lyricsOffsetMs: number): TrackWithJob {
   const now = Date.now()
-  presto.db
+  akapela.db
     .update(tracks)
     .set({ lyricsOffsetMs, updatedAt: now })
     .where(eq(tracks.id, track.id))
@@ -293,21 +293,21 @@ export function saveLyricsOffset(presto: Presto, track: TrackWithJob, lyricsOffs
 }
 
 /** Deletes the Track's rows, its jobs, and its directory. Returns false when no such Track exists. */
-export function deleteTrack(presto: Presto, id: string): boolean {
-  const deleted = presto.db.transaction((tx) => {
+export function deleteTrack(akapela: Akapela, id: string): boolean {
+  const deleted = akapela.db.transaction((tx) => {
     const removed = tx.delete(tracks).where(eq(tracks.id, id)).returning({ id: tracks.id }).all()
     if (removed.length === 0) return false
     tx.delete(jobs).where(eq(jobs.targetId, id)).run()
     return true
   })
-  if (deleted) rmSync(trackDir(presto, id), { recursive: true, force: true })
+  if (deleted) rmSync(trackDir(akapela, id), { recursive: true, force: true })
   return deleted
 }
 
 /** Remembers the Adjustments last used on a Track so they come back when it is opened again. */
-export function saveAdjustments(presto: Presto, track: TrackWithJob, adjustments: Adjustments): TrackWithJob {
+export function saveAdjustments(akapela: Akapela, track: TrackWithJob, adjustments: Adjustments): TrackWithJob {
   const now = Date.now()
-  presto.db
+  akapela.db
     .update(tracks)
     .set({ adjustments, updatedAt: now })
     .where(eq(tracks.id, track.id))
@@ -316,13 +316,13 @@ export function saveAdjustments(presto: Presto, track: TrackWithJob, adjustments
 }
 
 /** Puts a failed Track back into importing state and enqueues a fresh import job. */
-export function retryImport(presto: Presto, track: Track): TrackWithJob {
+export function retryImport(akapela: Akapela, track: Track): TrackWithJob {
   const now = Date.now()
-  presto.db
+  akapela.db
     .update(tracks)
     .set({ importState: 'importing', updatedAt: now })
     .where(eq(tracks.id, track.id))
     .run()
-  const job = enqueueJob(presto, { type: 'import', targetId: track.id })
+  const job = enqueueJob(akapela, { type: 'import', targetId: track.id })
   return { ...track, importState: 'importing', updatedAt: now, job }
 }

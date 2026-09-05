@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer, type Server } from 'node:http'
 import { createApp, createRouter, eventHandler, toNodeListener } from 'h3'
-import { createPresto } from '../../server/lib/presto'
+import { createAkapela } from '../../server/lib/akapela'
 import type { SongMatch } from '../../server/lyrics/provider'
 import jobsPost from '../../server/api/jobs.post'
 import jobsIdGet from '../../server/api/jobs/[id].get'
@@ -38,16 +38,16 @@ import { createFakeImages } from './fake-images'
 /**
  * Boots the real route handlers on an in-process h3 app backed by a fresh
  * SQLite database and data directory in a temp folder. Mirrors what Nitro
- * does in production: the presto middleware sets `event.context.presto`,
+ * does in production: the akapela middleware sets `event.context.akapela`,
  * then the file-based handlers run. The Lyrics Provider is a fake, so no test
  * touches the network.
  */
 export async function createTestApi() {
-  const dataDir = mkdtempSync(join(tmpdir(), 'presto-test-'))
+  const dataDir = mkdtempSync(join(tmpdir(), 'akapela-test-'))
   const lrclib = createFakeLyricsProvider('lrclib')
   const genius = createFakeLyricsProvider('genius')
   const images = createFakeImages()
-  const presto = createPresto({
+  const akapela = createAkapela({
     dataDir,
     migrationsDir: join(process.cwd(), 'server/db/migrations'),
     lyricsProviders: [lrclib.provider, genius.provider],
@@ -56,7 +56,7 @@ export async function createTestApi() {
 
   const app = createApp()
   app.use(eventHandler((event) => {
-    event.context.presto = presto
+    event.context.akapela = akapela
   }))
   const router = createRouter()
   router.post('/api/jobs', jobsPost)
@@ -95,7 +95,7 @@ export async function createTestApi() {
   const baseUrl = `http://127.0.0.1:${address.port}`
 
   return {
-    presto,
+    akapela,
     dataDir,
     baseUrl,
     /** What the stand-in LRCLIB knows and what it was asked. */
@@ -148,25 +148,25 @@ export async function createTestApi() {
     },
     /** Stand in for the worker, which owns every state change after `queued`. */
     finishJob(id: string, state: 'succeeded' | 'failed', error: string | null = null) {
-      presto.sqlite
+      akapela.sqlite
         .prepare(`UPDATE jobs SET state = ?, progress = ?, error = ?, finished_at = ? WHERE id = ?`)
         .run(state, state === 'succeeded' ? 100 : 0, error, Date.now(), id)
     },
     /** Stand in for the worker's import job failing: it marks both the job and the Track. */
     failImport(trackId: string, jobId: string, error: string) {
       this.finishJob(jobId, 'failed', error)
-      presto.sqlite.prepare(`UPDATE tracks SET import_state = 'failed' WHERE id = ?`).run(trackId)
+      akapela.sqlite.prepare(`UPDATE tracks SET import_state = 'failed' WHERE id = ?`).run(trackId)
     },
     /** Stand in for the worker's render job succeeding: it writes the Mix's file paths and finishes the job. */
     finishMix(mixId: string, jobId: string, paths: { mp3Path: string, wavPath?: string | null }) {
-      presto.sqlite
+      akapela.sqlite
         .prepare(`UPDATE mixes SET mp3_path = ?, wav_path = ?, updated_at = ? WHERE id = ?`)
         .run(paths.mp3Path, paths.wavPath ?? null, Date.now(), mixId)
       this.finishJob(jobId, 'succeeded')
     },
     async close() {
       await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())))
-      presto.close()
+      akapela.close()
       rmSync(dataDir, { recursive: true, force: true })
     },
   }

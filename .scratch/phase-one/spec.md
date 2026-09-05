@@ -8,7 +8,7 @@ I want to sing along to an instrumental with lyrics on screen and end up with a 
 
 ## Solution
 
-Presto is a self-hosted web app. I paste a YouTube URL or upload an audio file and get a Track in my library. Presto finds the Song, pulls Lyrics from the Lyrics Provider I choose, and shows them Spotify-style, highlighting the current line as the Backing Track plays. I change pitch in semitones and tempo in percent while the song plays and hear the result immediately. I press record, sing on the Lyrics screen, and get a Take. I review the Take over the Backing Track, nudge it into alignment, and render a Mix, which I download as an MP3 or WAV. Everything runs from a docker compose file on my laptop. No accounts, no ads, no catalogue limits beyond what I can find or upload.
+Akapela is a self-hosted web app. I paste a YouTube URL or upload an audio file and get a Track in my library. Akapela finds the Song, pulls Lyrics from the Lyrics Provider I choose, and shows them Spotify-style, highlighting the current line as the Backing Track plays. I change pitch in semitones and tempo in percent while the song plays and hear the result immediately. I press record, sing on the Lyrics screen, and get a Take. I review the Take over the Backing Track, nudge it into alignment, and render a Mix, which I download as an MP3 or WAV. Everything runs from a docker compose file on my laptop. No accounts, no ads, no catalogue limits beyond what I can find or upload.
 
 This spec covers phase one: import, Backing Track playback, Lyrics, Adjustments for pitch and tempo, Take recording, and Mix rendering. Vocal removal, effects such as reverb, Presets, offline PWA behaviour, tap-to-sync, and automatic latency calibration are later phases.
 
@@ -29,7 +29,7 @@ This spec covers phase one: import, Backing Track playback, Lyrics, Adjustments 
 
 ### Song identification
 
-11. As a singer, I want Presto to guess the artist and title from the YouTube title, stripping words like Karaoke, Instrumental, Lyrics, Official, and HD, so that I rarely have to type them.
+11. As a singer, I want Akapela to guess the artist and title from the YouTube title, stripping words like Karaoke, Instrumental, Lyrics, Official, and HD, so that I rarely have to type them.
 12. As a singer, I want to see the top few Song matches from the Lyrics Provider and confirm one with a tap, so that a wrong guess is cheap to fix.
 13. As a singer, I want to edit the artist and title by hand when no match is right, so that obscure songs still get Lyrics.
 14. As a singer, I want to change the confirmed Song later, so that a mistake doesn't force me to re-import.

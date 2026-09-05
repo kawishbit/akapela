@@ -105,7 +105,7 @@ function onSeek(event: Event) {
   player.seek(Number((event.target as HTMLInputElement).value))
 }
 
-useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Presto` : 'Presto' }))
+useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : 'Akapela' }))
 </script>
 
 <template>
@@ -174,7 +174,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Presto` : 'P
             paste them yourself.
           </template>
           <template v-else>
-            Confirm which Song this Track is and Presto will fetch its Lyrics.
+            Confirm which Song this Track is and Akapela will fetch its Lyrics.
           </template>
         </p>
         <NuxtLink

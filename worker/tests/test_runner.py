@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from presto_worker.runner import Runner
+from akapela_worker.runner import Runner
 
 from .conftest import enqueue, get_job
 

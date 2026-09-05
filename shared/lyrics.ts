@@ -35,7 +35,7 @@ export function isLyricsProviderName(name: string): name is LyricsProviderName {
 
 /** What the app says when a Lyrics Provider is asked for that this instance cannot offer. */
 export function unavailableProviderMessage(name: LyricsProviderName): string {
-  return `${LYRICS_PROVIDER_LABELS[name]} is not configured on this Presto.`
+  return `${LYRICS_PROVIDER_LABELS[name]} is not configured on this Akapela.`
 }
 
 export const LYRICS_KINDS = ['synced', 'plain'] as const

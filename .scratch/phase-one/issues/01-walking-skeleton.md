@@ -1,6 +1,6 @@
 # 01: Walking skeleton: compose, database, job round trip
 
-**What to build:** A self-hoster runs `docker compose up` and gets the Presto app and the worker running against one shared data volume. Opening the app shows an empty library page already in the DESIGN.md look: near-black surfaces, Figtree self-hosted, pill buttons, green accent, Lucide icons, installable as a PWA. Behind it, the app can enqueue a no-op job into the SQLite jobs table, the worker picks it up, runs it, marks it succeeded, and the page shows the job's status by polling. This proves every layer is wired before any real feature lands.
+**What to build:** A self-hoster runs `docker compose up` and gets the Akapela app and the worker running against one shared data volume. Opening the app shows an empty library page already in the DESIGN.md look: near-black surfaces, Figtree self-hosted, pill buttons, green accent, Lucide icons, installable as a PWA. Behind it, the app can enqueue a no-op job into the SQLite jobs table, the worker picks it up, runs it, marks it succeeded, and the page shows the job's status by polling. This proves every layer is wired before any real feature lands.
 
 **Blocked by:** None (can start immediately)
 

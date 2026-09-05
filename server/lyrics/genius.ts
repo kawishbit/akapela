@@ -17,7 +17,7 @@ const MAX_MATCHES = 5
  * The song page is a public web page rather than the API, and Genius answers
  * a plain client with the page a browser would get.
  */
-const PAGE_USER_AGENT = 'Mozilla/5.0 (compatible; Presto/0.1.0; self-hosted karaoke)'
+const PAGE_USER_AGENT = 'Mozilla/5.0 (compatible; Akapela/0.1.0; self-hosted karaoke)'
 
 export interface GeniusOptions {
   /** A Genius API token. Without one the provider is unavailable. */

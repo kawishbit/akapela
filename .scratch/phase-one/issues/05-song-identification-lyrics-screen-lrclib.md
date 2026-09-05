@@ -1,6 +1,6 @@
 # 05: Song identification and Lyrics screen via LRCLIB
 
-**What to build:** After a Track imports, Presto guesses the artist and title from the YouTube title or file name, searches LRCLIB, and shows the top matches. The singer confirms one with a tap or edits the artist and title by hand, and can change the Song later. Lyrics are fetched from LRCLIB, Synced when available and Plain otherwise. The Sing page shows them Spotify-style: current line bright and bold and vertically centred, neighbours dimmed, tap a Synced line to seek, Plain lines auto-scroll proportionally with a pause when the singer scrolls by hand. A Lyrics Offset control in tenths of a second corrects for a karaoke version's different intro and is saved per Track.
+**What to build:** After a Track imports, Akapela guesses the artist and title from the YouTube title or file name, searches LRCLIB, and shows the top matches. The singer confirms one with a tap or edits the artist and title by hand, and can change the Song later. Lyrics are fetched from LRCLIB, Synced when available and Plain otherwise. The Sing page shows them Spotify-style: current line bright and bold and vertically centred, neighbours dimmed, tap a Synced line to seek, Plain lines auto-scroll proportionally with a pause when the singer scrolls by hand. A Lyrics Offset control in tenths of a second corrects for a karaoke version's different intro and is saved per Track.
 
 **Blocked by:** 04 (Backing Track playback with live Adjustments)
 

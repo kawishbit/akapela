@@ -131,7 +131,7 @@ describe('choosing where a Track gets its Lyrics', () => {
   })
 })
 
-describe('a Presto with no Genius token', () => {
+describe('a Akapela with no Genius token', () => {
   beforeEach(() => {
     api.genius.available = false
   })
@@ -415,7 +415,7 @@ describe('the default Lyrics Provider', () => {
     },
   )
 
-  test('cannot be set to a provider this Presto has no token for', async () => {
+  test('cannot be set to a provider this Akapela has no token for', async () => {
     api.genius.available = false
 
     const res = await api.put('/api/settings', { defaultLyricsProvider: 'genius' })

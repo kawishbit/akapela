@@ -24,5 +24,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: TAKE_TEMPO_LOCKED_MESSAGE })
   }
 
-  return updateTakeReview(event.context.presto, take, update)
+  return updateTakeReview(event.context.akapela, take, update)
 })

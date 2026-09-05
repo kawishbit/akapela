@@ -1,4 +1,4 @@
-/** Upload extensions Presto accepts. Shared by the API, which rejects anything else, and the file picker. */
+/** Upload extensions Akapela accepts. Shared by the API, which rejects anything else, and the file picker. */
 export const UPLOAD_EXTENSIONS = ['mp3', 'm4a', 'wav', 'flac', 'ogg'] as const
 
 export const UPLOAD_EXTENSIONS_SENTENCE

@@ -3,7 +3,7 @@ import { encodeWav } from '~/audio/wav'
 import type { Take } from '~~/server/db/schema'
 import type { Adjustments } from '~~/shared/adjustments'
 
-const DEVICE_STORAGE_KEY = 'presto:mic-device-id'
+const DEVICE_STORAGE_KEY = 'akapela:mic-device-id'
 const COUNTDOWN_SECONDS = 3
 
 export type MicPermission = 'unrequested' | 'requesting' | 'granted' | 'denied'

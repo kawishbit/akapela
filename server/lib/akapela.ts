@@ -8,7 +8,7 @@ import { createGeniusProvider } from '../lyrics/genius'
 import { createLrclibProvider } from '../lyrics/lrclib'
 import type { LyricsProvider } from '../lyrics/provider'
 
-export interface PrestoOptions {
+export interface AkapelaOptions {
   /** Directory holding the database and every Track's files. */
   dataDir: string
   /** Folder of drizzle-kit generated SQL migrations. */
@@ -21,7 +21,7 @@ export interface PrestoOptions {
   fetch?: typeof globalThis.fetch
 }
 
-export interface Presto {
+export interface Akapela {
   dataDir: string
   db: BetterSQLite3Database<typeof schema>
   /** The raw connection, for the rare statement drizzle cannot express. */
@@ -33,13 +33,13 @@ export interface Presto {
 }
 
 /**
- * Opens (creating if needed) the Presto data directory and database, applies
+ * Opens (creating if needed) the Akapela data directory and database, applies
  * pending migrations, and returns the handle every route handler works
  * through. One instance per process in production; one per test in tests.
  */
-export function createPresto(options: PrestoOptions): Presto {
+export function createAkapela(options: AkapelaOptions): Akapela {
   mkdirSync(options.dataDir, { recursive: true })
-  const sqlite = new Database(join(options.dataDir, 'presto.db'))
+  const sqlite = new Database(join(options.dataDir, 'akapela.db'))
   sqlite.pragma('journal_mode = WAL')
   sqlite.pragma('busy_timeout = 5000')
   sqlite.pragma('foreign_keys = ON')

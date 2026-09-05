@@ -7,5 +7,5 @@ import { requireTrack } from '../../../../../lib/require-track'
 export default defineEventHandler((event) => {
   const track = requireTrack(event)
   const take = requireTake(event, track.id)
-  return listMixesForTake(event.context.presto, take.id)
+  return listMixesForTake(event.context.akapela, take.id)
 })

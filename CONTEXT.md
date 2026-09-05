@@ -1,4 +1,4 @@
-# Presto
+# Akapela
 
 A self-hosted karaoke app. Import a song from YouTube or a file, get an instrumental with synced lyrics, adjust pitch and tempo, sing, and walk away with a mixed recording.
 

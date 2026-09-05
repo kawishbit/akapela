@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from presto_worker.runner import Runner
+from akapela_worker.runner import Runner
 
 from .conftest import get_job
 
@@ -334,7 +334,7 @@ def test_a_mix_deleted_during_render_leaves_no_orphan_files(conn, data_dir: Path
     enqueue_render(conn, mix_id="m1")
     conn.commit()
 
-    from presto_worker.runner import JobContext
+    from akapela_worker.runner import JobContext
 
     original_progress = JobContext.progress
 
@@ -386,7 +386,7 @@ def test_render_reports_progress_before_finishing(
     enqueue_render(conn, mix_id="m1")
     conn.commit()
 
-    from presto_worker.runner import JobContext
+    from akapela_worker.runner import JobContext
 
     seen: list[int] = []
     original_progress = JobContext.progress

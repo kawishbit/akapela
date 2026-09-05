@@ -7,9 +7,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from presto_worker.jobs.import_track import import_handler
-from presto_worker.runner import Runner
-from presto_worker.sources import SourceError, SourceMetadata
+from akapela_worker.jobs.import_track import import_handler
+from akapela_worker.runner import Runner
+from akapela_worker.sources import SourceError, SourceMetadata
 
 from .conftest import get_job
 from .test_import import TRACK_ID, enqueue_import, get_track, probe, write_sine_mp3

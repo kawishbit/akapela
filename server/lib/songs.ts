@@ -2,7 +2,7 @@ import { guessSongs, type Song, type SongGuess } from '../../shared/song'
 import type { LyricsProviderName } from '../../shared/lyrics'
 import type { SongMatch } from '../lyrics/provider'
 import { lyricsProviderNamed } from './lyrics'
-import type { Presto } from './presto'
+import type { Akapela } from './akapela'
 import {
   ManualLyricsOverwriteError,
   fetchLyricsForTrack,
@@ -29,7 +29,7 @@ export interface SongSearch extends SongGuess {
  * it is.
  */
 export async function searchSongs(
-  presto: Presto,
+  akapela: Akapela,
   track: TrackWithJob,
   requested: Partial<SongGuess> = {},
 ): Promise<SongSearch> {
@@ -38,7 +38,7 @@ export async function searchSongs(
   const empty = { ...first, provider: track.lyricsProvider, matches: [] }
   if (!first.title) return empty
 
-  const provider = lyricsProviderNamed(presto, track.lyricsProvider)
+  const provider = lyricsProviderNamed(akapela, track.lyricsProvider)
   if (!provider) return empty
 
   for (const guess of guesses) {
@@ -67,15 +67,15 @@ function trackGuesses(track: TrackWithJob): SongGuess[] {
  * came with album art brings it to the Track's cover.
  */
 export async function confirmSong(
-  presto: Presto,
+  akapela: Akapela,
   track: TrackWithJob,
   song: Song,
   options: { overwriteManual?: boolean } = {},
 ): Promise<TrackDetail> {
   // Checked before the Song is stored, so a refusal changes nothing at all.
-  if (!options.overwriteManual && overwritesManualLyrics(presto, track, track.lyricsProvider)) {
+  if (!options.overwriteManual && overwritesManualLyrics(akapela, track, track.lyricsProvider)) {
     throw new ManualLyricsOverwriteError()
   }
-  const confirmed = await withAlbumArt(presto, saveSong(presto, track, song))
-  return fetchLyricsForTrack(presto, confirmed, { overwriteManual: true })
+  const confirmed = await withAlbumArt(akapela, saveSong(akapela, track, song))
+  return fetchLyricsForTrack(akapela, confirmed, { overwriteManual: true })
 }

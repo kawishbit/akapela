@@ -2,7 +2,7 @@ import type { AppSettings } from '~~/server/lib/settings'
 import { DEFAULT_LYRICS_PROVIDER, type LyricsProviderName } from '~~/shared/lyrics'
 
 /**
- * The choices that apply to every Track, and the Lyrics Providers this Presto
+ * The choices that apply to every Track, and the Lyrics Providers this Akapela
  * can offer. Fetched once per app load and shared, since every Track page asks
  * the same question: which providers are there, and which one is the default.
  */

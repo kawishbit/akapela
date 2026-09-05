@@ -6,7 +6,7 @@ import { deleteTake } from '../../../../lib/takes'
 export default defineEventHandler((event) => {
   const track = requireTrack(event)
   const takeId = getRouterParam(event, 'takeId') ?? ''
-  if (!deleteTake(event.context.presto, track.id, takeId)) {
+  if (!deleteTake(event.context.akapela, track.id, takeId)) {
     throw createError({ statusCode: 404, statusMessage: 'Take not found' })
   }
   return sendNoContent(event)

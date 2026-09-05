@@ -3,7 +3,7 @@ import { effectivePitchSemitones, PITCH_SEMITONES_MAX, PITCH_SEMITONES_MIN, type
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 import type { Take } from '~~/server/db/schema'
 
-const NUDGE_STORAGE_KEY = 'presto:latency-nudge-ms'
+const NUDGE_STORAGE_KEY = 'akapela:latency-nudge-ms'
 const SAVE_DEBOUNCE_MS = 300
 
 export interface TakeReviewState {

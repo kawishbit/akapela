@@ -67,7 +67,7 @@ async function retry() {
   }
 }
 
-useHead(() => ({ title: track.value ? `${track.value.title} · Presto` : 'Presto' }))
+useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akapela' }))
 </script>
 
 <template>

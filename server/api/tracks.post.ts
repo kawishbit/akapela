@@ -34,7 +34,7 @@ async function createFromUpload(event: H3Event): Promise<TrackWithJob> {
   if (!uploadExtension(file.filename)) {
     throw createError({ statusCode: 400, statusMessage: UNSUPPORTED_UPLOAD_MESSAGE })
   }
-  return createTrackFromUpload(event.context.presto, {
+  return createTrackFromUpload(event.context.akapela, {
     filename: file.filename,
     bytes: file.data,
   })
@@ -46,5 +46,5 @@ async function createFromUrl(event: H3Event): Promise<TrackWithJob> {
   if (typeof url !== 'string' || !youtubeVideoId(url)) {
     throw createError({ statusCode: 400, statusMessage: INVALID_YOUTUBE_URL_MESSAGE })
   }
-  return createTrackFromYoutube(event.context.presto, { url })
+  return createTrackFromYoutube(event.context.akapela, { url })
 }

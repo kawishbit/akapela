@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from presto_worker.db import connect
+from akapela_worker.db import connect
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "server" / "db" / "migrations"
 BREAKPOINT = "--> statement-breakpoint"
@@ -29,7 +29,7 @@ def data_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def conn(data_dir: Path):
-    connection = connect(data_dir / "presto.db")
+    connection = connect(data_dir / "akapela.db")
     apply_app_schema(connection)
     yield connection
     connection.close()

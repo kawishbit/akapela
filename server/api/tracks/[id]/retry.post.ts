@@ -8,5 +8,5 @@ export default defineEventHandler((event) => {
   if (track.importState !== 'failed') {
     throw createError({ statusCode: 409, statusMessage: 'Only a failed import can be retried' })
   }
-  return retryImport(event.context.presto, track)
+  return retryImport(event.context.akapela, track)
 })

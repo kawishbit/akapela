@@ -5,7 +5,7 @@ import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '
  * Mix: the rendered file combining a Take's vocal with its Backing Track.
  * This module knows the shape of a render request; producing the files and
  * the row belongs to `server/lib/mixes`, and doing the rendering to
- * `worker/presto_worker/jobs/render.py`.
+ * `worker/akapela_worker/jobs/render.py`.
  */
 export interface MixRequest {
   /** Pitch and linked may differ from the Take's own for this render; tempo may not (ADR 0003). */

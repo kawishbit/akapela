@@ -9,5 +9,5 @@ import { trackDir } from '../../../../../lib/tracks'
 export default defineEventHandler((event) => {
   const track = requireTrack(event)
   const take = requireTake(event, track.id)
-  return sendFile(event, join(trackDir(event.context.presto, track.id), take.filePath), 'audio/wav')
+  return sendFile(event, join(trackDir(event.context.akapela, track.id), take.filePath), 'audio/wav')
 })

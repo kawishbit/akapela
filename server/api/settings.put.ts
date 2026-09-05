@@ -11,7 +11,7 @@ import { availableLyricsProviders, saveSettings } from '../lib/settings'
  * the Lyrics Provider new Tracks start out looking their Lyrics up in.
  */
 export default defineEventHandler(async (event) => {
-  const presto = event.context.presto
+  const akapela = event.context.akapela
   const body = (await readBody(event)) as { defaultLyricsProvider?: unknown } | null
 
   let defaultLyricsProvider
@@ -21,9 +21,9 @@ export default defineEventHandler(async (event) => {
   catch {
     throw createError({ statusCode: 400, statusMessage: INVALID_LYRICS_PROVIDER_MESSAGE })
   }
-  if (!availableLyricsProviders(presto).includes(defaultLyricsProvider)) {
+  if (!availableLyricsProviders(akapela).includes(defaultLyricsProvider)) {
     throw createError({ statusCode: 400, statusMessage: unavailableProviderMessage(defaultLyricsProvider) })
   }
 
-  return saveSettings(presto, { defaultLyricsProvider })
+  return saveSettings(akapela, { defaultLyricsProvider })
 })

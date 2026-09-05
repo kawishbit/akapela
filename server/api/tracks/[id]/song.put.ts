@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    return await confirmSong(event.context.presto, track, song, {
+    return await confirmSong(event.context.akapela, track, song, {
       overwriteManual: body?.overwriteManual === true,
     })
   }

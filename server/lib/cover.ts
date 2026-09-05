@@ -27,7 +27,7 @@ const UNTYPED = ['', 'application/octet-stream', 'binary/octet-stream']
 
 /**
  * The extension a cover fetched over HTTP is stored under, or undefined when
- * what arrived is not an image Presto serves. A host that named a type is
+ * what arrived is not an image Akapela serves. A host that named a type is
  * believed: art that says it is HTML is an error page, not artwork.
  */
 export function coverExtension(contentType: string, url: string): string | undefined {

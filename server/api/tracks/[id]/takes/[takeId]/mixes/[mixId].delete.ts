@@ -8,7 +8,7 @@ export default defineEventHandler((event) => {
   const track = requireTrack(event)
   const take = requireTake(event, track.id)
   const mixId = getRouterParam(event, 'mixId') ?? ''
-  if (!deleteMix(event.context.presto, track.id, take.id, mixId)) {
+  if (!deleteMix(event.context.akapela, track.id, take.id, mixId)) {
     throw createError({ statusCode: 404, statusMessage: 'Mix not found' })
   }
   return sendNoContent(event)

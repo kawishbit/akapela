@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: MIX_TEMPO_LOCKED_MESSAGE })
   }
 
-  const mix = createMix(event.context.presto, take, request)
+  const mix = createMix(event.context.akapela, take, request)
   setResponseStatus(event, 201)
   return mix
 })
