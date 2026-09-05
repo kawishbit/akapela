@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .db import now_ms
 from .jobs import DEFAULT_HANDLERS
+from .telemetry import Telemetry, configure
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +32,10 @@ class Job:
     id: str
     type: str
     target_id: str | None
+    #: W3C ``traceparent`` of the request that enqueued this Job, when the app
+    #: was tracing. What makes this Job's span join that request's trace rather
+    #: than starting one nobody can connect to a click.
+    trace_parent: str | None = None
 
 
 @dataclass
@@ -60,10 +65,15 @@ class Runner:
         conn: sqlite3.Connection,
         data_dir: Path,
         handlers: Mapping[str, Handler] | None = None,
+        telemetry: Telemetry | None = None,
     ) -> None:
         self.conn = conn
         self.data_dir = Path(data_dir)
         self.handlers: Mapping[str, Handler] = handlers or DEFAULT_HANDLERS
+        # Defaults to the do-nothing one, so a Runner built without telemetry —
+        # which is every test but a handful, and every run outside the AppHost —
+        # behaves exactly as it did before there was any.
+        self.telemetry: Telemetry = telemetry or configure({})
 
     def recover_stale_jobs(self) -> int:
         """Requeue jobs left `running` by a previous worker process that died."""
@@ -83,12 +93,17 @@ class Runner:
             "   SELECT id FROM jobs WHERE state = ?"
             "   ORDER BY created_at, rowid LIMIT 1"
             " )"
-            " RETURNING id, type, target_id",
+            " RETURNING id, type, target_id, trace_parent",
             (JobState.RUNNING, now_ms(), JobState.QUEUED),
         ).fetchone()
         if row is None:
             return None
-        return Job(id=row["id"], type=row["type"], target_id=row["target_id"])
+        return Job(
+            id=row["id"],
+            type=row["type"],
+            target_id=row["target_id"],
+            trace_parent=row["trace_parent"],
+        )
 
     def run_once(self) -> bool:
         """Run at most one job. Returns False when the queue was empty."""
@@ -96,24 +111,30 @@ class Runner:
         if job is None:
             return False
         log.info("job %s (%s) started", job.id, job.type)
-        try:
-            handler = self.handlers.get(job.type)
-            if handler is None:
-                raise LookupError(f"no handler for job type '{job.type}'")
-            handler(JobContext(job, self.data_dir, self.conn))
-        except Exception as exc:  # noqa: BLE001 - any failure must land on the job row
-            log.exception("job %s failed", job.id)
-            message = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
-            self.conn.execute(
-                "UPDATE jobs SET state = ?, error = ?, finished_at = ? WHERE id = ?",
-                (JobState.FAILED, message, now_ms(), job.id),
-            )
-        else:
-            self.conn.execute(
-                "UPDATE jobs SET state = ?, progress = 100, finished_at = ? WHERE id = ?",
-                (JobState.SUCCEEDED, now_ms(), job.id),
-            )
-            log.info("job %s succeeded", job.id)
+        # The span wraps the terminal UPDATE as well as the handler, so what the
+        # Dashboard shows is the Job's lifetime rather than the handler's. The
+        # runner swallows a handler's failure — it belongs on the job row — so
+        # the span has to be told about it explicitly.
+        with self.telemetry.job_span(job, job.trace_parent) as span:
+            try:
+                handler = self.handlers.get(job.type)
+                if handler is None:
+                    raise LookupError(f"no handler for job type '{job.type}'")
+                handler(JobContext(job, self.data_dir, self.conn))
+            except Exception as exc:  # noqa: BLE001 - any failure must land on the job row
+                log.exception("job %s failed", job.id)
+                span.failed(exc)
+                message = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
+                self.conn.execute(
+                    "UPDATE jobs SET state = ?, error = ?, finished_at = ? WHERE id = ?",
+                    (JobState.FAILED, message, now_ms(), job.id),
+                )
+            else:
+                self.conn.execute(
+                    "UPDATE jobs SET state = ?, progress = 100, finished_at = ? WHERE id = ?",
+                    (JobState.SUCCEEDED, now_ms(), job.id),
+                )
+                log.info("job %s succeeded", job.id)
         return True
 
     def run_forever(self, poll_interval: float = 1.0) -> None:

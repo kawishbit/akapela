@@ -28,7 +28,15 @@
     "vue-router": "^5.3.1"
   },
   "devDependencies": {
+    "@grpc/grpc-js": "^1.14.4",
     "@nuxt/eslint": "^1.17.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.222.0",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.222.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.222.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-logs": "^0.222.0",
+    "@opentelemetry/sdk-trace-node": "^2.11.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^9.6.0",
     "drizzle-kit": "^0.31.10",

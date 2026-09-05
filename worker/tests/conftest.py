@@ -35,12 +35,19 @@ def conn(data_dir: Path):
     connection.close()
 
 
-def enqueue(conn: sqlite3.Connection, job_type: str, *, job_id: str, created_at: int) -> None:
+def enqueue(
+    conn: sqlite3.Connection,
+    job_type: str,
+    *,
+    job_id: str,
+    created_at: int,
+    trace_parent: str | None = None,
+) -> None:
     """Insert a job the way the app does: queued, no progress, no timestamps."""
     conn.execute(
-        "INSERT INTO jobs (id, type, target_id, state, progress, error, created_at)"
-        " VALUES (?, ?, NULL, 'queued', 0, NULL, ?)",
-        (job_id, job_type, created_at),
+        "INSERT INTO jobs (id, type, target_id, state, progress, error, created_at, trace_parent)"
+        " VALUES (?, ?, NULL, 'queued', 0, NULL, ?, ?)",
+        (job_id, job_type, created_at, trace_parent),
     )
     conn.commit()
 

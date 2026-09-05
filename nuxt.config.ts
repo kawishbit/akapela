@@ -22,6 +22,14 @@ export default defineNuxtConfig({
   runtimeConfig: {
     dataDir: './data',
     migrationsDir: './server/db/migrations',
+    public: {
+      // True only when something is collecting, which under `aspire run` is the
+      // Aspire Dashboard. False otherwise, which is what keeps the browser from
+      // relaying its console at a server that would only drop it. Read here
+      // rather than in the plugin because the browser has no environment to
+      // read; this is how the server's answer reaches it.
+      telemetryEnabled: Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT),
+    },
   },
   pwa: {
     registerType: 'autoUpdate',

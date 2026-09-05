@@ -24,6 +24,13 @@ export const jobs = sqliteTable('jobs', {
   createdAt: integer('created_at').notNull(),
   startedAt: integer('started_at'),
   finishedAt: integer('finished_at'),
+  /**
+   * W3C `traceparent` of the request that enqueued this Job, so the worker's
+   * span for running it hangs off that request's trace rather than starting a
+   * new one. Null whenever nothing was tracing, which is every run outside the
+   * AppHost. Telemetry only; nothing reads it to decide anything.
+   */
+  traceParent: text('trace_parent'),
 })
 
 export type Job = typeof jobs.$inferSelect

@@ -16,6 +16,14 @@ Agents working without a terminal to sit in: `aspire start` runs it in the backg
 
 The Worker also shells out to `ffmpeg` and `ffprobe`, and to `node` for the JavaScript yt-dlp runs against YouTube. The AppHost checks the PATH for all three and says so in the Dashboard: the Worker goes unhealthy without ffmpeg or ffprobe, and degraded without Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
 
+### Following a failure
+
+Under `aspire run` the app's server, the Worker, and the browser all report into the Dashboard, so an import or a Mix that goes wrong is one view rather than three. Requests are spans named for their route — `POST /api/tracks/:id/takes`, not one span per Track — and a Job carries the `traceparent` of the request that enqueued it, so a click, the API route, and the Worker shelling out to ffmpeg are one trace. The dev server's own traffic is filtered out; see `server/lib/routes.ts`. The browser's `console.error` and `console.warn` are relayed to `/api/telemetry/browser` and appear as structured logs, so a failure while recording a Take is visible without opening devtools.
+
+Read it with `aspire otel traces app`, `aspire otel spans worker`, and `aspire otel logs app`, or in the Dashboard.
+
+None of it exists outside the AppHost. The OpenTelemetry packages are `devDependencies` on both sides, loaded only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and eliminated from the production build entirely — `docker compose up` and `pnpm dev` export nothing, need no collector, and send nothing off the machine. `server/lib/telemetry.ts` explains what keeps that true, including why its imports are written the way they are.
+
 `apphost/apphost.mts` is the only file under `apphost/` to hand-edit: `.aspire/modules/` is generated from it and is rewritten on every restore.
 
 ### Configuring it

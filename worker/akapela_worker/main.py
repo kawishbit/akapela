@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .db import connect
 from .runner import Runner
+from .telemetry import configure
 
 
 def main() -> None:
@@ -31,7 +32,14 @@ def main() -> None:
         time.sleep(2.0)
 
     conn = connect(db_path)
-    Runner(conn, data_dir).run_forever(poll_interval)
+    # On only when the environment names a collector, which under `aspire run`
+    # is the Aspire Dashboard. Otherwise this is the do-nothing telemetry and
+    # the Runner behaves exactly as it did before there was any.
+    telemetry = configure()
+    try:
+        Runner(conn, data_dir, telemetry=telemetry).run_forever(poll_interval)
+    finally:
+        telemetry.shutdown()
 
 
 if __name__ == "__main__":

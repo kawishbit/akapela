@@ -3,9 +3,9 @@
 //   aspire run          (from anywhere in the repo; the CLI finds this file)
 //
 // Starts the Nuxt app and the Worker and opens the Aspire Dashboard, where
-// their endpoints and pooled logs live. `pnpm dev` and `uv run akapela-worker`
-// still run either half on its own, and `docker compose up` remains the way
-// Akapela is actually deployed (ADR 0007).
+// their endpoints, pooled logs, and traces live. `pnpm dev` and `uv run
+// akapela-worker` still run either half on its own, and `docker compose up`
+// remains the way Akapela is actually deployed (ADR 0007).
 //
 // This file is the only one here meant to be hand-edited: `.aspire/modules/` is
 // generated from it and the integration packages, and is rewritten on restore.
@@ -97,6 +97,12 @@ const app = await builder
   // but under Aspire the Dashboard is the front door, so make sure it never
   // starts doing so behind our backs.
   .withEnvironment('BROWSER', 'none')
+  // Points the app at the Dashboard's OTLP endpoint, which is the whole of what
+  // turns telemetry on: both halves treat an absent endpoint as "nobody is
+  // collecting", load nothing, and need no collector. The protocol is left
+  // alone deliberately — the Dashboard's endpoint speaks gRPC and only gRPC,
+  // and asking for HTTP here is accepted and then quietly not honoured.
+  .withOtlpExporter()
   // The library page is the cheapest honest liveness signal: it renders only
   // once migrations have run and the database is open. Named rather than left
   // to the default, so moving what lives at `/` has to think about this too.
@@ -204,6 +210,11 @@ await builder
   // Aspire it never is, so without this a Job's progress would reach the
   // Dashboard in bursts minutes late, or not at all until the process exits.
   .withEnvironment('PYTHONUNBUFFERED', '1')
+  // The other half of the trace. A Job carries the `traceparent` of the request
+  // that enqueued it, so a click that starts an import and this process
+  // shelling out to ffmpeg are one thing to follow rather than two logs to
+  // line up by timestamp.
+  .withOtlpExporter()
   // The app owns the schema and creates the database on its first start. The
   // Worker can wait for it (see `main.py`), but waiting on the app's health
   // check instead keeps that a fallback for compose rather than the normal

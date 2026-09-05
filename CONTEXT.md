@@ -79,5 +79,9 @@ The Aspire program in `apphost/` that starts the app and the Worker together for
 _Avoid_: Orchestrator, launcher, dev server
 
 **Dashboard**:
-The Aspire web UI the AppHost opens, listing each running resource with its health, endpoint, and pooled logs.
+The Aspire web UI the AppHost opens, listing each running resource with its health, endpoint, pooled logs, and traces.
 _Avoid_: Console, admin, control panel
+
+**Trace**:
+One request followed through everything it caused: the API route that served it, any Job it enqueued, and the Worker running that Job. Carried across the two halves as the `traceparent` stored on the Job. Development only, like the AppHost that collects it (ADR 0007).
+_Avoid_: Log, span tree, transaction

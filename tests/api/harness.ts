@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import { createServer, type Server } from 'node:http'
 import { createApp, createRouter, eventHandler, toNodeListener } from 'h3'
 import { createAkapela } from '../../server/lib/akapela'
+import { traceRequestAs } from '../../server/lib/request-trace'
 import type { SongMatch } from '../../server/lyrics/provider'
+import type { BrowserLogEntry } from '../../shared/browser-log'
 import jobsPost from '../../server/api/jobs.post'
 import jobsIdGet from '../../server/api/jobs/[id].get'
 import tracksPost from '../../server/api/tracks.post'
@@ -30,10 +32,38 @@ import tracksIdTakesTakeIdMixesPost from '../../server/api/tracks/[id]/takes/[ta
 import tracksIdTakesTakeIdMixesMixIdDelete from '../../server/api/tracks/[id]/takes/[takeId]/mixes/[mixId].delete'
 import tracksIdTakesTakeIdMixesMixIdAudioGet from '../../server/api/tracks/[id]/takes/[takeId]/mixes/[mixId]/audio.get'
 import tracksIdTakesTakeIdMixesMixIdRetryPost from '../../server/api/tracks/[id]/takes/[takeId]/mixes/[mixId]/retry.post'
+import telemetryBrowserPost from '../../server/api/telemetry/browser.post'
 import settingsGet from '../../server/api/settings.get'
 import settingsPut from '../../server/api/settings.put'
 import { createFakeLyricsProvider } from './fake-lyrics-provider'
 import { createFakeImages } from './fake-images'
+
+/**
+ * Ports Node's `fetch` refuses to connect to at all, failing with `bad port`
+ * before a request is ever made — the WHATWG bad-port list, as implemented by
+ * undici. Only a handful can land in an ephemeral range, but this machine's
+ * range does drift through them, and when it does an unrelated test fails with
+ * a message about a port. Asking for another one is cheaper than explaining
+ * that every time.
+ */
+const PORTS_FETCH_REFUSES = new Set([
+  1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79,
+  87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137,
+  138, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531,
+  532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720,
+  1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668,
+  6669, 6679, 6697, 10080,
+])
+
+async function listenOnAPortFetchWillTalkTo(server: Server): Promise<number> {
+  for (;;) {
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('no port')
+    if (!PORTS_FETCH_REFUSES.has(address.port)) return address.port
+    await new Promise<void>((resolve, reject) => server.close(e => (e ? reject(e) : resolve())))
+  }
+}
 
 /**
  * Boots the real route handlers on an in-process h3 app backed by a fresh
@@ -54,9 +84,23 @@ export async function createTestApi() {
     fetch: images.fetch,
   })
 
+  // Telemetry is off in every real test run, so the relay's sink stands in for
+  // the one the dev-only Nitro plugin installs.
+  let browserLogs: BrowserLogEntry[] | null = []
+  let traceParent: string | null = null
+
   const app = createApp()
   app.use(eventHandler((event) => {
     event.context.akapela = akapela
+    // Where the telemetry plugin marks the request; the same call, so what is
+    // under test is the real mechanism and not a stand-in for it — including
+    // emptying the store once the response is out, which is the whole point of
+    // the store being a box rather than a string.
+    if (traceParent !== null) event.node.res.on('close', traceRequestAs(traceParent))
+    if (browserLogs !== null) {
+      const collected = browserLogs
+      event.context.recordBrowserLogs = entries => collected.push(...entries)
+    }
   }))
   const router = createRouter()
   router.post('/api/jobs', jobsPost)
@@ -84,20 +128,35 @@ export async function createTestApi() {
   router.delete('/api/tracks/:id/takes/:takeId/mixes/:mixId', tracksIdTakesTakeIdMixesMixIdDelete)
   router.get('/api/tracks/:id/takes/:takeId/mixes/:mixId/audio', tracksIdTakesTakeIdMixesMixIdAudioGet)
   router.post('/api/tracks/:id/takes/:takeId/mixes/:mixId/retry', tracksIdTakesTakeIdMixesMixIdRetryPost)
+  router.post('/api/telemetry/browser', telemetryBrowserPost)
   router.get('/api/settings', settingsGet)
   router.put('/api/settings', settingsPut)
   app.use(router)
 
   const server: Server = createServer(toNodeListener(app))
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('no port')
-  const baseUrl = `http://127.0.0.1:${address.port}`
+  const baseUrl = `http://127.0.0.1:${await listenOnAPortFetchWillTalkTo(server)}`
 
   return {
     akapela,
     dataDir,
     baseUrl,
+    /** Traces every later request, the way the telemetry plugin does under the AppHost. */
+    traceRequestsAs(value: string) {
+      traceParent = value
+    },
+    /** The trace stamped on a Job row, which is what the worker reads. */
+    jobTraceParent(jobId: string): string | null {
+      const row = akapela.sqlite.prepare(`SELECT trace_parent FROM jobs WHERE id = ?`).get(jobId)
+      return (row as { trace_parent: string | null } | undefined)?.trace_parent ?? null
+    },
+    /** What the browser has relayed through `/api/telemetry/browser`. */
+    get browserLogs() {
+      return browserLogs ?? []
+    },
+    /** Puts the relay back where it is outside the AppHost: nothing listening. */
+    stopRecordingBrowserLogs() {
+      browserLogs = null
+    },
     /** What the stand-in LRCLIB knows and what it was asked. */
     lyrics: lrclib.canned,
     /** The same for the stand-in Genius, which is where album art comes from. */

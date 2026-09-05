@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { JOB_TYPES, jobs, type Job, type JobType } from '../db/schema'
+import { currentTraceParent } from './request-trace'
 import type { Akapela } from './akapela'
 
 export function isJobType(value: unknown): value is JobType {
@@ -18,6 +19,10 @@ export function enqueueJob(akapela: Akapela, input: { type: JobType, targetId?: 
     createdAt: Date.now(),
     startedAt: null,
     finishedAt: null,
+    // Taken from the request rather than passed in, so every caller — and
+    // every future one — correlates without knowing that it does. Null
+    // whenever nothing is tracing, which is every run outside the AppHost.
+    traceParent: currentTraceParent(),
   }
   akapela.db.insert(jobs).values(job).run()
   return job
