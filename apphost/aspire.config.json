@@ -1,0 +1,21 @@
+{
+  "appHost": {
+    "path": "apphost.mts",
+    "language": "typescript/nodejs"
+  },
+  "sdk": {
+    "version": "13.5.3"
+  },
+  "profiles": {
+    "https": {
+      "applicationUrl": "https://localhost:17242;http://localhost:15238",
+      "environmentVariables": {
+        "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:21257",
+        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22119"
+      }
+    }
+  },
+  "packages": {
+    "Aspire.Hosting.JavaScript": "13.5.3"
+  }
+}

@@ -71,3 +71,13 @@ _Avoid_: Task, process, operation
 **Worker**:
 The separate process that runs Jobs one at a time, in the order they were created.
 _Avoid_: Queue, daemon, service
+
+### Development
+
+**AppHost**:
+The Aspire program in `apphost/` that starts the app and the Worker together for local development, hands them their configuration, and reports them to the Dashboard. Development only: it is not part of what a self-hoster deploys (ADR 0007).
+_Avoid_: Orchestrator, launcher, dev server
+
+**Dashboard**:
+The Aspire web UI the AppHost opens, listing each running resource with its health, endpoint, and pooled logs.
+_Avoid_: Console, admin, control panel
