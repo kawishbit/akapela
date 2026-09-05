@@ -2,10 +2,12 @@
 FROM node:24-bookworm-slim AS build
 RUN corepack enable
 WORKDIR /app
-# Native build of better-sqlite3 needs a toolchain; python3 is for node-gyp.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
 COPY . .
+# No C++ toolchain here on purpose: better-sqlite3 ships a prebuilt binding
+# for every platform this runs on, and the root package.json keeps it out of
+# pnpm's `onlyBuiltDependencies` so nothing asks node-gyp to rebuild what is
+# already there. Listing it there again would put a compiler back on the
+# critical path here and on every contributor's machine.
 RUN pnpm install --frozen-lockfile
 RUN pnpm build
 

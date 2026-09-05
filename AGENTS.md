@@ -2,6 +2,14 @@
 
 A self-hosted karaoke app. Read `CONTEXT.md` for the vocabulary and `DESIGN.md` for the visual system before touching UI or domain code.
 
+## Two ways to run it, and which is which
+
+**`aspire run` is the development path.** It starts the app and the Worker as local processes with hot reload, on one shared data directory, with their logs and traces pooled in the Aspire Dashboard. Use it for everything you do here. It needs the Aspire CLI, which is a development-time dependency and nothing else.
+
+**`docker compose up` is what a self-hoster runs.** It is the shipping artifact, it is what the Dockerfiles build, and the AppHost is never in that path (ADR 0007). It is not a development loop — it rebuilds on every edit and has no hot reload — so reach for it only when you are changing the Dockerfiles or compose file themselves, or checking that what ships still works. A self-hoster never installs the Aspire CLI and never needs to know it exists; `README.md` is written so they do not have to.
+
+Neither path is needed for the checks. `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `uv run pytest` in `worker/` all run against the source with nothing started.
+
 ## Running it locally
 
 ```
@@ -12,9 +20,9 @@ From anywhere in the repo. Starts the app and the Worker on one shared data dire
 
 Agents working without a terminal to sit in: `aspire start` runs it in the background, then `aspire wait app`, `aspire describe app` for the endpoint, `aspire logs app` or `aspire logs worker`, and `aspire stop`. `aspire resource worker restart` restarts just the Worker.
 
-`pnpm dev` and `uv run akapela-worker` still run either half on its own if you would rather not, and `uv run pytest` in `worker/` is unchanged. `docker compose up` is what a self-hoster runs and is not a development loop — see ADR 0007.
+`pnpm dev` and `uv run akapela-worker` still run either half on its own if you would rather not, but then the data directory and the port are yours to keep in agreement.
 
-The Worker also shells out to `ffmpeg` and `ffprobe`, and to `node` for the JavaScript yt-dlp runs against YouTube. The AppHost checks the PATH for all three and says so in the Dashboard: the Worker goes unhealthy without ffmpeg or ffprobe, and degraded without Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
+`README.md` carries the full prerequisite list for both paths. The Worker also shells out to `ffmpeg` and `ffprobe`, and to `node` for the JavaScript yt-dlp runs against YouTube. The AppHost checks the PATH for all three and says so in the Dashboard: the Worker goes unhealthy without ffmpeg or ffprobe, and degraded without Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
 
 ### Following a failure
 
