@@ -16,6 +16,22 @@ Agents working without a terminal to sit in: `aspire start` runs it in the backg
 
 `apphost/apphost.mts` is the only file under `apphost/` to hand-edit: `.aspire/modules/` is generated from it and is rewritten on every restore.
 
+### Configuring it
+
+The data directory, the app's port, and the optional Genius token are AppHost parameters, listed together under the Dashboard's **Parameters** tab. Left alone they behave as they always have: `data/` at the repo root, a port Aspire allocates fresh each run, and no Genius, so the Lyrics screen offers LRCLIB and Manual. To change one, without editing the AppHost:
+
+```
+aspire secret set Parameters:genius-token <token>
+aspire secret set Parameters:data-dir ./somewhere-else
+aspire secret set Parameters:app-port 3000
+```
+
+Those land in the AppHost's user secrets, outside the repo (`aspire secret list`, `aspire secret delete`). A `Parameters__<name>` environment variable wins over them for a single run — note the literal dash, `Parameters__app-port`. A relative `data-dir` is resolved against the repo root, the way compose resolves `AKAPELA_DATA`. Restart the AppHost for any of it to take effect; editing a value in the Dashboard does not reach a running AppHost.
+
+Pin `app-port` only if you want a stable URL to type. It is the port the app is published on, not the one Nuxt listens on, so a fixed one collides with whatever else already holds it — which is why the default is to let Aspire allocate (ADR 0007).
+
+That is the Aspire path only. `docker compose up` still reads `.env` — `AKAPELA_PORT`, `AKAPELA_DATA`, and `AKAPELA_GENIUS_TOKEN`, unchanged; see `.env.example`.
+
 ## Agent skills
 
 ### Issue tracker

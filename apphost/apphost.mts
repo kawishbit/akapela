@@ -17,20 +17,79 @@ const builder = await createBuilder();
 
 const repoRoot = resolve(import.meta.dirname, '..');
 
+// Everything a contributor can configure is an AppHost parameter, so the
+// Dashboard's Parameters tab is the whole answer to "what can I change?".
+// Each keeps the behaviour the repo has always had when left alone. AGENTS.md
+// documents how to change one; this is the Aspire path only, and compose still
+// reads `.env`.
+const configuration = builder.getConfiguration();
+
+/**
+ * What is configured for a parameter, or an empty string.
+ *
+ * Load-bearing: `addParameter`'s `value` is a constant that *shadows*
+ * configuration rather than a default it falls back to, so a parameter given a
+ * value here ignores `aspire secret set Parameters:<name>` entirely. Reading
+ * the configuration and folding it into that value is what makes an override
+ * work at all. It also lets the AppHost use two of these itself — the port has
+ * to be a number before the endpoint can be declared, and a data directory has
+ * to be made absolute before either half sees it.
+ */
+async function configured(name: string): Promise<string> {
+  return (await configuration.getConfigValue(`Parameters:${name}`)) || '';
+}
+
 // One data directory for both halves. The app and the Worker each resolve their
 // own environment variable against their own working directory, and those
 // directories differ, so a relative path would silently give them two different
 // databases and a Job that never runs. The AppHost owns the absolute path and
-// hands the same one to each under the name each already reads.
-const dataDir = resolve(repoRoot, 'data');
+// hands the same one to each under the name each already reads — which is also
+// why an override is resolved against the repo root here, exactly as compose
+// resolves AKAPELA_DATA against the file it sits beside.
+const dataDir = await builder
+  .addParameter('data-dir', { value: resolve(repoRoot, (await configured('data-dir')) || 'data') })
+  .withDescription(
+    'Directory holding the database and every Track\'s files, shared by the app and the Worker. '
+    + 'A relative path is resolved against the repo root. Defaults to `data/`.',
+    { enableMarkdown: true },
+  );
 
-// No fixed port: Aspire allocates one and passes it as PORT, so a stray
-// `pnpm dev` on 3000 and repeat runs never collide.
+// The port the app is *published* on — what the Dashboard's endpoint link
+// carries and what a contributor types. Empty by default, so Aspire allocates
+// one and repeat runs never collide; pin it only when you want a stable URL,
+// and accept the collision that comes with a fixed port. Nuxt is handed the
+// port it listens on behind that as PORT, and that one stays Aspire's to
+// allocate either way, so a stray `pnpm dev` on 3000 is never in the way.
+const configuredPort = await configured('app-port');
+if (configuredPort && !/^\d+$/.test(configuredPort)) {
+  // Left alone, `Number()` would make this NaN and the endpoint would fail
+  // somewhere far from the typo that caused it.
+  throw new Error(`Parameters:app-port must be a port number, not ${JSON.stringify(configuredPort)}.`);
+}
+await builder
+  .addParameter('app-port', { value: configuredPort })
+  .withDescription(
+    'Port the app is published on. Leave empty and Aspire allocates a free one for each run.',
+  );
+
+// Optional. With a token, Genius joins LRCLIB and Manual as a Lyrics Provider;
+// without one the app hides it and the others carry on, so an empty value is a
+// working configuration rather than a missing one. Secret, so the Dashboard
+// masks it and `aspire secret set` is the way in.
+const geniusToken = await builder
+  .addParameter('genius-token', { value: await configured('genius-token'), secret: true })
+  .withDescription(
+    'Optional Genius API token, from [genius.com/api-clients](https://genius.com/api-clients). '
+    + 'Leave empty and Genius is simply not offered as a Lyrics Provider.',
+    { enableMarkdown: true },
+  );
+
 const app = await builder
   .addJavaScriptApp('app', repoRoot, { runScriptName: 'dev' })
   .withPnpm()
-  .withHttpEndpoint({ env: 'PORT' })
+  .withHttpEndpoint({ env: 'PORT', port: configuredPort ? Number(configuredPort) : undefined })
   .withEnvironment('NUXT_DATA_DIR', dataDir)
+  .withEnvironment('AKAPELA_GENIUS_TOKEN', geniusToken)
   // Nuxt only opens a browser when asked (`nuxt dev -o`, or `devServer.open`),
   // but under Aspire the Dashboard is the front door, so make sure it never
   // starts doing so behind our backs.
