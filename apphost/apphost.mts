@@ -10,8 +10,11 @@
 // This file is the only one here meant to be hand-edited: `.aspire/modules/` is
 // generated from it and the integration packages, and is rewritten on restore.
 
-import { resolve } from 'node:path';
-import { createBuilder } from './.aspire/modules/aspire.mjs';
+import { constants } from 'node:fs';
+import { access } from 'node:fs/promises';
+import { delimiter, join, resolve } from 'node:path';
+import { createBuilder, HealthStatus } from './.aspire/modules/aspire.mjs';
+import type { HealthCheckResult } from './.aspire/modules/aspire.mjs';
 
 const builder = await createBuilder();
 
@@ -99,6 +102,97 @@ const app = await builder
   // to the default, so moving what lives at `/` has to think about this too.
   .withHttpHealthCheck({ path: '/' });
 
+// The Worker shells out to tools it does not install: ffmpeg and ffprobe for
+// every import and every render, and Node for the JavaScript yt-dlp has to run
+// to solve YouTube's player challenges. Missing, none of them stop the Worker
+// from starting — they surface an hour later as a Job that failed, or as a
+// YouTube import that quietly settled for a worse format. A health check on the
+// Worker says so at startup instead, in the Dashboard, next to the resource
+// that needs them.
+//
+// This is the AppHost's own environment, which is exactly what it hands the
+// Worker process, so it is the PATH the Worker will really search. It is also
+// only ever the development path: the Worker's image installs all three, and
+// nothing here runs in a container (ADR 0007), so there is no container in
+// which this could fire spuriously.
+//
+// Nothing here is cached: the probe repeats, so installing what is missing into
+// a directory already on the PATH is enough to go healthy without a restart.
+
+// `install` is a whole sentence, and identical sentences are said once, so the
+// usual case — ffmpeg and ffprobe absent together, as one package — does not
+// repeat the same install line twice.
+const ffmpegInstall
+  = 'Install ffmpeg — ffprobe ships with it: '
+    + 'winget install Gyan.FFmpeg, brew install ffmpeg, or apt install ffmpeg.';
+
+const workerPrerequisites = [
+  {
+    command: 'ffmpeg',
+    cost: 'no Track can be imported and no Mix can be rendered',
+    install: ffmpegInstall,
+    // ffmpeg and ffprobe are what the Worker cannot do its job at all without.
+    essential: true,
+  },
+  {
+    command: 'ffprobe',
+    cost: 'no audio duration can be read, which every import and render needs',
+    install: ffmpegInstall,
+    essential: true,
+  },
+  {
+    command: 'node',
+    cost: "YouTube imports lose formats, because yt-dlp cannot run YouTube's player challenges",
+    install: 'Install Node 22 or newer, from https://nodejs.org or through nvm.',
+    // Everything that is not a YouTube import still works, so this is Degraded
+    // rather than Unhealthy — loud, but honest that uploads are unaffected.
+    essential: false,
+  },
+];
+
+// Windows resolves a bare command name against PATHEXT; everywhere else the
+// file itself has to be executable. Node has no `which`, and spawning each tool
+// to see whether it answers would cost a process per check, so this stats
+// candidates and stops at the first hit — nothing measurable when a tool is
+// present, and a few hundred stats when it is not.
+const pathExtensions = process.platform === 'win32'
+  ? (process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)
+  : [''];
+
+async function onPath(command: string): Promise<boolean> {
+  // Executable-bit checks are meaningless on Windows, where access() ignores
+  // X_OK and would call every readable file runnable.
+  const mode = process.platform === 'win32' ? constants.F_OK : constants.X_OK;
+  for (const directory of (process.env.PATH || '').split(delimiter).filter(Boolean)) {
+    for (const extension of pathExtensions) {
+      try {
+        await access(join(directory, command + extension), mode);
+        return true;
+      } catch {
+        // Not this candidate. A missing directory on the PATH lands here too.
+      }
+    }
+  }
+  return false;
+}
+
+async function checkWorkerPrerequisites(): Promise<HealthCheckResult> {
+  const found = await Promise.all(workerPrerequisites.map(tool => onPath(tool.command)));
+  const missing = workerPrerequisites.filter((_, index) => !found[index]);
+  if (missing.length === 0) {
+    return { status: HealthStatus.Healthy, description: 'ffmpeg, ffprobe, and node are on the PATH.' };
+  }
+  return {
+    status: missing.some(tool => tool.essential) ? HealthStatus.Unhealthy : HealthStatus.Degraded,
+    description: [
+      ...missing.map(tool => `${tool.command} is not on the PATH — ${tool.cost}.`),
+      ...new Set(missing.map(tool => tool.install)),
+    ].join(' '),
+  };
+}
+
+await builder.addHealthCheck('worker-prerequisites', checkWorkerPrerequisites);
+
 // The Worker is the console script the worker package installs, run from the
 // virtual environment `uv sync` prepares in `worker/` — the same thing
 // `uv run akapela-worker` gets you, which is still how its tests run.
@@ -114,6 +208,10 @@ await builder
   // Worker can wait for it (see `main.py`), but waiting on the app's health
   // check instead keeps that a fallback for compose rather than the normal
   // path, and keeps the Dashboard's startup order honest.
-  .waitFor(app);
+  .waitFor(app)
+  // Reports; it never aborts. Nothing waits on the Worker's health, so a
+  // missing tool leaves the Worker running and everything that does not need
+  // that tool working — it just stops being a surprise.
+  .withHealthCheck('worker-prerequisites');
 
 await builder.build().run();

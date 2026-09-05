@@ -14,6 +14,8 @@ Agents working without a terminal to sit in: `aspire start` runs it in the backg
 
 `pnpm dev` and `uv run akapela-worker` still run either half on its own if you would rather not, and `uv run pytest` in `worker/` is unchanged. `docker compose up` is what a self-hoster runs and is not a development loop — see ADR 0007.
 
+The Worker also shells out to `ffmpeg` and `ffprobe`, and to `node` for the JavaScript yt-dlp runs against YouTube. The AppHost checks the PATH for all three and says so in the Dashboard: the Worker goes unhealthy without ffmpeg or ffprobe, and degraded without Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
+
 `apphost/apphost.mts` is the only file under `apphost/` to hand-edit: `.aspire/modules/` is generated from it and is rewritten on every restore.
 
 ### Configuring it
