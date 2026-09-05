@@ -2,9 +2,10 @@
 //
 //   aspire run          (from anywhere in the repo; the CLI finds this file)
 //
-// Starts the Nuxt app and opens the Aspire dashboard, where its endpoint and
-// logs live. `pnpm dev` still runs the app on its own, and `docker compose up`
-// remains the way Akapela is actually deployed (ADR 0007).
+// Starts the Nuxt app and the Worker and opens the Aspire Dashboard, where
+// their endpoints and pooled logs live. `pnpm dev` and `uv run akapela-worker`
+// still run either half on its own, and `docker compose up` remains the way
+// Akapela is actually deployed (ADR 0007).
 //
 // This file is the only one here meant to be hand-edited: `.aspire/modules/` is
 // generated from it and the integration packages, and is rewritten on restore.
@@ -14,16 +15,18 @@ import { createBuilder } from './.aspire/modules/aspire.mjs';
 
 const builder = await createBuilder();
 
-// The app resolves NUXT_DATA_DIR against its own working directory. Hand it an
-// absolute path so the database and audio land in the repo's `data/` directory
-// no matter where the AppHost was started from, and so the Worker can be
-// pointed at the same one later.
 const repoRoot = resolve(import.meta.dirname, '..');
+
+// One data directory for both halves. The app and the Worker each resolve their
+// own environment variable against their own working directory, and those
+// directories differ, so a relative path would silently give them two different
+// databases and a Job that never runs. The AppHost owns the absolute path and
+// hands the same one to each under the name each already reads.
 const dataDir = resolve(repoRoot, 'data');
 
 // No fixed port: Aspire allocates one and passes it as PORT, so a stray
 // `pnpm dev` on 3000 and repeat runs never collide.
-await builder
+const app = await builder
   .addJavaScriptApp('app', repoRoot, { runScriptName: 'dev' })
   .withPnpm()
   .withHttpEndpoint({ env: 'PORT' })
@@ -36,5 +39,22 @@ await builder
   // once migrations have run and the database is open. Named rather than left
   // to the default, so moving what lives at `/` has to think about this too.
   .withHttpHealthCheck({ path: '/' });
+
+// The Worker is the console script the worker package installs, run from the
+// virtual environment `uv sync` prepares in `worker/` — the same thing
+// `uv run akapela-worker` gets you, which is still how its tests run.
+await builder
+  .addPythonExecutable('worker', resolve(repoRoot, 'worker'), 'akapela-worker')
+  .withUv()
+  .withEnvironment('AKAPELA_DATA_DIR', dataDir)
+  // Python buffers stdout in full blocks when it is not a terminal, and under
+  // Aspire it never is, so without this a Job's progress would reach the
+  // Dashboard in bursts minutes late, or not at all until the process exits.
+  .withEnvironment('PYTHONUNBUFFERED', '1')
+  // The app owns the schema and creates the database on its first start. The
+  // Worker can wait for it (see `main.py`), but waiting on the app's health
+  // check instead keeps that a fallback for compose rather than the normal
+  // path, and keeps the Dashboard's startup order honest.
+  .waitFor(app);
 
 await builder.build().run();

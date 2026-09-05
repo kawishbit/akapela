@@ -121,7 +121,9 @@ def _fetch_from_source(
         nonlocal last_reported
         span = PROGRESS_AUDIO_ON_DISK - PROGRESS_SOURCE_KNOWN
         percent = PROGRESS_SOURCE_KNOWN + int(span * max(0.0, min(1.0, fraction)))
-        # yt-dlp reports many times a second; only touch the row when the number moves.
+        # yt-dlp reports many times a second; only touch the row, and the log,
+        # when the number moves. The milestones either side of this are the
+        # Job's, not the download's, and are always reported.
         if percent != last_reported:
             last_reported = percent
             ctx.progress(percent)

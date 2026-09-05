@@ -42,10 +42,13 @@ class JobContext:
     conn: sqlite3.Connection
 
     def progress(self, percent: int) -> None:
+        """Put the percent on the job row, and say it so the Dashboard shows it too."""
+        clamped = max(0, min(100, int(percent)))
         self.conn.execute(
             "UPDATE jobs SET progress = ? WHERE id = ?",
-            (max(0, min(100, int(percent))), self.job.id),
+            (clamped, self.job.id),
         )
+        log.info("job %s %d%%", self.job.id, clamped)
 
 
 Handler = Callable[[JobContext], None]

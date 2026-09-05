@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from akapela_worker.runner import Runner
@@ -79,3 +80,15 @@ def test_stale_running_jobs_are_requeued_on_startup(conn, data_dir: Path):
     assert job["state"] == "queued"
     assert job["started_at"] is None
     assert job["progress"] == 0
+
+
+def test_progress_is_logged_so_it_reaches_the_dashboard(conn, data_dir: Path, caplog):
+    """The Dashboard pools our stdout; progress is only useful there if we say it."""
+    enqueue(conn, "noop", job_id="j1", created_at=1000)
+    runner = Runner(conn, data_dir, handlers={"noop": lambda ctx: ctx.progress(42)})
+
+    with caplog.at_level(logging.INFO, logger="akapela_worker.runner"):
+        runner.run_once()
+
+    assert any("j1" in record.message and "42%" in record.message for record in caplog.records)
+    assert get_job(conn, "j1")["progress"] == 100
