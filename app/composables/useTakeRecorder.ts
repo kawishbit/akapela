@@ -142,7 +142,11 @@ export function useTakeRecorder(trackId: Ref<string>) {
       return
     }
     state.value.error = null
-    startPositionMs = player.state.value.positionMs
+    // The engine reports position as a sample-rate-derived float (exactly whole
+    // only when the frame happens to divide evenly into milliseconds, which is
+    // essentially never once playback has moved); the API needs a whole
+    // millisecond the way `durationMs` below already is.
+    startPositionMs = Math.round(player.state.value.positionMs)
     recordedAdjustments = { ...player.state.value.adjustments }
     recordedBackingSource = player.state.value.backingSource
     if (player.state.value.playing) player.pause()
