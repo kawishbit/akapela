@@ -90,6 +90,30 @@ function onVolumeInput(event: Event) {
             <span class="w-12 text-xs tabular-nums text-text-muted">-{{ formatDuration(remainingMs) }}</span>
           </div>
 
+          <div class="flex shrink-0 items-center gap-1.5">
+            <VolumeX
+              v-if="state.volume <= VOLUME_MIN"
+              class="size-4 shrink-0 text-text-muted"
+              aria-hidden="true"
+            />
+            <Volume2
+              v-else
+              class="size-4 shrink-0 text-text-muted"
+              aria-hidden="true"
+            />
+            <input
+              type="range"
+              class="h-11 w-14 cursor-pointer accent-accent sm:w-24"
+              :min="VOLUME_MIN"
+              :max="VOLUME_MAX"
+              step="0.01"
+              :value="state.volume"
+              aria-label="Backing Track volume"
+              :aria-valuetext="formatGain(state.volume)"
+              @input="onVolumeInput"
+            >
+          </div>
+
           <button
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-ground transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
@@ -159,33 +183,6 @@ function onVolumeInput(event: Event) {
           @change="onSeek"
         >
         <span class="w-12 text-xs tabular-nums text-text-muted">-{{ formatDuration(remainingMs) }}</span>
-      </div>
-
-      <div
-        v-if="state.track"
-        class="mt-1 flex items-center gap-3"
-      >
-        <VolumeX
-          v-if="state.volume <= VOLUME_MIN"
-          class="size-4 shrink-0 text-text-muted"
-          aria-hidden="true"
-        />
-        <Volume2
-          v-else
-          class="size-4 shrink-0 text-text-muted"
-          aria-hidden="true"
-        />
-        <input
-          type="range"
-          class="h-11 w-24 cursor-pointer accent-accent sm:w-32"
-          :min="VOLUME_MIN"
-          :max="VOLUME_MAX"
-          step="0.01"
-          :value="state.volume"
-          aria-label="Backing Track volume"
-          :aria-valuetext="formatGain(state.volume)"
-          @input="onVolumeInput"
-        >
       </div>
     </div>
   </footer>
