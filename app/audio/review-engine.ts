@@ -88,6 +88,12 @@ export class TakeReviewEngine {
    * reload, exactly like switching it on the persistent player, that picks up
    * at the same song position and resumes if it was playing. Never written
    * back to the Take — only what a later render request carries.
+   *
+   * `backingSource` only updates once the load has actually succeeded, so a
+   * failure (Stems deleted mid-session, a network hiccup) leaves the engine
+   * naming whichever source it is genuinely still playing, and the caller's
+   * rejected promise is what tells `useTakeReview` to undo the optimistic UI
+   * selection rather than leave it pointing at audio that never loaded.
    */
   async setBackingSource(source: BackingSource): Promise<void> {
     if (source === this.backingSource || !this.adjustments) return
@@ -96,8 +102,8 @@ export class TakeReviewEngine {
     this.backing.pause()
     this.stopVocal()
     this.playing = false
-    this.backingSource = source
     await this.backing.load(this.backingUrl(source), this.adjustments, resumeAtMs)
+    this.backingSource = source
     if (wasPlaying) await this.play()
   }
 

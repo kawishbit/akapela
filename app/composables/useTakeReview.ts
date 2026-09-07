@@ -182,8 +182,15 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
    * was sung to (ADR 0003 amendment). Auditions the choice immediately.
    */
   function setBackingSource(source: BackingSource): void {
+    const previous = state.value.backingSource
     state.value.backingSource = source
-    void engine?.setBackingSource(source)
+    engine?.setBackingSource(source).catch((e) => {
+      // The reload failed (Stems deleted mid-session, a network hiccup): the
+      // engine is still playing `previous`, so the selection shown has to
+      // say so too, with the failure surfaced the way a failed initial load already is.
+      state.value.backingSource = previous
+      state.value.error = describeError(e)
+    })
   }
 
   const heardPitch = computed(() => effectivePitchSemitones(currentAdjustments()))
