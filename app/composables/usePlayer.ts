@@ -1,4 +1,5 @@
 import { BackingTrackEngine } from '~/audio/engine'
+import { DEFAULT_VOLUME, VolumeStore } from '~/audio/volume'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '~~/shared/adjustments'
 import { DEFAULT_BACKING_SOURCE, type BackingSource } from '~~/shared/backing-source'
@@ -27,16 +28,23 @@ export interface PlayerState {
   positionMs: number
   durationMs: number
   adjustments: Adjustments
+  /**
+   * A listening preference, not an Adjustment (ticket 11): linear gain on the
+   * Backing Track's output, 0 to 1, remembered per-device in `localStorage`
+   * rather than on the Track. Never sent to the server.
+   */
+  volume: number
   /** The last failure to remember Adjustments on the Track; playback carries on regardless. */
   saveError: string | null
 }
 
 const SAVE_DEBOUNCE_MS = 300
 
-// One engine, one animation loop, and one pending save per browser window.
+// One engine, one animation loop, one pending save, and one remembered volume per browser window.
 let engine: BackingTrackEngine | undefined
 let frameLoop: number | undefined
 let pendingSave: { timer: ReturnType<typeof setTimeout>, run: () => void } | undefined
+const volumeStore = new VolumeStore()
 
 /**
  * The persistent player: one Track loaded at a time, played through the
@@ -52,11 +60,16 @@ export function usePlayer() {
     positionMs: 0,
     durationMs: 0,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
+    // Read on the server too, but `VolumeStore` fails open to `DEFAULT_VOLUME`
+    // without a `localStorage` to read; the real remembered value loads once
+    // the engine is created below, which only ever happens in the browser.
+    volume: DEFAULT_VOLUME,
     saveError: null,
   }))
 
   function getEngine(): BackingTrackEngine {
     if (!engine) {
+      state.value.volume = volumeStore.ensureLoaded()
       engine = new BackingTrackEngine({
         onPosition(positionMs, playing) {
           state.value.positionMs = positionMs
@@ -124,6 +137,10 @@ export function usePlayer() {
       if (durationMs === null) return
       state.value.durationMs = durationMs
       state.value.loading = false
+      // The gain stage exists only once the engine's graph has been built by a
+      // first load; harmless to repeat on every Track, since it just applies
+      // what is already remembered.
+      getEngine().setGain(state.value.volume)
     }
     catch (error) {
       if (state.value.track?.id !== track.id) return
@@ -206,6 +223,17 @@ export function usePlayer() {
     setAdjustments({ ...DEFAULT_ADJUSTMENTS })
   }
 
+  /**
+   * Sets how loud the Backing Track plays, immediately and with no reload —
+   * a gain change, not a pause, so position, the seek bar, and Lyrics
+   * scrolling keep advancing normally even at zero. Remembered per-device,
+   * never sent to the server (ticket 11).
+   */
+  function setVolume(volume: number): void {
+    state.value.volume = volumeStore.set(volume)
+    getEngine().setGain(state.value.volume)
+  }
+
   function scheduleSave(trackId: string, adjustments: Adjustments): void {
     if (pendingSave) clearTimeout(pendingSave.timer)
     const run = () => {
@@ -260,6 +288,7 @@ export function usePlayer() {
     seek,
     setAdjustments,
     resetAdjustments,
+    setVolume,
     isLoading,
     close,
     getAudioContext,

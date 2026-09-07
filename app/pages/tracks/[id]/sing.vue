@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ChevronDown, Loader2, Pause, Play } from 'lucide-vue-next'
+import { ChevronDown, Loader2, Pause, Play, Volume2, VolumeX } from 'lucide-vue-next'
 import { effectivePitchSemitones } from '~~/shared/adjustments'
 import { BACKING_SOURCE_LABELS } from '~~/shared/backing-source'
 import { LYRICS_PROVIDER_LABELS } from '~~/shared/lyrics'
+import { VOLUME_MAX, VOLUME_MIN } from '~/audio/volume'
 
 // The Lyrics fill the screen here; the persistent player bar would only steal
 // room from them, so this page carries its own transport.
@@ -112,6 +113,10 @@ function onScrub(event: Event) {
 function onSeek(event: Event) {
   scrubbing.value = null
   player.seek(Number((event.target as HTMLInputElement).value))
+}
+
+function onVolumeInput(event: Event) {
+  player.setVolume(Number((event.target as HTMLInputElement).value))
 }
 
 useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : 'Akapela' }))
@@ -254,6 +259,33 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
             fill="currentColor"
           />
         </button>
+      </div>
+
+      <div
+        v-if="track?.importState === 'ready' && transportAvailable"
+        class="flex w-full max-w-3xl items-center gap-3"
+      >
+        <VolumeX
+          v-if="playerState.volume <= VOLUME_MIN"
+          class="size-4 shrink-0 text-text-muted"
+          aria-hidden="true"
+        />
+        <Volume2
+          v-else
+          class="size-4 shrink-0 text-text-muted"
+          aria-hidden="true"
+        />
+        <input
+          type="range"
+          class="h-11 w-full max-w-40 cursor-pointer accent-accent"
+          :min="VOLUME_MIN"
+          :max="VOLUME_MAX"
+          step="0.01"
+          :value="playerState.volume"
+          aria-label="Backing Track volume"
+          :aria-valuetext="formatGain(playerState.volume)"
+          @input="onVolumeInput"
+        >
       </div>
 
       <p

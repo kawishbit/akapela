@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Loader2, Pause, Play } from 'lucide-vue-next'
+import { Loader2, Pause, Play, Volume2, VolumeX } from 'lucide-vue-next'
 import { effectivePitchSemitones } from '~~/shared/adjustments'
+import { VOLUME_MAX, VOLUME_MIN } from '~/audio/volume'
 
 const player = usePlayer()
 const state = player.state
@@ -24,6 +25,10 @@ function onSeek(event: Event) {
   const positionMs = Number((event.target as HTMLInputElement).value)
   scrubbing.value = null
   player.seek(positionMs)
+}
+
+function onVolumeInput(event: Event) {
+  player.setVolume(Number((event.target as HTMLInputElement).value))
 }
 </script>
 
@@ -154,6 +159,33 @@ function onSeek(event: Event) {
           @change="onSeek"
         >
         <span class="w-12 text-xs tabular-nums text-text-muted">-{{ formatDuration(remainingMs) }}</span>
+      </div>
+
+      <div
+        v-if="state.track"
+        class="mt-1 flex items-center gap-3"
+      >
+        <VolumeX
+          v-if="state.volume <= VOLUME_MIN"
+          class="size-4 shrink-0 text-text-muted"
+          aria-hidden="true"
+        />
+        <Volume2
+          v-else
+          class="size-4 shrink-0 text-text-muted"
+          aria-hidden="true"
+        />
+        <input
+          type="range"
+          class="h-11 w-24 cursor-pointer accent-accent sm:w-32"
+          :min="VOLUME_MIN"
+          :max="VOLUME_MAX"
+          step="0.01"
+          :value="state.volume"
+          aria-label="Backing Track volume"
+          :aria-valuetext="formatGain(state.volume)"
+          @input="onVolumeInput"
+        >
       </div>
     </div>
   </footer>
