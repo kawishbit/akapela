@@ -199,6 +199,29 @@ export const mixes = sqliteTable('mixes', {
 
 export type Mix = typeof mixes.$inferSelect
 
+/**
+ * A named bundle of Adjustments, one tap to apply (ticket 08). Carries the
+ * five Adjustments fields and nothing Track-specific — not Backing Source,
+ * not Lyrics Offset, not the gains a Take does not exist yet to have — which
+ * is what lets applying one be a single assignment onto any Track. The three
+ * built-ins (Slowed and Reverb, Nightcore, Practice) are seeded by the
+ * migration with `built_in = 1`; deleting one is rejected.
+ */
+export const presets = sqliteTable('presets', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  pitchSemitones: integer('pitch_semitones').notNull(),
+  tempoPercent: integer('tempo_percent').notNull(),
+  linked: integer('linked', { mode: 'boolean' }).notNull(),
+  reverbAmount: integer('reverb_amount').notNull(),
+  lowpassHz: integer('lowpass_hz').notNull(),
+  builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export type Preset = typeof presets.$inferSelect
+
 /** The one settings row; Akapela is one singer's app, so there is nothing to key them by. */
 export const SETTINGS_ROW_ID = 1
 

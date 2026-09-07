@@ -39,6 +39,9 @@ import tracksIdTakesTakeIdMixesMixIdRetryPost from '../../server/api/tracks/[id]
 import telemetryBrowserPost from '../../server/api/telemetry/browser.post'
 import settingsGet from '../../server/api/settings.get'
 import settingsPut from '../../server/api/settings.put'
+import presetsGet from '../../server/api/presets.get'
+import presetsPost from '../../server/api/presets.post'
+import presetsIdDelete from '../../server/api/presets/[id].delete'
 import { createFakeLyricsProvider } from './fake-lyrics-provider'
 import { createFakeImages } from './fake-images'
 
@@ -139,6 +142,9 @@ export async function createTestApi() {
   router.post('/api/telemetry/browser', telemetryBrowserPost)
   router.get('/api/settings', settingsGet)
   router.put('/api/settings', settingsPut)
+  router.get('/api/presets', presetsGet)
+  router.post('/api/presets', presetsPost)
+  router.delete('/api/presets/:id', presetsIdDelete)
   app.use(router)
 
   const server: Server = createServer(toNodeListener(app))

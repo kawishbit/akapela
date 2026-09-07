@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown, Link2, Link2Off, Minus, Plus, RotateCcw } from 'lucide-vue-next'
+import { ChevronDown, Link2, Link2Off, Loader2, Minus, Plus, RotateCcw, X } from 'lucide-vue-next'
 import {
   DEFAULT_ADJUSTMENTS,
   LOWPASS_HZ_MAX,
@@ -13,9 +13,40 @@ import {
   effectivePitchSemitones,
   type Adjustments,
 } from '~~/shared/adjustments'
+import { presetAdjustments } from '~~/shared/preset'
 
 const props = defineProps<{ adjustments: Adjustments }>()
 const emit = defineEmits<{ change: [patch: Partial<Adjustments>], reset: [] }>()
+
+const presets = usePresets()
+
+/** A tap applies all five fields at once, through the same path Reset already uses. */
+function applyPreset(id: string) {
+  const preset = presets.list.value.find(p => p.id === id)
+  if (preset) emit('change', presetAdjustments(preset))
+}
+
+const savingAs = ref(false)
+const saveName = ref('')
+
+function startSaveAs() {
+  saveName.value = ''
+  savingAs.value = true
+}
+
+function cancelSaveAs() {
+  savingAs.value = false
+}
+
+async function confirmSaveAs() {
+  const name = saveName.value.trim()
+  if (!name) return
+  if (await presets.save(name, props.adjustments)) savingAs.value = false
+}
+
+async function deletePreset(id: string) {
+  await presets.remove(id)
+}
 
 const isDefault = computed(() =>
   props.adjustments.pitchSemitones === DEFAULT_ADJUSTMENTS.pitchSemitones
@@ -98,6 +129,88 @@ function onLowpassInput(event: Event) {
     </div>
 
     <div class="flex flex-col gap-5">
+      <div
+        class="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Presets"
+      >
+        <div
+          v-for="preset in presets.list.value"
+          :key="preset.id"
+          class="group/pill relative"
+        >
+          <button
+            type="button"
+            class="inline-flex h-10 items-center rounded-pill bg-surface-mid pl-4 pr-4 text-xs font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
+            :class="{ 'pr-8': !preset.builtIn }"
+            @click="applyPreset(preset.id)"
+          >
+            {{ preset.name }}
+          </button>
+          <button
+            v-if="!preset.builtIn"
+            type="button"
+            class="absolute inset-y-0 right-1 flex w-6 items-center justify-center text-text-muted opacity-0 transition hover:text-negative focus-visible:opacity-100 group-hover/pill:opacity-100"
+            :aria-label="`Delete Preset ${preset.name}`"
+            @click="deletePreset(preset.id)"
+          >
+            <X class="size-3.5" />
+          </button>
+        </div>
+
+        <form
+          v-if="savingAs"
+          class="flex items-center gap-1.5"
+          @submit.prevent="confirmSaveAs"
+        >
+          <input
+            v-model="saveName"
+            type="text"
+            autofocus
+            placeholder="Preset name"
+            maxlength="60"
+            class="h-10 w-36 rounded-pill border border-border-light bg-surface px-3 text-xs font-bold text-text outline-none focus:border-text"
+            @keydown.escape="cancelSaveAs"
+          >
+          <button
+            type="submit"
+            class="flex h-10 items-center rounded-pill bg-accent px-3 text-xs font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60"
+            :disabled="presets.saving.value || saveName.trim().length === 0"
+          >
+            <Loader2
+              v-if="presets.saving.value"
+              class="size-3.5 animate-spin"
+            />
+            <span v-else>Save</span>
+          </button>
+          <button
+            type="button"
+            class="flex size-10 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
+            aria-label="Cancel saving Preset"
+            @click="cancelSaveAs"
+          >
+            <X class="size-4" />
+          </button>
+        </form>
+        <button
+          v-else
+          type="button"
+          class="inline-flex h-10 items-center gap-1.5 rounded-pill border border-dashed border-border-light px-4 text-xs font-bold uppercase tracking-[1.4px] text-text-muted transition hover:border-text hover:text-text"
+          @click="startSaveAs"
+        >
+          <Plus class="size-3.5" />
+          Save current as…
+        </button>
+      </div>
+
+      <p
+        v-if="presets.saveError.value"
+        class="text-sm text-negative"
+        role="alert"
+      >
+        {{ presets.saveError.value }}
+      </p>
+
       <div>
         <div class="mb-1 flex items-baseline justify-between">
           <label

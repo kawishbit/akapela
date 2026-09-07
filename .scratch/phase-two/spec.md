@@ -15,7 +15,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 05 | [Effects on Adjustments: shared shape, tolerant parse](issues/05-effects-on-adjustments.md) | done | 6/6 | Nothing — wiring the Effects into the engines and UI is tickets 06 and 08 |
 | 06 | [Effects live in the browser engine](issues/06-effects-in-browser-engine.md) | done | 7/7 | Nothing |
 | 07 | [Effects in the Mix render](issues/07-effects-in-mix-render.md) | done | 6/6 | Nothing |
-| 08 | [Presets: table, built-ins, API, and the pill row](issues/08-presets.md) | ready-for-agent | 0/8 | Everything |
+| 08 | [Presets: table, built-ins, API, and the pill row](issues/08-presets.md) | done | 8/8 | Nothing |
 | 09 | [Take and Mix carry Backing Source; Review override](issues/09-backing-source-on-takes-and-mixes.md) | ready-for-agent | 0/7 | Everything |
 | 10 | [Docs, ADRs, and the device pass](issues/10-docs-adrs-device-pass.md) | ready-for-agent | 0/6 | Everything |
 | 11 | [Volume control for Backing Track playback](issues/11-volume-control.md) | ready-for-agent | 0/6 | Everything |

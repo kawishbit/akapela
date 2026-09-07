@@ -16,13 +16,21 @@ Two things that are deliberately *not* Presets: Reset, which already has its own
 
 **Blocked by:** 05 (Effects on Adjustments)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A `presets` table with id, name, the five Adjustments fields, a `built_in` flag, and timestamps
-- [ ] The migration seeds the three built-ins above with `built_in = 1`
-- [ ] `GET /api/presets` lists built-ins first, then user Presets
-- [ ] `POST /api/presets` saves the submitted Adjustments under a name, rejecting a blank or duplicate name
-- [ ] `DELETE /api/presets/:id` deletes a user Preset and rejects a built-in with a message saying it ships with the app
-- [ ] `AdjustmentsPanel.vue` shows Presets as a row of pills above the controls, expanded rather than collapsed, with a "Save current as…" affordance at the end of the row
-- [ ] Applying a Preset writes its five fields onto the Track's Adjustments through the existing update path and is audible immediately, with no reload
-- [ ] API tests cover listing, creating, the blank and duplicate name rejections, deleting a user Preset, and the built-in delete rejection; Vitest covers applying a Preset to Adjustments
+- [x] A `presets` table with id, name, the five Adjustments fields, a `built_in` flag, and timestamps
+- [x] The migration seeds the three built-ins above with `built_in = 1`
+- [x] `GET /api/presets` lists built-ins first, then user Presets
+- [x] `POST /api/presets` saves the submitted Adjustments under a name, rejecting a blank or duplicate name
+- [x] `DELETE /api/presets/:id` deletes a user Preset and rejects a built-in with a message saying it ships with the app
+- [x] `AdjustmentsPanel.vue` shows Presets as a row of pills above the controls, expanded rather than collapsed, with a "Save current as…" affordance at the end of the row
+- [x] Applying a Preset writes its five fields onto the Track's Adjustments through the existing update path and is audible immediately, with no reload
+- [x] API tests cover listing, creating, the blank and duplicate name rejections, deleting a user Preset, and the built-in delete rejection; Vitest covers applying a Preset to Adjustments
+
+## Comments
+
+Duplicate-name rejection is case-insensitive and checked against every Preset,
+built-in or not — two pills reading the same thing would be confusing
+regardless of which one made it. A small delete affordance (a hover-revealed
+×) went on each user-made pill beyond what the checkboxes name, for story 24;
+built-ins never show one.
