@@ -8,11 +8,20 @@ The matching detail worth guarding: a Web Audio `BiquadFilterNode` lowpass at de
 
 **Blocked by:** 05 (Effects on Adjustments), 06 (Effects live in the browser engine)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `mixes` gains `reverb_amount` and `lowpass_hz`, copied onto the row at request time like every other render parameter
-- [ ] The Mix request accepts both Effects alongside the pitch it already accepts; tempo stays locked to the Take
-- [ ] `render_mix` applies reverb with `afir` against the same bundled impulse response ticket 06 loads, then the low-pass, then mixes the dry vocal in
-- [ ] Both filters are absent from the chain at their default values, and a render with defaults matches the no-Effects path
-- [ ] Worker tests assert reverb raises energy in the tail after the last input sample, the low-pass measurably reduces high-frequency energy, and defaults produce output matching the pre-Effects render — real ffmpeg on short generated audio
-- [ ] The Review screen exposes both Effects as Mix-time parameters, changeable after recording the way pitch already is (ADR 0003)
+- [x] `mixes` gains `reverb_amount` and `lowpass_hz`, copied onto the row at request time like every other render parameter
+- [x] The Mix request accepts both Effects alongside the pitch it already accepts; tempo stays locked to the Take
+- [x] `render_mix` applies reverb with `afir` against the same bundled impulse response ticket 06 loads, then the low-pass, then mixes the dry vocal in
+- [x] Both filters are absent from the chain at their default values, and a render with defaults matches the no-Effects path
+- [x] Worker tests assert reverb raises energy in the tail after the last input sample, the low-pass measurably reduces high-frequency energy, and defaults produce output matching the pre-Effects render — real ffmpeg on short generated audio
+- [x] The Review screen exposes both Effects as Mix-time parameters, changeable after recording the way pitch already is (ADR 0003)
+
+## Comments
+
+The impulse response the worker convolves against is a copy bundled at
+`worker/akapela_worker/assets/large-hall-ir.wav`, not a shared filesystem path
+to `public/audio/`: the app and the Worker are separate deployables (separate
+containers under `docker compose up`), so "the same file" means the same bytes
+shipped with each engine, the way the Rubber Band WASM and processor are their
+own per-engine copies too.

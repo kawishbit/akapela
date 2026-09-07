@@ -47,6 +47,49 @@ def write_sine_wav(
     )
 
 
+def write_burst_then_silence_wav(
+    path: Path,
+    *,
+    frequency: float,
+    burst_seconds: float,
+    total_seconds: float,
+    sample_rate: int = 44100,
+) -> None:
+    """A short tone followed by silence out to `total_seconds`, so a window after
+    the burst is where dry silence and a reverb tail tell apart."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency={frequency}:duration={burst_seconds}",
+            "-f",
+            "lavfi",
+            "-i",
+            f"anullsrc=r={sample_rate}:cl=stereo:d={total_seconds - burst_seconds}",
+            "-filter_complex",
+            "[0:a]aformat=channel_layouts=stereo[a0];[a0][1:a]concat=n=2:v=0:a=1[cat]",
+            "-map",
+            "[cat]",
+            "-ar",
+            str(sample_rate),
+            "-ac",
+            "2",
+            "-c:a",
+            "pcm_s16le",
+            str(path),
+        ],
+        check=True,
+    )
+
+
 def probe(path: Path) -> dict:
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
@@ -110,6 +153,8 @@ def insert_mix(
     tempo_percent: int = 100,
     pitch_semitones: int = 0,
     linked: bool = False,
+    reverb_amount: int = 0,
+    lowpass_hz: int = 20000,
     latency_nudge_ms: int = 0,
     vocal_gain: float = 1.0,
     backing_gain: float = 1.0,
@@ -117,9 +162,9 @@ def insert_mix(
 ) -> None:
     conn.execute(
         "INSERT INTO mixes (id, take_id, mp3_path, wav_path, wav_requested, pitch_semitones,"
-        " tempo_percent, linked, latency_nudge_ms, vocal_gain, backing_gain, job_id,"
-        " created_at, updated_at)"
-        " VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 1000, 1000)",
+        " tempo_percent, linked, reverb_amount, lowpass_hz, latency_nudge_ms, vocal_gain,"
+        " backing_gain, job_id, created_at, updated_at)"
+        " VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1000, 1000)",
         (
             mix_id,
             take_id,
@@ -127,6 +172,8 @@ def insert_mix(
             pitch_semitones,
             tempo_percent,
             int(linked),
+            reverb_amount,
+            lowpass_hz,
             latency_nudge_ms,
             vocal_gain,
             backing_gain,
@@ -402,3 +449,99 @@ def test_render_reports_progress_before_finishing(
     assert get_job(conn, "j1")["state"] == "succeeded"
     assert seen[0] < 100
     assert any(0 < p < 100 for p in seen)
+
+
+def test_reverb_raises_energy_in_the_tail_after_the_last_input_sample(conn, data_dir: Path):
+    track_dir = data_dir / "tracks" / TRACK_ID
+    write_burst_then_silence_wav(
+        track_dir / "backing.wav", frequency=220, burst_seconds=0.3, total_seconds=3.0
+    )
+    write_sine_wav(track_dir / "takes" / "take1.wav", frequency=880, seconds=0.1)
+    insert_track(conn)
+    # A vocal placed at the very end, out of the way of the window under test.
+    insert_take(conn, file_path="takes/take1.wav", start_position_ms=2900, duration_ms=100)
+    insert_mix(conn, mix_id="m1", job_id="j1", reverb_amount=65, wav_requested=True)
+    enqueue_render(conn, mix_id="m1")
+    conn.commit()
+
+    Runner(conn, data_dir).run_once()
+
+    assert get_job(conn, "j1")["state"] == "succeeded", get_job(conn, "j1")["error"]
+    wav = track_dir / "mixes" / "m1.wav"
+    # The dry backing is silent here; a reverb tail is not.
+    assert rms_window(wav, 0.5, 1.0) > 0
+
+
+def test_no_reverb_leaves_the_tail_silent(conn, data_dir: Path):
+    track_dir = data_dir / "tracks" / TRACK_ID
+    write_burst_then_silence_wav(
+        track_dir / "backing.wav", frequency=220, burst_seconds=0.3, total_seconds=3.0
+    )
+    write_sine_wav(track_dir / "takes" / "take1.wav", frequency=880, seconds=0.1)
+    insert_track(conn)
+    insert_take(conn, file_path="takes/take1.wav", start_position_ms=2900, duration_ms=100)
+    insert_mix(conn, mix_id="m1", job_id="j1", reverb_amount=0, wav_requested=True)
+    enqueue_render(conn, mix_id="m1")
+    conn.commit()
+
+    Runner(conn, data_dir).run_once()
+
+    assert get_job(conn, "j1")["state"] == "succeeded", get_job(conn, "j1")["error"]
+    wav = track_dir / "mixes" / "m1.wav"
+    assert rms_window(wav, 0.5, 1.0) == 0
+
+
+def test_lowpass_measurably_reduces_high_frequency_energy(conn, data_dir: Path):
+    track_dir = data_dir / "tracks" / TRACK_ID
+    write_sine_wav(track_dir / "backing.wav", frequency=8000, seconds=2.0)
+    write_sine_wav(track_dir / "takes" / "take1.wav", frequency=880, seconds=0.1)
+    insert_track(conn)
+    insert_take(conn, file_path="takes/take1.wav", start_position_ms=1900, duration_ms=100)
+    insert_mix(conn, mix_id="filtered", job_id="j1", lowpass_hz=1000, wav_requested=True)
+    insert_mix(conn, mix_id="unfiltered", job_id="j2", lowpass_hz=20000, wav_requested=True)
+    enqueue_render(conn, mix_id="filtered", job_id="j1")
+    enqueue_render(conn, mix_id="unfiltered", job_id="j2")
+    conn.commit()
+
+    runner = Runner(conn, data_dir)
+    runner.run_once()
+    runner.run_once()
+
+    assert get_job(conn, "j1")["state"] == "succeeded", get_job(conn, "j1")["error"]
+    assert get_job(conn, "j2")["state"] == "succeeded", get_job(conn, "j2")["error"]
+
+    filtered_rms = rms_window(track_dir / "mixes" / "filtered.wav", 0.2, 1.5)
+    unfiltered_rms = rms_window(track_dir / "mixes" / "unfiltered.wav", 0.2, 1.5)
+    assert filtered_rms < unfiltered_rms * 0.5
+
+
+def test_defaults_produce_output_matching_the_no_effects_path(conn, data_dir: Path):
+    track_dir = data_dir / "tracks" / TRACK_ID
+    write_sine_wav(track_dir / "backing.wav", frequency=220, seconds=2.0)
+    write_sine_wav(track_dir / "takes" / "take1.wav", frequency=880, seconds=0.5)
+    insert_track(conn)
+    insert_take(conn, file_path="takes/take1.wav", start_position_ms=500, duration_ms=500)
+    # One Mix at the schema's own bypassed defaults, one naming them explicitly.
+    insert_mix(conn, mix_id="implicit", job_id="j1", wav_requested=True)
+    insert_mix(
+        conn,
+        mix_id="explicit",
+        job_id="j2",
+        reverb_amount=0,
+        lowpass_hz=20000,
+        wav_requested=True,
+    )
+    enqueue_render(conn, mix_id="implicit", job_id="j1")
+    enqueue_render(conn, mix_id="explicit", job_id="j2")
+    conn.commit()
+
+    runner = Runner(conn, data_dir)
+    runner.run_once()
+    runner.run_once()
+
+    assert get_job(conn, "j1")["state"] == "succeeded", get_job(conn, "j1")["error"]
+    assert get_job(conn, "j2")["state"] == "succeeded", get_job(conn, "j2")["error"]
+
+    implicit_bytes = (track_dir / "mixes" / "implicit.wav").read_bytes()
+    explicit_bytes = (track_dir / "mixes" / "explicit.wav").read_bytes()
+    assert implicit_bytes == explicit_bytes

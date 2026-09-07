@@ -1,5 +1,5 @@
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
+import { DEFAULT_ADJUSTMENTS, LOWPASS_HZ_MAX, REVERB_AMOUNT_MIN, type Adjustments } from '../../shared/adjustments'
 import { BACKING_SOURCES, DEFAULT_BACKING_SOURCE } from '../../shared/backing-source'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
@@ -185,6 +185,9 @@ export const mixes = sqliteTable('mixes', {
   pitchSemitones: integer('pitch_semitones').notNull(),
   tempoPercent: integer('tempo_percent').notNull(),
   linked: integer('linked', { mode: 'boolean' }).notNull(),
+  /** The two Effects, copied onto the row at request time like every other render parameter (ticket 07). */
+  reverbAmount: integer('reverb_amount').notNull().default(REVERB_AMOUNT_MIN),
+  lowpassHz: integer('lowpass_hz').notNull().default(LOWPASS_HZ_MAX),
   latencyNudgeMs: integer('latency_nudge_ms').notNull(),
   vocalGain: real('vocal_gain').notNull(),
   backingGain: real('backing_gain').notNull(),

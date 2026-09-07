@@ -13,6 +13,16 @@ from pathlib import Path
 BACKING_SAMPLE_RATE = 44100
 BACKING_CHANNELS = 2
 
+# Bypassed values for the two Effects (shared/adjustments.ts's REVERB_AMOUNT_MIN
+# and LOWPASS_HZ_MAX). At these values a filter is left out of the graph
+# entirely rather than merely configured to be neutral (ticket 07).
+REVERB_AMOUNT_BYPASSED = 0
+LOWPASS_HZ_BYPASSED = 20000
+
+# The one impulse response ADR 0003 requires both engines to share; the
+# browser's `app/audio/engine.ts` loads the same file from `public/audio/`.
+IMPULSE_RESPONSE_PATH = Path(__file__).parent / "assets" / "large-hall-ir.wav"
+
 
 class AudioError(RuntimeError):
     """ffmpeg or ffprobe refused the input. The message carries the tool's own diagnostics."""
@@ -72,14 +82,28 @@ def render_mix(
     vocal_gain: float,
     backing_gain: float,
     target_duration_ms: int,
+    reverb_amount: int = REVERB_AMOUNT_BYPASSED,
+    lowpass_hz: int = LOWPASS_HZ_BYPASSED,
 ) -> None:
-    """Renders a Mix: the Backing Track stretched by Rubber Band, the Take's dry
-    vocal placed at `vocal_wall_ms` (already converted from song time to wall
-    time by the caller) and scaled by `vocal_gain`, summed with the backing
-    scaled by `backing_gain`. The result always covers exactly
-    `target_duration_ms` — the Backing Track's own duration is padded or
-    trimmed to it, since Rubber Band's extreme pitch shifts land a few percent
-    short of the input length on their own (ADR 0003, ADR 0004).
+    """Renders a Mix: the Backing Track stretched by Rubber Band, then the two
+    Effects (ticket 07), then the Take's dry vocal placed at `vocal_wall_ms`
+    (already converted from song time to wall time by the caller) and scaled
+    by `vocal_gain`, summed with the backing scaled by `backing_gain`. The
+    result always covers exactly `target_duration_ms` — the Backing Track's
+    own duration is padded or trimmed to it, since Rubber Band's extreme pitch
+    shifts land a few percent short of the input length on their own
+    (ADR 0003, ADR 0004).
+
+    Reverb is `afir` convolved against the bundled impulse response, always
+    fully wet on its own output; the dry/wet crossfade the singer actually
+    hears is an `amix` of that against an unprocessed copy, mirroring the
+    convolver/dry-gain/wet-gain graph `app/audio/engine.ts` builds in the
+    browser. The low-pass is ffmpeg's `lowpass` filter at its default (two-pole)
+    Q, matching a Web Audio `BiquadFilterNode` lowpass at its own default
+    without tuning either side. Both filters are left out of the filter graph
+    entirely at their bypassed values, not merely configured to be neutral, so
+    a Mix rendered from an untouched Track is what phase one would have
+    produced.
 
     A negative `vocal_wall_ms` means the Take started before the tempo-adjusted
     Backing Track does (a large negative nudge on an early Take); rather than
@@ -96,13 +120,40 @@ def render_mix(
         trim_seconds = -vocal_wall_ms / 1000
         vocal_chain = f"atrim=start={trim_seconds:.6f},asetpts=PTS-STARTPTS,volume={vocal_gain}"
 
+    reverb_enabled = reverb_amount > REVERB_AMOUNT_BYPASSED
+    lowpass_enabled = lowpass_hz < LOWPASS_HZ_BYPASSED
+
+    backing_segments = [f"[0:a]rubberband=tempo={tempo}:pitch={pitch}[stretched]"]
+    backing_label = "stretched"
+
+    if reverb_enabled:
+        wet = reverb_amount / 100
+        dry = 1 - wet
+        backing_segments.append(f"[{backing_label}]asplit=2[bg_dry][bg_wet_in]")
+        backing_segments.append("[bg_wet_in][2:a]afir=dry=1:wet=1[bg_wet]")
+        backing_segments.append(
+            f"[bg_dry][bg_wet]amix=inputs=2:weights={dry:.6f} {wet:.6f}:normalize=0[bg_reverbed]"
+        )
+        backing_label = "bg_reverbed"
+
+    if lowpass_enabled:
+        backing_segments.append(f"[{backing_label}]lowpass=f={lowpass_hz}[bg_lp]")
+        backing_label = "bg_lp"
+
+    backing_segments.append(
+        f"[{backing_label}]apad=whole_dur={target_seconds:.6f},atrim=end={target_seconds:.6f},"
+        f"asetpts=PTS-STARTPTS,volume={backing_gain}[bg]"
+    )
+
     filter_complex = (
-        f"[0:a]rubberband=tempo={tempo}:pitch={pitch},"
-        f"apad=whole_dur={target_seconds:.6f},atrim=end={target_seconds:.6f},"
-        f"asetpts=PTS-STARTPTS,volume={backing_gain}[bg];"
-        f"[1:a]{vocal_chain}[voc];"
+        ";".join(backing_segments)
+        + f";[1:a]{vocal_chain}[voc];"
         "[bg][voc]amix=inputs=2:duration=first:normalize=0[out]"
     )
+
+    inputs = ["-i", str(backing), "-i", str(vocal)]
+    if reverb_enabled:
+        inputs += ["-i", str(IMPULSE_RESPONSE_PATH)]
 
     tmp_wav = dst_mp3.with_suffix(".part.wav")
     result = subprocess.run(
@@ -113,10 +164,7 @@ def render_mix(
             "-hide_banner",
             "-loglevel",
             "error",
-            "-i",
-            str(backing),
-            "-i",
-            str(vocal),
+            *inputs,
             "-filter_complex",
             filter_complex,
             "-map",

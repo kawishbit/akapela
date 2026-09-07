@@ -11,13 +11,14 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 01 | [Separator interface, separate Job, and Stems on disk](issues/01-separator-and-separate-job.md) | done | 8/8 | Running the real model once, which ticket 10's manual checklist owns |
 | 02 | [Separate action, separation state, and Stems in the API](issues/02-separate-action-and-api.md) | done | 7/7 | Watching a real separation run to the end on the Track page, which ticket 10's manual checklist owns |
 | 03 | [Backing Source on the Track](issues/03-backing-source.md) | done | 7/7 | Hearing a mid-song switch reload and pick up in time, which ticket 10's manual checklist owns |
-| 04 | [Delete Stems and reclaim disk](issues/04-delete-stems.md) | ready-for-agent | 0/5 | Everything |
+| 04 | [Delete Stems and reclaim disk](issues/04-delete-stems.md) | done | 4/5 | The missing-Stems render failure at Mix time, which needed ticket 09's `mixes.backing_source` |
 | 05 | [Effects on Adjustments: shared shape, tolerant parse](issues/05-effects-on-adjustments.md) | done | 6/6 | Nothing — wiring the Effects into the engines and UI is tickets 06 and 08 |
-| 06 | [Effects live in the browser engine](issues/06-effects-in-browser-engine.md) | ready-for-agent | 0/7 | Everything |
-| 07 | [Effects in the Mix render](issues/07-effects-in-mix-render.md) | ready-for-agent | 0/6 | Everything |
+| 06 | [Effects live in the browser engine](issues/06-effects-in-browser-engine.md) | done | 7/7 | Nothing |
+| 07 | [Effects in the Mix render](issues/07-effects-in-mix-render.md) | done | 6/6 | Nothing |
 | 08 | [Presets: table, built-ins, API, and the pill row](issues/08-presets.md) | ready-for-agent | 0/8 | Everything |
 | 09 | [Take and Mix carry Backing Source; Review override](issues/09-backing-source-on-takes-and-mixes.md) | ready-for-agent | 0/7 | Everything |
 | 10 | [Docs, ADRs, and the device pass](issues/10-docs-adrs-device-pass.md) | ready-for-agent | 0/6 | Everything |
+| 11 | [Volume control for Backing Track playback](issues/11-volume-control.md) | ready-for-agent | 0/6 | Everything |
 
 ## Problem Statement
 

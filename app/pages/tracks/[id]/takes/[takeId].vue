@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { ArrowLeft, Disc3, Loader2, Pause, Play, Trash2 } from 'lucide-vue-next'
-import { PITCH_SEMITONES_MAX, PITCH_SEMITONES_MIN } from '~~/shared/adjustments'
+import {
+  LOWPASS_HZ_MAX,
+  LOWPASS_HZ_MIN,
+  PITCH_SEMITONES_MAX,
+  PITCH_SEMITONES_MIN,
+  REVERB_AMOUNT_MAX,
+  REVERB_AMOUNT_MIN,
+} from '~~/shared/adjustments'
 import { toMixRequest } from '~~/shared/mix'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 
@@ -101,6 +108,23 @@ function onBackingGainInput(event: Event) {
 }
 function onPitchInput(event: Event) {
   review.setPitch(Number((event.target as HTMLInputElement).value))
+}
+function onReverbInput(event: Event) {
+  review.setReverbAmount(Number((event.target as HTMLInputElement).value))
+}
+
+/** Slider steps, mapped log-scaled onto the Hz range so the low end (where the ear is sensitive) gets more of the travel. */
+const LOWPASS_SLIDER_MAX = 1000
+const lowpassLogMin = Math.log(LOWPASS_HZ_MIN)
+const lowpassLogMax = Math.log(LOWPASS_HZ_MAX)
+const lowpassSliderValue = computed(() => {
+  const t = (Math.log(state.value.lowpassHz) - lowpassLogMin) / (lowpassLogMax - lowpassLogMin)
+  return Math.round(t * LOWPASS_SLIDER_MAX)
+})
+function onLowpassInput(event: Event) {
+  const sliderValue = Number((event.target as HTMLInputElement).value)
+  const t = sliderValue / LOWPASS_SLIDER_MAX
+  review.setLowpassHz(Math.exp(lowpassLogMin + t * (lowpassLogMax - lowpassLogMin)))
 }
 
 useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Akapela` : 'Akapela' }))
@@ -305,6 +329,56 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
           >
             Following tempo, which is locked — pitch can't move on its own.
           </p>
+        </div>
+
+        <div>
+          <div class="mb-1 flex items-baseline justify-between">
+            <label
+              for="review-reverb"
+              class="text-sm font-bold"
+            >Reverb</label>
+            <output
+              for="review-reverb"
+              class="text-2xl font-bold tabular-nums"
+            >{{ formatReverbAmount(state.reverbAmount) }}</output>
+          </div>
+          <input
+            id="review-reverb"
+            type="range"
+            class="h-12 w-full cursor-pointer accent-accent"
+            :min="REVERB_AMOUNT_MIN"
+            :max="REVERB_AMOUNT_MAX"
+            step="1"
+            :value="state.reverbAmount"
+            aria-label="Reverb amount"
+            :aria-valuetext="formatReverbAmount(state.reverbAmount)"
+            @input="onReverbInput"
+          >
+        </div>
+
+        <div>
+          <div class="mb-1 flex items-baseline justify-between">
+            <label
+              for="review-lowpass"
+              class="text-sm font-bold"
+            >Low-pass</label>
+            <output
+              for="review-lowpass"
+              class="text-2xl font-bold tabular-nums"
+            >{{ formatLowpassHz(state.lowpassHz) }}</output>
+          </div>
+          <input
+            id="review-lowpass"
+            type="range"
+            class="h-12 w-full cursor-pointer accent-accent"
+            min="0"
+            :max="LOWPASS_SLIDER_MAX"
+            step="1"
+            :value="lowpassSliderValue"
+            aria-label="Low-pass cutoff"
+            :aria-valuetext="formatLowpassHz(state.lowpassHz)"
+            @input="onLowpassInput"
+          >
         </div>
 
         <div class="rounded-[6px] bg-surface-mid px-3 py-2">

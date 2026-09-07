@@ -72,6 +72,19 @@ describe('requesting a Mix', () => {
     expect((await res.json()).wavRequested).toBe(true)
   })
 
+  test('carries the requested Effects onto the row, defaulting a phase-one-shaped request to bypassed', async () => {
+    const { track, take } = await createTrackWithTake()
+
+    const withEffects = await (await api.requestMix(track.id, take.id, {
+      ...MIX_REQUEST,
+      adjustments: { ...MIX_REQUEST.adjustments, reverbAmount: 65, lowpassHz: 8000 },
+    })).json()
+    expect(withEffects).toMatchObject({ reverbAmount: 65, lowpassHz: 8000 })
+
+    const threeFieldRequest = await (await api.requestMix(track.id, take.id, MIX_REQUEST)).json()
+    expect(threeFieldRequest).toMatchObject({ reverbAmount: 0, lowpassHz: 20000 })
+  })
+
   test('appears on the Track detail response, alongside its Take', async () => {
     const { track, take } = await createTrackWithTake()
     const mix = await (await api.requestMix(track.id, take.id, MIX_REQUEST)).json()

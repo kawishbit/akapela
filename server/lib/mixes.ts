@@ -57,6 +57,8 @@ export function createMix(akapela: Akapela, take: Take, input: MixRequest): MixW
     // Locked to the Take it was sung to, whatever the request said (ADR 0003).
     tempoPercent: take.adjustments.tempoPercent,
     linked: input.adjustments.linked,
+    reverbAmount: input.adjustments.reverbAmount,
+    lowpassHz: input.adjustments.lowpassHz,
     latencyNudgeMs: input.latencyNudgeMs,
     vocalGain: input.vocalGain,
     backingGain: input.backingGain,

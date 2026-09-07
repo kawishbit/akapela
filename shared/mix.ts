@@ -22,9 +22,7 @@ export interface MixRequest {
  * all happen to carry under the same field names — enough to build a
  * `MixRequest` from any of them the same way, so the three screens that can
  * trigger a render (a Take's quick action, the Review screen, a retry) don't
- * each assemble the request body by hand. `reverbAmount` and `lowpassHz`
- * currently hold for a Take and a Review screen only; a Mix row has no
- * columns for them yet (ticket 07).
+ * each assemble the request body by hand.
  */
 export interface MixRequestSource {
   pitchSemitones: number

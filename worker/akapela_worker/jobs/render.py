@@ -44,8 +44,8 @@ def run_render(ctx: JobContext) -> None:
     if not mix_id:
         raise ValueError("render job has no target Mix")
     row = ctx.conn.execute(
-        "SELECT m.id, m.pitch_semitones, m.tempo_percent, m.linked, m.latency_nudge_ms,"
-        " m.vocal_gain, m.backing_gain, m.wav_requested,"
+        "SELECT m.id, m.pitch_semitones, m.tempo_percent, m.linked, m.reverb_amount, m.lowpass_hz,"
+        " m.latency_nudge_ms, m.vocal_gain, m.backing_gain, m.wav_requested,"
         " t.track_id, t.start_position_ms, t.file_path AS take_file_path"
         " FROM mixes m JOIN takes t ON t.id = m.take_id"
         " WHERE m.id = ?",
@@ -84,6 +84,8 @@ def run_render(ctx: JobContext) -> None:
         vocal_gain=row["vocal_gain"],
         backing_gain=row["backing_gain"],
         target_duration_ms=target_duration_ms,
+        reverb_amount=row["reverb_amount"],
+        lowpass_hz=row["lowpass_hz"],
     )
     ctx.progress(PROGRESS_RENDERED)
 

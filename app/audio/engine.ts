@@ -194,6 +194,9 @@ export class BackingTrackEngine {
     wetGain.gain.value = 0
     const reverbSum = context.createGain()
     const convolver = context.createConvolver()
+    // Normalization off on both sides of ADR 0003's contract: the gain compensation a browser's
+    // ConvolverNode applies automatically is engine-specific and won't match ffmpeg's afir, so the
+    // impulse response file itself is pre-scaled to unity-ish convolution gain instead.
     convolver.normalize = false
     convolver.buffer = impulseResponse
     const lowpass = context.createBiquadFilter()
