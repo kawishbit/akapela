@@ -1,6 +1,7 @@
 import { BackingTrackEngine } from '~/audio/engine'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '~~/shared/adjustments'
+import { DEFAULT_BACKING_SOURCE, type BackingSource } from '~~/shared/backing-source'
 
 /** What the player bar needs to know about the Track it holds. */
 export interface PlayerTrack {
@@ -13,7 +14,13 @@ export interface PlayerTrack {
 
 export interface PlayerState {
   track: PlayerTrack | null
-  /** Fetching and decoding the Backing Track. */
+  /**
+   * Which of the Track's audio files is decoded and playing. Follows the
+   * Track's own, and switching it is a reload rather than a live parameter
+   * change — the one Adjustment that is.
+   */
+  backingSource: BackingSource
+  /** Fetching and decoding the Backing Track, including while switching Backing Source. */
   loading: boolean
   error: string | null
   playing: boolean
@@ -38,6 +45,7 @@ let pendingSave: { timer: ReturnType<typeof setTimeout>, run: () => void } | und
 export function usePlayer() {
   const state = useState<PlayerState>('player', () => ({
     track: null,
+    backingSource: DEFAULT_BACKING_SOURCE,
     loading: false,
     error: null,
     playing: false,
@@ -77,6 +85,11 @@ export function usePlayer() {
     frameLoop = requestAnimationFrame(tick)
   }
 
+  /** The stream URL naming one of a Track's audio files, rather than whichever it happens to be on. */
+  function backingUrl(trackId: string, source: BackingSource): string {
+    return `/api/tracks/${trackId}/backing?source=${source}`
+  }
+
   /** Makes a ready Track the player's current one and loads its Backing Track, without starting playback. */
   async function open(track: TrackWithJob): Promise<void> {
     if (import.meta.server) return
@@ -90,10 +103,15 @@ export function usePlayer() {
     }
     if (state.value.track?.id === track.id && !state.value.error) {
       state.value.track = display
+      // The Track's Backing Source moved under a Track that is already loaded:
+      // either the singer switched it, or a separation finished and flipped it
+      // onto the Instrumental Stem it just wrote. Both are a reload.
+      if (track.backingSource !== state.value.backingSource) await switchBackingSource(track.backingSource)
       return
     }
     flushSave()
     state.value.track = display
+    state.value.backingSource = track.backingSource
     state.value.adjustments = { ...track.adjustments }
     state.value.positionMs = 0
     state.value.durationMs = track.durationMs ?? 0
@@ -102,13 +120,55 @@ export function usePlayer() {
     state.value.error = null
     state.value.saveError = null
     try {
-      const durationMs = await getEngine().load(`/api/tracks/${track.id}/backing`, track.adjustments)
+      const durationMs = await getEngine().load(backingUrl(track.id, track.backingSource), track.adjustments)
       if (durationMs === null) return
       state.value.durationMs = durationMs
       state.value.loading = false
     }
     catch (error) {
       if (state.value.track?.id !== track.id) return
+      state.value.error = describeError(error)
+      state.value.loading = false
+    }
+  }
+
+  /**
+   * Plays the Track's other audio file from the song position it is at. This is
+   * the one Adjustment that cannot be a parameter change on a live graph: the
+   * other file has to be fetched and decoded, which is seconds of work, so the
+   * player says it is loading rather than appearing to hang, and resumes
+   * playing if it was.
+   *
+   * Private, and reached only through `open`, so there is one way a Backing
+   * Source changes: the Track is told, and the player follows what the Track
+   * says. A switch that never reached the Track would be forgotten on reload.
+   */
+  async function switchBackingSource(backingSource: BackingSource): Promise<void> {
+    const trackId = state.value.track?.id
+    if (!trackId) return
+    const resumeAtMs = state.value.positionMs
+    const wasPlaying = state.value.playing
+    // Stopped before anything is fetched, so the file being switched away from
+    // does not keep playing through the seconds the other one takes to arrive,
+    // and so the position picked up is the one the switch was asked at.
+    getEngine().pause()
+    // Set before awaiting, so a second call while this one is decoding — the
+    // Track page polls every second during a separation — is a no-op rather
+    // than a second decode of the same file.
+    state.value.backingSource = backingSource
+    state.value.playing = false
+    state.value.loading = true
+    state.value.error = null
+    try {
+      const durationMs = await getEngine().load(backingUrl(trackId, backingSource), state.value.adjustments, resumeAtMs)
+      if (durationMs === null) return
+      state.value.durationMs = durationMs
+      state.value.positionMs = Math.min(resumeAtMs, durationMs)
+      state.value.loading = false
+      if (wasPlaying) await play()
+    }
+    catch (error) {
+      if (state.value.track?.id !== trackId) return
       state.value.error = describeError(error)
       state.value.loading = false
     }
@@ -167,6 +227,11 @@ export function usePlayer() {
     pendingSave.run()
   }
 
+  /** Whether the player is fetching and decoding this Track's Backing Track right now. */
+  function isLoading(trackId: string): boolean {
+    return state.value.track?.id === trackId && state.value.loading
+  }
+
   /** The Backing Track's AudioContext, once loading a Track has created it; undefined before then. */
   function getAudioContext(): AudioContext | undefined {
     return engine?.audioContext
@@ -182,8 +247,21 @@ export function usePlayer() {
     state.value.playing = false
     state.value.positionMs = 0
     state.value.durationMs = 0
+    state.value.backingSource = DEFAULT_BACKING_SOURCE
     state.value.adjustments = { ...DEFAULT_ADJUSTMENTS }
   }
 
-  return { state, open, play, pause, toggle, seek, setAdjustments, resetAdjustments, close, getAudioContext }
+  return {
+    state,
+    open,
+    play,
+    pause,
+    toggle,
+    seek,
+    setAdjustments,
+    resetAdjustments,
+    isLoading,
+    close,
+    getAudioContext,
+  }
 }

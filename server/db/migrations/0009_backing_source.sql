@@ -1,0 +1,1 @@
+ALTER TABLE `tracks` ADD `backing_source` text DEFAULT 'original' NOT NULL;

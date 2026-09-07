@@ -64,8 +64,13 @@ export class BackingTrackEngine {
   /**
    * Fetches, decodes, and loads a Backing Track. Resolves with its duration,
    * or with null when another load superseded this one before it finished.
+   *
+   * `startAtMs` is where to leave the transport once it is loaded, which is
+   * what makes switching Backing Source mid-song a reload the singer only
+   * hears: the other file is fetched and decoded, and playback picks up at the
+   * song position it left.
    */
-  async load(url: string, adjustments: Adjustments): Promise<number | null> {
+  async load(url: string, adjustments: Adjustments, startAtMs = 0): Promise<number | null> {
     const generation = ++this.loadGeneration
     this.loaded = false
     this.adjustments = { ...adjustments }
@@ -84,8 +89,10 @@ export class BackingTrackEngine {
     if (generation !== this.loadGeneration) return null
 
     this.durationMs = buffer.duration * 1000
-    this.lastReport = { positionMs: 0, atContextTime: context.currentTime, playing: false }
+    const startMs = Math.max(0, Math.min(startAtMs, this.durationMs))
+    this.lastReport = { positionMs: startMs, atContextTime: context.currentTime, playing: false }
     this.loaded = true
+    if (startMs > 0) this.seek(startMs)
     return this.durationMs
   }
 

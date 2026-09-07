@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { AudioLines, CircleCheck, Loader2, XCircle } from 'lucide-vue-next'
+import { BACKING_SOURCES, BACKING_SOURCE_LABELS, type BackingSource } from '~~/shared/backing-source'
 import type { TrackDetail } from '~~/server/lib/tracks'
 
 const props = defineProps<{ track: TrackDetail }>()
 const emit = defineEmits<{ changed: [] }>()
+
+const player = usePlayer()
 
 const state = computed(() => props.track.separationState)
 const separating = computed(() => state.value === 'separating')
@@ -41,13 +44,22 @@ const separatingLabel = computed(() => {
 
 const failure = computed(() => errorSummary(props.track.separationJob?.error, 'Separation failed'))
 
+/**
+ * Switching Backing Source is the one Adjustment that is a reload rather than a
+ * live parameter change, so say so while the player fetches and decodes the
+ * other file instead of leaving a pressed button looking stuck.
+ */
+const loading = computed(() => player.isLoading(props.track.id))
+
 const busy = ref(false)
 const actionError = ref<string | null>(null)
-async function separate(path: 'separate' | 'separate/retry') {
+
+/** Every action here is the same shape: one request, then let the page reload from it. */
+async function ask(request: () => Promise<unknown>) {
   busy.value = true
   actionError.value = null
   try {
-    await $fetch(`/api/tracks/${props.track.id}/${path}`, { method: 'POST' })
+    await request()
     emit('changed')
   }
   catch (error) {
@@ -57,13 +69,59 @@ async function separate(path: 'separate' | 'separate/retry') {
     busy.value = false
   }
 }
+
+function separate(path: 'separate' | 'separate/retry') {
+  return ask(() => $fetch<unknown>(`/api/tracks/${props.track.id}/${path}`, { method: 'POST' }))
+}
+
+/**
+ * Remembers the switch on the Track and lets the page reload from it, which is
+ * the same path a separation finishing takes: the player follows whatever the
+ * Track says its Backing Source is.
+ */
+function useSource(backingSource: BackingSource) {
+  if (busy.value || backingSource === props.track.backingSource) return
+  return ask(() =>
+    $fetch<unknown>(`/api/tracks/${props.track.id}/backing-source`, { method: 'PUT', body: { backingSource } }))
+}
 </script>
 
 <template>
   <section class="rounded-[8px] bg-surface p-4 sm:p-5">
-    <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-      Stems
-    </h2>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+        Stems
+      </h2>
+
+      <!-- Which of this Track's audio files it sings over. Offered only once
+           there are Stems: without them the original audio is the only thing
+           there is to sing over, and a choice of one is noise. -->
+      <div
+        v-if="track.hasStems"
+        class="flex items-center gap-1 rounded-pill bg-surface-mid p-1"
+        role="group"
+        aria-label="Backing Source"
+      >
+        <button
+          v-for="source in BACKING_SOURCES"
+          :key="source"
+          type="button"
+          class="inline-flex h-9 items-center gap-1.5 rounded-pill px-4 text-xs font-bold uppercase tracking-[1.4px] transition disabled:opacity-60"
+          :class="source === track.backingSource
+            ? 'bg-text text-ground'
+            : 'text-text-muted hover:text-text'"
+          :aria-pressed="source === track.backingSource"
+          :disabled="busy"
+          @click="useSource(source)"
+        >
+          <Loader2
+            v-if="source === track.backingSource && loading"
+            class="size-3.5 animate-spin"
+          />
+          {{ BACKING_SOURCE_LABELS[source] }}
+        </button>
+      </div>
+    </div>
 
     <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3">
       <p
@@ -116,6 +174,22 @@ async function separate(path: 'separate' | 'separate/retry') {
         {{ state === 'failed' ? 'Retry separation' : state === 'ready' ? 'Separate again' : 'Separate' }}
       </button>
     </div>
+
+    <p
+      v-if="track.hasStems"
+      class="mt-3 text-sm text-text-muted"
+    >
+      <template v-if="loading">
+        Switching the Backing Track over. It picks up where it was.
+      </template>
+      <template v-else-if="track.backingSource === 'instrumental'">
+        Singing over the Instrumental Stem. Separation is lossy, so the audio this Track arrived
+        with is kept untouched and is one tap away.
+      </template>
+      <template v-else>
+        Singing over the audio this Track arrived with, not its Instrumental Stem.
+      </template>
+    </p>
 
     <p
       v-if="actionError"

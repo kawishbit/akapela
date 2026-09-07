@@ -6,12 +6,12 @@ The Backing Track stream route resolves which file to serve from the Track's `ba
 
 **Blocked by:** 02 (Separate action, separation state, and Stems in the API)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Migration adds `backing_source` to `tracks`, defaulting to `original`
-- [ ] A successful separation sets `backing_source` to `instrumental`
-- [ ] `PUT /api/tracks/:id/backing-source` switches it, rejecting `instrumental` on a Track with no Stems with a message saying so
-- [ ] The Backing Track stream route serves the file the Track's `backing_source` names, and honours an explicit `?source=original|instrumental` override
-- [ ] The browser engine can switch Backing Source mid-session: it decodes the other file and resumes at the same song position, showing that it is loading rather than appearing to hang
-- [ ] Track detail and the Sing screen both show which Backing Source is playing, and Track detail can switch it
-- [ ] API tests cover the switch, the no-Stems rejection, the automatic flip on separation success, and the stream route serving each source
+- [x] Migration adds `backing_source` to `tracks`, defaulting to `original`
+- [x] A successful separation sets `backing_source` to `instrumental`
+- [x] `PUT /api/tracks/:id/backing-source` switches it, rejecting `instrumental` on a Track with no Stems with a message saying so
+- [x] The Backing Track stream route serves the file the Track's `backing_source` names, and honours an explicit `?source=original|instrumental` override
+- [x] The browser engine can switch Backing Source mid-session: it decodes the other file and resumes at the same song position, showing that it is loading rather than appearing to hang
+- [x] Track detail and the Sing screen both show which Backing Source is playing, and Track detail can switch it
+- [x] API tests cover the switch, the no-Stems rejection, the automatic flip on separation success, and the stream route serving each source

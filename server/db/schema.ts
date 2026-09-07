@@ -1,5 +1,6 @@
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
+import { BACKING_SOURCES, DEFAULT_BACKING_SOURCE } from '../../shared/backing-source'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
 
@@ -71,6 +72,15 @@ export const tracks = sqliteTable('tracks', {
    * are deleted.
    */
   separationState: text('separation_state', { enum: SEPARATION_STATES }).notNull().default('none'),
+  /**
+   * Which of this Track's audio files is the Backing Track. `original` until a
+   * separation succeeds and flips it to `instrumental`, so the common case
+   * takes no extra tap, and switchable back at any time because separation is
+   * lossy and sometimes loses — a Track imported from a karaoke video often
+   * sounds better on the audio it arrived with than on anything a model
+   * extracts from it. Delete Stems (ticket 04) will put it back to `original`.
+   */
+  backingSource: text('backing_source', { enum: BACKING_SOURCES }).notNull().default(DEFAULT_BACKING_SOURCE),
   /** The last Adjustments used on this Track, restored when it is opened again. */
   adjustments: text('adjustments', { mode: 'json' })
     .$type<Adjustments>()

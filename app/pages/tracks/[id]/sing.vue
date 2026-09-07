@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown, Loader2, Pause, Play } from 'lucide-vue-next'
 import { effectivePitchSemitones } from '~~/shared/adjustments'
+import { BACKING_SOURCE_LABELS } from '~~/shared/backing-source'
 import { LYRICS_PROVIDER_LABELS } from '~~/shared/lyrics'
 
 // The Lyrics fill the screen here; the persistent player bar would only steal
@@ -36,6 +37,14 @@ const isCurrent = computed(() => playerState.value.track?.id === id.value)
 const positionMs = computed(() => (isCurrent.value ? playerState.value.positionMs : 0))
 const durationMs = computed(() => track.value?.durationMs ?? playerState.value.durationMs)
 const adjustments = computed(() => (isCurrent.value ? playerState.value.adjustments : track.value?.adjustments) ?? null)
+
+/**
+ * Which of the Track's audio files is playing. The player's own while it holds
+ * this Track, because a switch is a reload and until it lands the singer is
+ * still hearing the other one.
+ */
+const backingSource = computed(() =>
+  isCurrent.value ? playerState.value.backingSource : track.value?.backingSource)
 
 const songLabel = computed(() => {
   const current = track.value
@@ -141,6 +150,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
           class="truncate text-xs text-text-muted"
         >
           {{ formatPitch(effectivePitchSemitones(adjustments)) }} · {{ formatTempo(adjustments.tempoPercent) }}
+          <template v-if="backingSource"> · {{ BACKING_SOURCE_LABELS[backingSource] }}</template>
           <template v-if="lyricsLabel"> · {{ lyricsLabel }}</template>
         </p>
       </div>

@@ -18,6 +18,7 @@ import tracksIdSeparatePost from '../../server/api/tracks/[id]/separate.post'
 import tracksIdSeparateRetryPost from '../../server/api/tracks/[id]/separate/retry.post'
 import tracksIdCoverGet from '../../server/api/tracks/[id]/cover.get'
 import tracksIdBackingGet from '../../server/api/tracks/[id]/backing.get'
+import tracksIdBackingSourcePut from '../../server/api/tracks/[id]/backing-source.put'
 import tracksIdAdjustmentsPut from '../../server/api/tracks/[id]/adjustments.put'
 import tracksIdSongsGet from '../../server/api/tracks/[id]/songs.get'
 import tracksIdSongPut from '../../server/api/tracks/[id]/song.put'
@@ -116,6 +117,7 @@ export async function createTestApi() {
   router.post('/api/tracks/:id/separate/retry', tracksIdSeparateRetryPost)
   router.get('/api/tracks/:id/cover', tracksIdCoverGet)
   router.get('/api/tracks/:id/backing', tracksIdBackingGet)
+  router.put('/api/tracks/:id/backing-source', tracksIdBackingSourcePut)
   router.put('/api/tracks/:id/adjustments', tracksIdAdjustmentsPut)
   router.get('/api/tracks/:id/songs', tracksIdSongsGet)
   router.put('/api/tracks/:id/song', tracksIdSongPut)
@@ -228,13 +230,20 @@ export async function createTestApi() {
     /**
      * Stand in for the worker's separate job ending: it marks the job and moves
      * the Track's `separation_state` on, which is the worker's to own the way
-     * `import_state` is.
+     * `import_state` is. A separation that succeeds also flips the Track onto
+     * the Instrumental Stem it just wrote, so the common case takes no extra
+     * tap; `worker/tests/test_separate.py` is what proves the real job does it.
      */
     finishSeparation(trackId: string, jobId: string, state: 'succeeded' | 'failed', error: string | null = null) {
       this.finishJob(jobId, state, error)
-      akapela.sqlite
-        .prepare(`UPDATE tracks SET separation_state = ? WHERE id = ?`)
-        .run(state === 'succeeded' ? 'ready' : 'failed', trackId)
+      if (state === 'succeeded') {
+        akapela.sqlite
+          .prepare(`UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental' WHERE id = ?`)
+          .run(trackId)
+      }
+      else {
+        akapela.sqlite.prepare(`UPDATE tracks SET separation_state = 'failed' WHERE id = ?`).run(trackId)
+      }
     },
     /** Every Job of one type queued against a target, so a route that must not queue a second can say so. */
     jobsTargeting(targetId: string, type: string) {

@@ -9,6 +9,12 @@ and `vocals.wav` — 44.1 kHz stereo WAV like every other stored master
 (ADR 0005), whatever the model chose to emit. `backing.wav` is never written,
 so switching back to the original audio stays instant and lossless.
 
+A run that succeeds also puts the Track's `backing_source` on the Instrumental
+Stem it just wrote, since singing over it is what asking for it was for and
+making the singer tap again would be asking twice. A run that fails leaves the
+source alone, so a Track that never got Stems is never left naming a file
+nothing wrote.
+
 Going via the scratch directory is what makes re-separation bearable: the model
 run is the long, failure-prone part, and a Track that already has Stems keeps
 them until that run has produced replacements. Either way the Track's
@@ -95,19 +101,29 @@ def run_separate(ctx: JobContext, separator: Separator) -> None:
         ctx.progress(PROGRESS_STEMS_WRITTEN)
 
         ensure_not_deleted(ctx.conn, track_id, directory, during="separation")
-        _set_separation_state(ctx.conn, track_id, "ready")
+        _mark_separated(ctx.conn, track_id)
     except Exception:
         # The job row carries the message; the Track carries the state a card
         # renders, and it is `failed` that puts the error and its retry button
         # on the Track. A Track deleted mid-run has no state to move, so the
         # guard runs first and gives up rather than resurrecting the row.
         ensure_not_deleted(ctx.conn, track_id, directory, during="separation")
-        _set_separation_state(ctx.conn, track_id, "failed")
+        _mark_separation_failed(ctx.conn, track_id)
         raise
 
 
-def _set_separation_state(conn: sqlite3.Connection, track_id: str, state: str) -> None:
+def _mark_separated(conn: sqlite3.Connection, track_id: str) -> None:
+    """The Track has Stems, and now sings over them."""
     conn.execute(
-        "UPDATE tracks SET separation_state = ?, updated_at = ? WHERE id = ?",
-        (state, now_ms(), track_id),
+        "UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental',"
+        " updated_at = ? WHERE id = ?",
+        (now_ms(), track_id),
+    )
+
+
+def _mark_separation_failed(conn: sqlite3.Connection, track_id: str) -> None:
+    """The Track keeps whatever it was singing over, which is the only thing it still has."""
+    conn.execute(
+        "UPDATE tracks SET separation_state = 'failed', updated_at = ? WHERE id = ?",
+        (now_ms(), track_id),
     )

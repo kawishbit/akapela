@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import {
@@ -12,6 +12,7 @@ import {
   type Track,
 } from '../db/schema'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
+import { DEFAULT_BACKING_SOURCE, type BackingSource } from '../../shared/backing-source'
 import { UNSUPPORTED_UPLOAD_MESSAGE, uploadExtension } from '../../shared/upload'
 import {
   INVALID_YOUTUBE_URL_MESSAGE,
@@ -29,8 +30,17 @@ import type { Akapela } from './akapela'
 import { getSettings } from './settings'
 import { listTakes } from './takes'
 
-/** Filename of the normalized 44.1 kHz stereo WAV the worker writes into the Track directory (ADR 0005). */
-export const BACKING_TRACK_FILE = 'backing.wav'
+/**
+ * Which file each Backing Source names inside the Track directory, both
+ * normalized 44.1 kHz stereo WAVs the worker writes (ADR 0005) and named to
+ * match `worker/akapela_worker/separators.py`, which is what writes them. The
+ * Vocals Stem a separation also writes is kept but nothing plays it, so it is
+ * not a Backing Source and is not here.
+ */
+const BACKING_SOURCE_FILES: Record<BackingSource, string> = {
+  original: 'backing.wav',
+  instrumental: 'instrumental.wav',
+}
 
 /** A Track together with its most recent import Job, which carries import progress and error. */
 export type TrackWithJob = Track & { job: Job | null }
@@ -47,6 +57,11 @@ export type TrackDetail = TrackWithJob & {
    */
   separationJob: Job | null
   lyrics: Lyrics | null
+  /**
+   * Whether this Track has an Instrumental Stem on disk to sing over, which is
+   * what decides whether there is a Backing Source to choose between at all.
+   */
+  hasStems: boolean
   /** Newest first. */
   takes: Take[]
   /** Every Mix of every Take on this Track, newest first, each with its render Job. */
@@ -129,6 +144,7 @@ function startImport(
     sourceRef: input.sourceRef,
     importState: 'importing',
     separationState: 'none',
+    backingSource: DEFAULT_BACKING_SOURCE,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
     songArtist: null,
     songTitle: null,
@@ -196,6 +212,7 @@ export function trackDetail(akapela: Akapela, track: TrackWithJob): TrackDetail 
   return {
     ...track,
     separationJob: latestSeparationJob(akapela, track.id),
+    hasStems: hasStems(akapela, track),
     lyrics: getLyrics(akapela, track.id),
     takes: listTakes(akapela, track.id),
     mixes: listMixesForTrack(akapela, track.id),
@@ -337,6 +354,48 @@ export function saveAdjustments(akapela: Akapela, track: TrackWithJob, adjustmen
     .where(eq(tracks.id, track.id))
     .run()
   return { ...track, adjustments, updatedAt: now }
+}
+
+/**
+ * Absolute path of the audio a Backing Source names on one Track. `source`
+ * overrides what the Track remembers, which is how one is auditioned without
+ * changing what the Track sings over next time (`../api/tracks/[id]/backing.get`).
+ */
+export function backingTrackPath(akapela: Akapela, track: Track, source: BackingSource = track.backingSource): string {
+  return join(trackDir(akapela, track.id), BACKING_SOURCE_FILES[source])
+}
+
+/**
+ * Whether this Track has an Instrumental Stem to sing over. The file itself is
+ * the answer, because `separation_state` cannot be: a Track that was separated,
+ * switched back to its original audio, and is now being separated again reads
+ * exactly like one being separated for the first time, and yet the Stems of the
+ * earlier run are still there and still playable — the worker keeps them until
+ * a new run has produced replacements.
+ */
+export function hasStems(akapela: Akapela, track: Track): boolean {
+  return existsSync(backingTrackPath(akapela, track, 'instrumental'))
+}
+
+/**
+ * Remembers what a Track's Backing Track is taken from, so opening it again
+ * gives back whatever was last sung over. The caller has already established
+ * that the named source exists — only `original` always does, since a
+ * separation never overwrites it.
+ */
+export function saveBackingSource(
+  akapela: Akapela,
+  track: TrackWithJob,
+  backingSource: BackingSource,
+): TrackWithJob {
+  if (track.backingSource === backingSource) return track
+  const now = Date.now()
+  akapela.db
+    .update(tracks)
+    .set({ backingSource, updatedAt: now })
+    .where(eq(tracks.id, track.id))
+    .run()
+  return { ...track, backingSource, updatedAt: now }
 }
 
 /** Puts a failed Track back into importing state and enqueues a fresh import job. */

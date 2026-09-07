@@ -152,6 +152,13 @@ def separation_state(conn: sqlite3.Connection) -> str | None:
     return row["separation_state"] if row else None
 
 
+def backing_source(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute(
+        "SELECT backing_source FROM tracks WHERE id = ?", (TRACK_ID,)
+    ).fetchone()
+    return row["backing_source"] if row else None
+
+
 def enqueue_separate(conn: sqlite3.Connection, *, job_id: str = "j1") -> None:
     conn.execute(
         "INSERT INTO jobs (id, type, target_id, state, progress, error, created_at)"
@@ -361,6 +368,47 @@ def test_a_successful_separation_leaves_the_track_ready(conn, data_dir: Path, tr
     run_the_job(conn, data_dir, FakeSeparator())
 
     assert separation_state(conn) == "ready"
+
+
+def test_a_successful_separation_puts_the_track_on_its_instrumental_stem(
+    conn, data_dir: Path, track_dir: Path
+):
+    """The point of separating is to sing over the result, so the common case takes no extra tap."""
+    insert_track(conn)
+    enqueue_separate(conn)
+    assert backing_source(conn) == "original"
+
+    run_the_job(conn, data_dir, FakeSeparator())
+
+    assert backing_source(conn) == "instrumental"
+
+
+def test_a_failed_separation_leaves_the_track_on_the_audio_it_was_already_singing_over(
+    conn, data_dir: Path, track_dir: Path
+):
+    """A Track that never got Stems must not be left naming a file nothing wrote."""
+    insert_track(conn)
+    enqueue_separate(conn)
+
+    run_the_job(conn, data_dir, FakeSeparator(separate_error="the model refused this audio"))
+
+    assert backing_source(conn) == "original"
+
+
+def test_re_separating_a_track_switched_back_to_its_original_audio_flips_it_again(
+    conn, data_dir: Path, track_dir: Path
+):
+    """Re-separation is the escape hatch when a better model lands, so it offers the new Stems."""
+    insert_track(conn)
+    conn.execute(
+        "UPDATE tracks SET backing_source = 'original' WHERE id = ?", (TRACK_ID,)
+    )
+    conn.commit()
+    enqueue_separate(conn)
+
+    run_the_job(conn, data_dir, FakeSeparator())
+
+    assert backing_source(conn) == "instrumental"
 
 
 def test_a_failed_separation_leaves_the_track_failed(conn, data_dir: Path, track_dir: Path):
