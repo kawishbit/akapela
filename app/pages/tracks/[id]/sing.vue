@@ -16,13 +16,20 @@ const id = computed(() => String(route.params.id))
 const player = usePlayer()
 const playerState = player.state
 
-const { track, notFound } = useTrackDetail(id)
+const { track, notFound, refresh } = useTrackDetail(id)
 
 const recorder = useTakeRecorder(id)
 onBeforeUnmount(() => recorder.destroy())
 // A saved Take lands on its Review screen (ticket 08) rather than staying here.
-watch(() => recorder.state.value.savedTake, (take) => {
-  if (take) navigateTo(`/tracks/${id.value}/takes/${take.id}`)
+// The Take page reads the Track through the same cached `track-<id>` entry
+// this page does — refreshing it first (rather than letting the Take page's
+// own `useTrackDetail` reuse whatever this page already fetched, which is
+// from before this Take existed) is what keeps a fast redirect from landing
+// on a "Take not found" screen for a Take that has, in fact, been saved.
+watch(() => recorder.state.value.savedTake, async (take) => {
+  if (!take) return
+  await refresh()
+  navigateTo(`/tracks/${id.value}/takes/${take.id}`)
 })
 /** The regular transport drives the same play/pause the recorder does; hide it while that is in the recorder's hands. */
 const transportAvailable = computed(() =>

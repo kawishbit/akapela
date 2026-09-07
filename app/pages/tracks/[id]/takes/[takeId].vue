@@ -26,6 +26,24 @@ const take = computed(() => track.value?.takes.find(t => t.id === takeId.value))
 const takeMissing = computed(() => !notFound.value && track.value?.importState === 'ready' && !take.value)
 const mixes = computed(() => track.value?.mixes.filter(mix => mix.takeId === takeId.value) ?? [])
 
+// `track` is a cache this page shares by key with the Track detail and Sing
+// pages (`useTrackDetail`), so landing here can carry over whatever one of
+// those had already fetched — stale enough, in the moment right after
+// recording, to be missing the Take this very page is for. One refresh
+// clears that up before genuinely reporting a Take gone, held back from the
+// "not found" section until the refresh has actually settled so a Take that
+// is really there never flashes as missing first.
+const takeRetryPending = ref(false)
+const takeRetryDone = ref(false)
+watch(takeMissing, async (missing) => {
+  if (!missing || takeRetryDone.value || takeRetryPending.value) return
+  takeRetryPending.value = true
+  await refresh()
+  takeRetryPending.value = false
+  takeRetryDone.value = true
+}, { immediate: true })
+const takeNotFound = computed(() => notFound.value || (takeMissing.value && takeRetryDone.value))
+
 const review = useTakeReview(id, take)
 const state = review.state
 const heardPitch = review.heardPitch
@@ -146,7 +164,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
     </NuxtLink>
 
     <section
-      v-if="notFound || takeMissing"
+      v-if="takeNotFound"
       class="flex flex-col items-center rounded-[8px] bg-surface px-6 py-16 text-center shadow-[var(--shadow-medium)]"
     >
       <h1 class="text-lg font-semibold">
