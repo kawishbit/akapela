@@ -7,3 +7,11 @@ Pitch, tempo, and reverb are applied in real time in the browser with Web Audio 
 - Adjustments must be expressed as plain parameters that both engines can consume.
 - A Take records its Adjustments so the server can reproduce what the singer heard.
 - Tempo is locked to the Take's value at Mix time; pitch and effects may still be changed afterwards because the recorded vocal does not depend on them.
+
+## Amendment (phase two): Backing Source is a Mix-time parameter too
+
+Once a Track can have Stems, *which audio* the Backing Track is becomes a parameter, and it belongs on the same side of the line as pitch and the Effects rather than with tempo. A Take records the Backing Source it was sung to, and a Mix may override it, because the recorded vocal does not depend on that choice either.
+
+- Sing over the original recording with the real singer audible to stay on pitch, then render the Mix against the Instrumental Stem so only your voice is on it.
+- A Take recorded before its Track had Stems is re-renderable against an instrumental separated later. Nothing already sung goes stale.
+- A Mix carries its own Backing Source, so it reproduces what was requested regardless of what the Track has been switched to since. Rendering against Stems that have since been deleted fails with a message rather than quietly using the original.

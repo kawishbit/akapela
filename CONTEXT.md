@@ -19,11 +19,15 @@ The musical work a Track represents: an artist and a title. Used to look up Lyri
 _Avoid_: Metadata, match
 
 **Backing Track**:
-The audio you sing over. Either the Track's original audio, or its Instrumental Stem once Stems exist.
+The audio you sing over. Whichever of the Track's audio files the Backing Source names.
 _Avoid_: Instrumental (ambiguous with the Stem), beat, minus-one
 
+**Backing Source**:
+Which audio a Track's Backing Track is taken from: its original audio, or its Instrumental Stem. Remembered per Track, and recorded on a Take so a Mix can reproduce — or deliberately depart from — what was sung to.
+_Avoid_: Backing mode, stem toggle
+
 **Stems**:
-The outputs of vocal removal on a Track: a Vocals Stem and an Instrumental Stem.
+The outputs of vocal removal on a Track: a Vocals Stem and an Instrumental Stem. A Track has them only if vocal removal has been asked for; both are kept, and the original audio is never replaced by them.
 _Avoid_: Separated audio, layers
 
 ### Lyrics
@@ -43,8 +47,12 @@ _Avoid_: Delay, sync correction
 ### Performance
 
 **Adjustments**:
-The playback settings applied to a Backing Track: pitch in semitones, tempo as a percentage, whether pitch and tempo are linked, and effects such as reverb.
+The playback settings applied to a Backing Track: pitch in semitones, tempo as a percentage, whether pitch and tempo are linked, and the Effects. Only ever applied to a Backing Track. What you sing is recorded dry, so Adjustments shape what you sing over, never what you sang.
 _Avoid_: Settings, filters, FX chain
+
+**Effects**:
+The part of Adjustments that colours the Backing Track's sound rather than its pitch or speed: a reverb and a low-pass filter. Applied live in the browser and again when a Mix is rendered (ADR 0003).
+_Avoid_: FX, processing, filters (a filter is one Effect, not the set)
 
 **Preset**:
 A named bundle of Adjustments, such as Slowed and Reverb.
