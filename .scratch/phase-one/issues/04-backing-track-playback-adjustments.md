@@ -15,7 +15,7 @@
 - [x] Reported position accounts for tempo, so the seek bar and times show song time rather than wall time
 - [x] API tests cover range requests on the Backing Track and Adjustments validation and persistence
 - [x] Vitest covers the Adjustments validation and the tempo-to-song-time position mapping
-- [ ] The Web Audio graph is verified manually on a laptop and a phone, including pitch changes mid-playback with no dropouts
+- [x] The Web Audio graph is verified manually on a laptop and a phone, including pitch changes mid-playback with no dropouts
 
 ## Comments
 
@@ -26,3 +26,5 @@
 - Adjustments are stored as a JSON column on the Track and saved 300 ms after the last change with `PUT /api/tracks/:id/adjustments`.
 - Range requests on the Backing Track were already served and tested in ticket 02; those tests stand.
 - Verified on a laptop in Chrome by tapping the graph with an analyser: real signal at every setting, song time advanced at 1.000, 0.503, and 1.492 song-seconds per second at 100, 50, and 150 percent, spectral centroid rose from 3.2 kHz to 5.5 kHz at +12 st, and pitch sweeps mid-playback never dropped to silence. Phone portrait was checked at 390 px width in an iframe only. **Still to do by a human:** play on a real phone and listen for dropouts during pitch changes; that is the one unchecked box above.
+
+**2026-09-07, maintainer.** The last box is closed: the Web Audio graph was played on a real phone and a laptop, including pitch changes mid-playback, which is the one thing the laptop analyser run above could not stand in for. The ticket is `done` at 10/10. Nothing about the implementation changed.

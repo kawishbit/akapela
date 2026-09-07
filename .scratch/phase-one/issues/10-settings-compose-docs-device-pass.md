@@ -7,7 +7,23 @@
 **Status:** ready-for-agent
 
 - [ ] A Settings page reads and writes the default Lyrics Provider, microphone processing default, and Monitoring default, stored in the database and applied by the Track and Sing pages
-- [ ] The compose file documents the port, named versus bind-mounted data volume, all environment variables, and recommended resource limits for the app and worker
+- [x] The compose file documents the port, named versus bind-mounted data volume, all environment variables, and recommended resource limits for the app and worker
 - [ ] A README covers the one-command quick start, where data lives, that backups are the self-hoster's job, how to get a Genius token, and what to do when yt-dlp breaks
 - [ ] Library, Track detail, Sing, Review, and Settings pages are checked on phone portrait and laptop widescreen; every control is reachable and thumb-sized, and the Lyrics screen stays jank-free
 - [ ] API tests cover reading and writing settings
+
+## Comments
+
+**2026-09-06, agent.** Audited each box against the tree rather than against memory. One is done and now ticked; the rest are not, and the ticket stays `ready-for-agent`.
+
+**Done: the compose file.** `docker-compose.yml` documents the host port (`AKAPELA_PORT`, defaulting to 3000), the named volume `akapela-data` versus a bind mount through `AKAPELA_DATA`, every environment variable on both services, and `deploy.resources.limits` for the app (1 core, 512M) and the Worker (2 cores, 2G) with a note that vocal removal will want more. `.env.example` carries the same three self-hoster-facing variables with comments. This landed during `aspire-local-dev` ticket 06's onboarding pass, not under this ticket, which is why it was still unticked.
+
+**Not done: the Settings page.** There is no `app/pages/settings.vue` and nothing links to one. What exists is the API half and one of the three settings: `GET`/`PUT /api/settings` and `server/lib/settings.ts` read and write `defaultLyricsProvider`, the `settings` table has that column and nothing else, and `app/composables/useSettings.ts` is consumed by `LyricsPanel.vue` per Track. The microphone processing default and the Monitoring default are still hardcoded in the browser — `app/composables/useTakeRecorder.ts` starts `monitoring: false` and the processing toggle off — and are neither stored in the database nor read from it. So this box needs: two more columns and their validation, the page itself, a way to reach it, and `useTakeRecorder` seeding from settings instead of from literals.
+
+**Not done: the README, but close.** `README.md` exists (again from `aspire-local-dev` 06) and covers the one-command quick start, where data lives, that backups are the self-hoster's job, and how to get a Genius token — plus a no-login warning this ticket never asked for. The one thing on this list it does not cover is **what to do when yt-dlp breaks**: the only mention of yt-dlp is the Contributing note that Node is its JavaScript runtime. A self-hoster whose YouTube imports start failing has nothing to read. That is a paragraph, not a feature.
+
+**Not done: the device pass.** Cannot be completed as written while one of the five pages does not exist. Library, Track detail, Sing, and Review have all been exercised at phone and laptop widths in earlier tickets, but this box is the deliberate whole-app sweep and should be walked once Settings lands.
+
+**Not done, but nearly: the API tests.** `tests/api/lyrics.test.ts` already covers reading settings, writing `defaultLyricsProvider`, rejecting an invalid one, and falling back when the chosen provider loses its token. It does not cover the two settings that do not exist yet, so the box stays open until they do.
+
+**State of the checks at audit time:** `pnpm test` passes, 418 tests across 24 files.

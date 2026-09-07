@@ -7,7 +7,7 @@
 **Status:** ready-for-human
 
 - [x] From a clean clone, the documented setup and one start command reach a working app and Worker, walked through start to finish rather than assumed
-- [ ] The full local loop is exercised once under the AppHost: import a Track, identify the Song and fetch Lyrics, adjust and sing, record a Take, review it, render a Mix, download it — every step but the microphone; see below
+- [x] The full local loop is exercised once under the AppHost: import a Track, identify the Song and fetch Lyrics, adjust and sing, record a Take, review it, render a Mix, download it — every step but the microphone; see below
 - [x] AGENTS.md and the README state both paths and when to use each, including the Aspire CLI as a prerequisite for the development path only
 - [x] `pnpm lint`, `pnpm typecheck`, `pnpm test`, and the Worker's tests all pass and none of them require the AppHost
 - [x] `docker compose up` still works from a clean clone with no Aspire tooling installed

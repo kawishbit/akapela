@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 (Record a Take)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The review screen loads the Take WAV and the Backing Track and plays them together through the Rubber Band engine with the Take's Adjustments applied to the backing
 - [x] The nudge slider offsets the vocal in milliseconds during playback with no restart, with a sensible default
@@ -13,7 +13,7 @@
 - [x] Pitch can be changed on the review screen and is saved to the Take; tempo is displayed but locked, with a short note that the vocal was sung to it
 - [x] Keep saves nudge, gains, and pitch to the Take; discard deletes the Take and its file after one confirmation
 - [x] API tests cover updating a Take's review parameters and rejecting a tempo change
-- [ ] Alignment by ear with the nudge slider is verified manually on a laptop and a phone
+- [x] Alignment by ear with the nudge slider is verified manually on a laptop and a phone
 
 ## Comments
 
@@ -33,3 +33,5 @@ Automated coverage: `tests/api/takes.test.ts` (review update, tempo rejection,
 audio streaming) and `tests/unit/format.test.ts` (the two new formatters)
 pass, alongside the full existing suite. `pnpm typecheck` and `pnpm lint` are
 clean.
+
+**2026-09-07, maintainer.** Alignment by ear with the nudge slider was checked on a laptop and a phone, closing the last box. The ticket is `done` at 8/8.

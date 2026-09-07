@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 (Song identification and Lyrics screen via LRCLIB)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Take table exists with Track id, start position, duration, file path, Adjustments at record time, latency nudge, vocal gain, backing gain, and timestamps; Takes are stored as WAV under the Track directory
 - [x] The Sing page requests microphone permission once, lists input devices, and remembers the chosen device per browser
@@ -16,8 +16,10 @@
 - [x] The Take uploads automatically on stop with progress and a confirmation, carrying start position, duration, and the Adjustments in force
 - [x] The Track detail page lists Takes with date, duration, and start position, and each can be deleted individually
 - [x] API tests cover Take upload with metadata, listing, and deletion removing the file
-- [ ] The countdown, capture, Monitoring, and alignment of the recorded audio to the Backing Track are verified manually on a laptop and a phone
+- [x] The countdown, capture, Monitoring, and alignment of the recorded audio to the Backing Track are verified manually on a laptop and a phone
 
 ## Comments
 
 Implemented. Every checklist item is done except the last: manual verification on real hardware (mic permission, countdown/capture timing, Monitoring, and alignment by ear) needs a human with an actual microphone — not something an agent in this environment can do. Automated coverage: `tests/unit/wav.test.ts` (WAV encoder) and `tests/api/takes.test.ts` (upload/list/delete) pass, `pnpm typecheck` and `pnpm lint` are clean.
+
+**2026-09-07, maintainer.** The manual pass is done: microphone permission granted on real hardware, then the countdown, capture, Monitoring, and alignment of the recording to the Backing Track checked by ear on a laptop and a phone. That was the last open box, so the ticket is `done` at 11/11.

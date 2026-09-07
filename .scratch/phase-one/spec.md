@@ -2,6 +2,25 @@
 
 Status: ready-for-agent
 
+## Issues
+
+One ticket per file under [`issues/`](issues/), numbered in the order they must land. Last audited against the tree on 2026-09-06, when `pnpm test` passed with 418 tests across 24 files; 04, 07, and 08 closed on 2026-09-07 once their manual device checks were done.
+
+| # | Ticket | Status | Boxes | What is left |
+| - | ------ | ------ | ----- | ------------ |
+| 01 | [Walking skeleton: compose, database, job round trip](issues/01-walking-skeleton.md) | done | 10/10 | — |
+| 02 | [Import an uploaded file as a Track](issues/02-import-upload-track.md) | done | 10/10 | — |
+| 03 | [Import a YouTube URL as a Track](issues/03-import-youtube-track.md) | done | 7/7 | — |
+| 04 | [Backing Track playback with live Adjustments](issues/04-backing-track-playback-adjustments.md) | done | 10/10 | — |
+| 05 | [Song identification and Lyrics screen via LRCLIB](issues/05-song-identification-lyrics-screen-lrclib.md) | ready-for-human | 13/13 | — |
+| 06 | [Genius and Manual Lyrics Providers](issues/06-genius-and-manual-lyrics-providers.md) | ready-for-human | 10/10 | — |
+| 07 | [Record a Take](issues/07-record-a-take.md) | done | 11/11 | — |
+| 08 | [Review a Take](issues/08-review-a-take.md) | done | 8/8 | — |
+| 09 | [Render, play, and download a Mix](issues/09-render-play-download-mix.md) | ready-for-human | 8/8 | — |
+| 10 | [Settings page, compose documentation, and device pass](issues/10-settings-compose-docs-device-pass.md) | ready-for-agent | 1/5 | The Settings page and its two missing settings, a README paragraph on yt-dlp breaking, the whole-app device pass, and API tests for the settings that do not exist yet. |
+
+**Where phase one actually stands.** Nine of ten tickets are implemented, and the device and microphone checks that 04, 07, and 08 were waiting on a human for have since been done, closing all three. Ticket 10 is the only one with work left for an agent, and the bulk of it is the Settings page: `GET`/`PUT /api/settings` and the `settings` table exist but carry only `defaultLyricsProvider`, there is no page to reach them from, and the microphone-processing and Monitoring defaults are still literals in `app/composables/useTakeRecorder.ts`. Its compose criterion is done, and its README criterion is done but for the yt-dlp paragraph — both of those landed under `.scratch/aspire-local-dev/` ticket 06 rather than here.
+
 ## Problem Statement
 
 I want to sing along to an instrumental with lyrics on screen and end up with a recording of my voice mixed over that instrumental. Today that means finding a karaoke video on YouTube, downloading it, fixing its pitch in a desktop audio editor when it doesn't suit my voice, putting lyrics on a second screen when the video has none, recording myself separately, and then combining the two recordings by hand. Every step is a different tool. The Android karaoke apps that promise to do this in one place are ad-ridden, lock pitch control behind premium tiers, and have tiny catalogues.
@@ -241,7 +260,7 @@ Prior art: none, the repo is empty. These tests establish the patterns later pha
 ## Out of Scope
 
 - Vocal removal and Stems (phase two).
-- Reverb, other effects, and Presets including Slowed and Reverb (phase three).
+- Reverb, other effects, and Presets including Slowed and Reverb (phase two).
 - Offline playback of processed Tracks and any PWA caching beyond the app shell.
 - Tap-to-sync for turning Plain Lyrics into Synced Lyrics.
 - Automatic latency calibration.
