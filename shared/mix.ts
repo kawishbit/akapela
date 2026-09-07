@@ -22,12 +22,16 @@ export interface MixRequest {
  * all happen to carry under the same field names — enough to build a
  * `MixRequest` from any of them the same way, so the three screens that can
  * trigger a render (a Take's quick action, the Review screen, a retry) don't
- * each assemble the request body by hand.
+ * each assemble the request body by hand. `reverbAmount` and `lowpassHz`
+ * currently hold for a Take and a Review screen only; a Mix row has no
+ * columns for them yet (ticket 07).
  */
 export interface MixRequestSource {
   pitchSemitones: number
   tempoPercent: number
   linked: boolean
+  reverbAmount: number
+  lowpassHz: number
   latencyNudgeMs: number
   vocalGain: number
   backingGain: number
@@ -35,7 +39,13 @@ export interface MixRequestSource {
 
 export function toMixRequest(source: MixRequestSource, wav: boolean): MixRequest {
   return {
-    adjustments: { pitchSemitones: source.pitchSemitones, tempoPercent: source.tempoPercent, linked: source.linked },
+    adjustments: {
+      pitchSemitones: source.pitchSemitones,
+      tempoPercent: source.tempoPercent,
+      linked: source.linked,
+      reverbAmount: source.reverbAmount,
+      lowpassHz: source.lowpassHz,
+    },
     latencyNudgeMs: source.latencyNudgeMs,
     vocalGain: source.vocalGain,
     backingGain: source.backingGain,

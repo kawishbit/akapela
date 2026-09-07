@@ -11,35 +11,58 @@ export interface Adjustments {
   tempoPercent: number
   /** When true pitch follows tempo like a turntable and `pitchSemitones` is ignored. */
   linked: boolean
+  /** Dry/wet crossfade toward a reverberant signal, 0 to 100; 0 bypasses the effect entirely. */
+  reverbAmount: number
+  /** Low-pass cutoff in Hz, 200 to 20000; 20000 bypasses the effect entirely. */
+  lowpassHz: number
 }
 
 export const PITCH_SEMITONES_MIN = -12
 export const PITCH_SEMITONES_MAX = 12
 export const TEMPO_PERCENT_MIN = 50
 export const TEMPO_PERCENT_MAX = 150
+export const REVERB_AMOUNT_MIN = 0
+export const REVERB_AMOUNT_MAX = 100
+export const LOWPASS_HZ_MIN = 200
+export const LOWPASS_HZ_MAX = 20000
 
 export const DEFAULT_ADJUSTMENTS: Readonly<Adjustments> = Object.freeze({
   pitchSemitones: 0,
   tempoPercent: 100,
   linked: false,
+  reverbAmount: 0,
+  lowpassHz: 20000,
 })
 
 export const INVALID_ADJUSTMENTS_MESSAGE
   = `Adjustments need a whole-number pitch from ${PITCH_SEMITONES_MIN} to ${PITCH_SEMITONES_MAX} semitones, `
-    + `a whole-number tempo from ${TEMPO_PERCENT_MIN} to ${TEMPO_PERCENT_MAX} percent, and a linked flag.`
+    + `a whole-number tempo from ${TEMPO_PERCENT_MIN} to ${TEMPO_PERCENT_MAX} percent, a linked flag, `
+    + `a whole-number reverb amount from ${REVERB_AMOUNT_MIN} to ${REVERB_AMOUNT_MAX}, `
+    + `and a whole-number low-pass cutoff from ${LOWPASS_HZ_MIN} to ${LOWPASS_HZ_MAX} Hz.`
 
-/** Turns untrusted input into Adjustments, or throws with `INVALID_ADJUSTMENTS_MESSAGE`. */
+/**
+ * Turns untrusted input into Adjustments, or throws with `INVALID_ADJUSTMENTS_MESSAGE`.
+ *
+ * `reverbAmount` and `lowpassHz` default when absent so every `takes` and
+ * `mixes` row written before this pair existed — a three-field JSON blob —
+ * still parses, at their bypassed values. That tolerance is the whole
+ * migration; no stored row is rewritten.
+ */
 export function parseAdjustments(input: unknown): Adjustments {
   if (!input || typeof input !== 'object') throw new Error(INVALID_ADJUSTMENTS_MESSAGE)
-  const { pitchSemitones, tempoPercent, linked } = input as Record<string, unknown>
+  const { pitchSemitones, tempoPercent, linked, reverbAmount, lowpassHz } = input as Record<string, unknown>
+  const resolvedReverbAmount = reverbAmount === undefined ? DEFAULT_ADJUSTMENTS.reverbAmount : reverbAmount
+  const resolvedLowpassHz = lowpassHz === undefined ? DEFAULT_ADJUSTMENTS.lowpassHz : lowpassHz
   if (
     !isIntegerBetween(pitchSemitones, PITCH_SEMITONES_MIN, PITCH_SEMITONES_MAX)
     || !isIntegerBetween(tempoPercent, TEMPO_PERCENT_MIN, TEMPO_PERCENT_MAX)
     || typeof linked !== 'boolean'
+    || !isIntegerBetween(resolvedReverbAmount, REVERB_AMOUNT_MIN, REVERB_AMOUNT_MAX)
+    || !isIntegerBetween(resolvedLowpassHz, LOWPASS_HZ_MIN, LOWPASS_HZ_MAX)
   ) {
     throw new Error(INVALID_ADJUSTMENTS_MESSAGE)
   }
-  return { pitchSemitones, tempoPercent, linked }
+  return { pitchSemitones, tempoPercent, linked, reverbAmount: resolvedReverbAmount, lowpassHz: resolvedLowpassHz }
 }
 
 /** Rubber Band's time ratio: output length over input length, so a slower tempo is a ratio above one. */

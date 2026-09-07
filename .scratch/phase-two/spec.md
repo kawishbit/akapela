@@ -12,7 +12,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 02 | [Separate action, separation state, and Stems in the API](issues/02-separate-action-and-api.md) | done | 7/7 | Watching a real separation run to the end on the Track page, which ticket 10's manual checklist owns |
 | 03 | [Backing Source on the Track](issues/03-backing-source.md) | done | 7/7 | Hearing a mid-song switch reload and pick up in time, which ticket 10's manual checklist owns |
 | 04 | [Delete Stems and reclaim disk](issues/04-delete-stems.md) | ready-for-agent | 0/5 | Everything |
-| 05 | [Effects on Adjustments: shared shape, tolerant parse](issues/05-effects-on-adjustments.md) | ready-for-agent | 0/6 | Everything |
+| 05 | [Effects on Adjustments: shared shape, tolerant parse](issues/05-effects-on-adjustments.md) | done | 6/6 | Nothing — wiring the Effects into the engines and UI is tickets 06 and 08 |
 | 06 | [Effects live in the browser engine](issues/06-effects-in-browser-engine.md) | ready-for-agent | 0/7 | Everything |
 | 07 | [Effects in the Mix render](issues/07-effects-in-mix-render.md) | ready-for-agent | 0/6 | Everything |
 | 08 | [Presets: table, built-ins, API, and the pill row](issues/08-presets.md) | ready-for-agent | 0/8 | Everything |

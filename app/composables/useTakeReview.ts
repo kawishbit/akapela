@@ -1,5 +1,5 @@
 import { TakeReviewEngine } from '~/audio/review-engine'
-import { effectivePitchSemitones, PITCH_SEMITONES_MAX, PITCH_SEMITONES_MIN, type Adjustments } from '~~/shared/adjustments'
+import { DEFAULT_ADJUSTMENTS, effectivePitchSemitones, PITCH_SEMITONES_MAX, PITCH_SEMITONES_MIN, type Adjustments } from '~~/shared/adjustments'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 import type { Take } from '~~/server/db/schema'
 
@@ -16,6 +16,8 @@ export interface TakeReviewState {
   pitchSemitones: number
   linked: boolean
   tempoPercent: number
+  reverbAmount: number
+  lowpassHz: number
   error: string | null
   saveError: string | null
   deleting: boolean
@@ -38,6 +40,8 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     pitchSemitones: 0,
     linked: false,
     tempoPercent: 100,
+    reverbAmount: DEFAULT_ADJUSTMENTS.reverbAmount,
+    lowpassHz: DEFAULT_ADJUSTMENTS.lowpassHz,
     error: null,
     saveError: null,
     deleting: false,
@@ -61,6 +65,10 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     state.value.pitchSemitones = current.adjustments.pitchSemitones
     state.value.linked = current.adjustments.linked
     state.value.tempoPercent = current.adjustments.tempoPercent
+    // No control on this screen touches either yet (ticket 06); carried
+    // through unchanged so a save here never resets what's stored.
+    state.value.reverbAmount = current.adjustments.reverbAmount
+    state.value.lowpassHz = current.adjustments.lowpassHz
 
     engine = new TakeReviewEngine({
       onPosition: (vocalElapsedMs) => {
@@ -143,7 +151,13 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
   const heardPitch = computed(() => effectivePitchSemitones(currentAdjustments()))
 
   function currentAdjustments(): Adjustments {
-    return { pitchSemitones: state.value.pitchSemitones, tempoPercent: state.value.tempoPercent, linked: state.value.linked }
+    return {
+      pitchSemitones: state.value.pitchSemitones,
+      tempoPercent: state.value.tempoPercent,
+      linked: state.value.linked,
+      reverbAmount: state.value.reverbAmount,
+      lowpassHz: state.value.lowpassHz,
+    }
   }
 
   function scheduleSave(): void {
