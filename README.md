@@ -52,7 +52,9 @@ The database migrates itself on start, so there is no separate step for that.
 
 ### Hardware
 
-A machine that can run two containers. `docker-compose.yml` gives the app one core and 512 MB and the Worker two cores and 2 GB, which are a starting point rather than a rule: rendering a Mix of a normal-length song takes a couple of seconds well inside them. Vocal removal, which is not here yet, will want considerably more.
+A machine that can run two containers. `docker-compose.yml` gives the app one core and 512 MB and the Worker two cores and 2 GB, which are a starting point rather than a rule: rendering a Mix of a normal-length song takes a couple of seconds well inside them.
+
+Vocal removal (Separate on a Track) costs more, and only if you ask for it: a few minutes of CPU per song, done one Track at a time in the same queue as everything else so it never competes with a Mix render. Its two Stems add roughly 80 MB per Track on disk, on top of the Track's own audio. The model itself is not in the image — the first separation on a machine downloads it into the data directory, a one-time network fetch that survives `docker compose pull` because it lives on the data volume, not in the container.
 
 ## Contributing
 
