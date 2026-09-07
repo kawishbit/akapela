@@ -1,13 +1,33 @@
 [project]
 name = "akapela-worker"
 version = "0.1.0"
-description = "Akapela background worker: runs import and Mix jobs from the shared SQLite jobs table."
+description = "Akapela background worker: runs import, separate, and Mix jobs from the shared SQLite jobs table."
 readme = "README.md"
 license = "GPL-3.0-only"
 requires-python = ">=3.12"
 dependencies = [
+  # Vocal removal (ADR 0008). The `cpu` extra is onnxruntime, which is what
+  # runs the MDX-Net model; torch comes along as a base dependency and is
+  # pinned to the CPU wheel below.
+  "audio-separator[cpu]>=0.47.0",
+  # Named here only so `tool.uv.sources` below can reach it: uv applies a
+  # source to a direct dependency, and audio-separator pulls torch in
+  # transitively.
+  "torch>=2.3",
   "yt-dlp[default]>=2026.8",
 ]
+
+# audio-separator depends on torch unconditionally, and PyPI's default torch
+# wheel for Linux bundles the CUDA runtime — gigabytes in the Worker image for
+# a GPU nobody separates on (ADR 0008 explicitly rules GPU out of scope).
+# PyTorch's own CPU index serves the same version without it.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
 
 [project.scripts]
 akapela-worker = "akapela_worker.main:main"

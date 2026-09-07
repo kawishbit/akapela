@@ -90,14 +90,14 @@ def run_import(ctx: JobContext, fetcher: SourceFetcher) -> None:
         ctx.progress(PROGRESS_NORMALIZED)
 
         duration_ms = probe_duration_ms(backing)
-        _ensure_not_deleted(ctx.conn, track_id, directory)
+        ensure_not_deleted(ctx.conn, track_id, directory, during="import")
         ctx.conn.execute(
             "UPDATE tracks SET duration_ms = ?, import_state = 'ready', updated_at = ?"
             " WHERE id = ?",
             (duration_ms, now_ms(), track_id),
         )
     except Exception:
-        _ensure_not_deleted(ctx.conn, track_id, directory)
+        ensure_not_deleted(ctx.conn, track_id, directory, during="import")
         mark_failed(ctx.conn, track_id)
         raise
 
@@ -107,7 +107,7 @@ def _fetch_from_source(
 ) -> Path:
     """Metadata onto the Track first, then the audio, with download progress on the job."""
     metadata = fetcher.fetch_metadata(url, directory)
-    _ensure_not_deleted(ctx.conn, track_id, directory)
+    ensure_not_deleted(ctx.conn, track_id, directory, during="import")
     ctx.conn.execute(
         "UPDATE tracks SET title = ?, duration_ms = ?, cover_path = coalesce(?, cover_path),"
         " updated_at = ? WHERE id = ?",
@@ -129,18 +129,21 @@ def _fetch_from_source(
             ctx.progress(percent)
 
     original = fetcher.download_audio(url, directory, on_progress)
-    _ensure_not_deleted(ctx.conn, track_id, directory)
+    ensure_not_deleted(ctx.conn, track_id, directory, during="import")
     ctx.progress(PROGRESS_AUDIO_ON_DISK)
     return original
 
 
-def _ensure_not_deleted(conn: sqlite3.Connection, track_id: str, directory: Path) -> None:
-    """The singer may delete a Track while its import runs.
+def ensure_not_deleted(
+    conn: sqlite3.Connection, track_id: str, directory: Path, *, during: str
+) -> None:
+    """The singer may delete a Track while a job that writes into it runs.
 
     The app removes the rows and the directory; anything written afterwards is an
-    orphan, so remove it and give up rather than resurrect the Track.
+    orphan, so remove it and give up rather than resurrect the Track. `during`
+    names the job for the message the singer would read.
     """
     if track_exists(conn, track_id):
         return
     shutil.rmtree(directory, ignore_errors=True)
-    raise LookupError(f"Track {track_id} was deleted during import")
+    raise LookupError(f"Track {track_id} was deleted during {during}")

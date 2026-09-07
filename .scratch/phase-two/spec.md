@@ -8,7 +8,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 
 | # | Ticket | Status | Boxes | What is left |
 | - | ------ | ------ | ----- | ------------ |
-| 01 | [Separator interface, separate Job, and Stems on disk](issues/01-separator-and-separate-job.md) | ready-for-agent | 0/8 | Everything |
+| 01 | [Separator interface, separate Job, and Stems on disk](issues/01-separator-and-separate-job.md) | done | 8/8 | Running the real model once, which ticket 10's manual checklist owns |
 | 02 | [Separate action, separation state, and Stems in the API](issues/02-separate-action-and-api.md) | ready-for-agent | 0/7 | Everything |
 | 03 | [Backing Source on the Track](issues/03-backing-source.md) | ready-for-agent | 0/7 | Everything |
 | 04 | [Delete Stems and reclaim disk](issues/04-delete-stems.md) | ready-for-agent | 0/5 | Everything |
@@ -92,7 +92,7 @@ One consequence is worth naming up front because it is better than it sounds. A 
 
 ### Vocal removal
 
-- Separation uses `audio-separator` (MIT) running an MDX-Net vocal model on ONNX Runtime. Chosen over Demucs for a far smaller image and better instrumentals for this particular job. See ADR 0008.
+- Separation uses `audio-separator` (MIT) running an MDX-Net vocal model on ONNX Runtime. Chosen over Demucs for better instrumentals on this particular job; it was expected to be a far smaller image too, and is not, because `audio-separator` depends on torch regardless. See ADR 0008.
 - Every call into it sits behind a `Separator` Protocol in `worker/akapela_worker/separators.py`, mirroring `SourceFetcher` exactly. The model is the fragile third-party thing this phase adds, the way yt-dlp was phase one's, and the interface exists for the same reason.
 - Two Stems only: `instrumental.wav` and `vocals.wav`. Four-stem separation is the same model run differently, but it is a mixer UI, four times the disk, and a fourfold widening of what a Preset and a Mix must reproduce. Phase three at the earliest.
 - A new Job type, `separate`, targeting a Track id. It runs in the existing one-at-a-time queue with the existing states, the existing no-auto-retry rule, and the existing stale-job recovery.

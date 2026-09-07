@@ -12,6 +12,10 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     AKAPELA_DATA_DIR=/data \
     PYTHONUNBUFFERED=1
+# Vocal removal brings ONNX Runtime and torch, so this layer is roughly a
+# gigabyte (ADR 0008). It is dependencies only: the separation model itself is
+# downloaded on first use into /data, so it survives `docker compose pull` and
+# costs nothing to a self-hoster who never separates a Track.
 COPY pyproject.toml uv.lock README.md ./
 COPY akapela_worker ./akapela_worker
 RUN uv sync --frozen --no-dev

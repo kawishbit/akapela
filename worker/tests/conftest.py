@@ -8,9 +8,28 @@ from pathlib import Path
 import pytest
 
 from akapela_worker.db import connect
+from akapela_worker.separators import MdxNetSeparator
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "server" / "db" / "migrations"
 BREAKPOINT = "--> statement-breakpoint"
+
+
+@pytest.fixture(autouse=True)
+def never_the_real_separation_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The real model is a network fetch and minutes of CPU, so it never runs here.
+
+    Every test that separates injects a fake, the way every test that imports
+    injects a fake fetcher. This makes that a guarantee rather than a habit: a
+    test reaching `DEFAULT_HANDLERS` for a separate job fails loudly instead of
+    quietly downloading model weights mid-suite.
+    """
+
+    def refuse(*args: object, **kwargs: object) -> object:
+        raise AssertionError(
+            "the real separation model must never run in the test suite; inject a fake Separator"
+        )
+
+    monkeypatch.setattr(MdxNetSeparator, "_backend", refuse)
 
 
 def apply_app_schema(conn: sqlite3.Connection) -> None:
