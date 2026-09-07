@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { errorSummary, formatDuration, formatGain, formatLatencyNudge, formatLyricsOffset, formatPitch, formatTempo } from '../../app/utils/format'
+import { errorSummary, formatMegabytes, formatDuration, formatGain, formatLatencyNudge, formatLyricsOffset, formatPitch, formatTempo } from '../../app/utils/format'
 
 describe('formatPitch', () => {
   test('shows whole semitones with an explicit sign', () => {
@@ -61,6 +61,17 @@ describe('formatDuration', () => {
   test('is a placeholder while the duration is unknown', () => {
     expect(formatDuration(null)).toBe('--:--')
     expect(formatDuration(undefined)).toBe('--:--')
+  })
+})
+
+describe('formatMegabytes', () => {
+  test('shows megabytes to one decimal under 10 MB', () => {
+    expect(formatMegabytes(0)).toBe('0.0 MB')
+    expect(formatMegabytes(5.5 * 1024 * 1024)).toBe('5.5 MB')
+  })
+
+  test('rounds to whole megabytes from 10 MB up, matching two Stems at ADR 0005\'s rates', () => {
+    expect(formatMegabytes(162 * 1024 * 1024)).toBe('162 MB')
   })
 })
 

@@ -1,4 +1,4 @@
-import { rmSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { createTestApi, type TestApi } from './harness'
@@ -213,5 +213,85 @@ describe('what the Backing Track stream serves', () => {
     const part = await fetch(`${api.baseUrl}/api/tracks/${track.id}/backing`, { headers: { range: 'bytes=2-5' } })
     expect(part.status).toBe(206)
     expect(await part.text()).toBe('2345')
+  })
+})
+
+describe('deleting Stems', () => {
+  test('removes both Stem files and puts the Track back on its original audio', async () => {
+    const track = await separatedTrack()
+    const dir = join(api.dataDir, 'tracks', track.id)
+
+    const res = await api.del(`/api/tracks/${track.id}/stems`)
+    expect(res.status).toBe(200)
+    const updated = await res.json()
+    expect(updated.backingSource).toBe('original')
+    expect(updated.separationState).toBe('none')
+
+    expect(existsSync(join(dir, 'instrumental.wav'))).toBe(false)
+    expect(existsSync(join(dir, 'vocals.wav'))).toBe(false)
+    // Never touched: it is what switching back to `original` plays.
+    expect(existsSync(join(dir, 'backing.wav'))).toBe(true)
+
+    const detail = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(detail.backingSource).toBe('original')
+    expect(detail.separationState).toBe('none')
+    expect(detail.hasStems).toBe(false)
+  })
+
+  test('leaves the Track\'s Takes and Mixes alone', async () => {
+    const track = await separatedTrack()
+    const take = await (await api.uploadTake(
+      track.id,
+      Buffer.from('RIFF....WAVEfmt data0123456789'),
+      { startPositionMs: 1000, durationMs: 2000, adjustments: { pitchSemitones: 0, tempoPercent: 100, linked: false } },
+    )).json()
+    const mix = await (await api.requestMix(track.id, take.id, {
+      adjustments: { pitchSemitones: 0, tempoPercent: 100, linked: false },
+      latencyNudgeMs: 0,
+      vocalGain: 1,
+      backingGain: 1,
+      wav: false,
+    })).json()
+
+    expect((await api.del(`/api/tracks/${track.id}/stems`)).status).toBe(200)
+
+    expect((await api.get(`/api/tracks/${track.id}/takes`)).status).toBe(200)
+    const takes = await (await api.get(`/api/tracks/${track.id}/takes`)).json()
+    expect(takes.map((t: { id: string }) => t.id)).toContain(take.id)
+    const mixes = await (await api.get(`/api/tracks/${track.id}/takes/${take.id}/mixes`)).json()
+    expect(mixes.map((m: { id: string }) => m.id)).toContain(mix.id)
+  })
+
+  test('a Track with no Stems to delete is a 409', async () => {
+    const track = await importedTrack()
+
+    const res = await api.del(`/api/tracks/${track.id}/stems`)
+    expect(res.status).toBe(409)
+    expect(res.statusText).toMatch(/no Stems/i)
+  })
+
+  test('an unknown Track is a 404', async () => {
+    expect((await api.del('/api/tracks/does-not-exist/stems')).status).toBe(404)
+  })
+})
+
+describe('the disk space Stems take up', () => {
+  test('sums both Stem files, and drops to zero once they are deleted', async () => {
+    const track = await separatedTrack()
+    writeTrackFile(track.id, 'instrumental.wav', 'x'.repeat(100))
+    writeTrackFile(track.id, 'vocals.wav', 'x'.repeat(50))
+
+    const before = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(before.stemsBytes).toBe(150)
+
+    await api.del(`/api/tracks/${track.id}/stems`)
+    const after = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(after.stemsBytes).toBe(0)
+  })
+
+  test('is zero on a Track nobody has separated', async () => {
+    const track = await importedTrack()
+
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsBytes).toBe(0)
   })
 })

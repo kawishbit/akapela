@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AudioLines, CircleCheck, Loader2, XCircle } from 'lucide-vue-next'
+import { AudioLines, CircleCheck, Loader2, Trash2, XCircle } from 'lucide-vue-next'
 import { BACKING_SOURCES, BACKING_SOURCE_LABELS, type BackingSource } from '~~/shared/backing-source'
 import type { TrackDetail } from '~~/server/lib/tracks'
 
@@ -74,6 +74,13 @@ function separate(path: 'separate' | 'separate/retry') {
   return ask(() => $fetch<unknown>(`/api/tracks/${props.track.id}/${path}`, { method: 'POST' }))
 }
 
+const pendingDeleteStems = ref(false)
+
+async function confirmDeleteStems() {
+  await ask(() => $fetch<unknown>(`/api/tracks/${props.track.id}/stems`, { method: 'DELETE' }))
+  pendingDeleteStems.value = false
+}
+
 /**
  * Remembers the switch on the Track and lets the page reload from it, which is
  * the same path a separation finishing takes: the player follows whatever the
@@ -122,6 +129,17 @@ function useSource(backingSource: BackingSource) {
         </button>
       </div>
     </div>
+
+    <button
+      v-if="track.hasStems"
+      type="button"
+      class="mt-3 inline-flex h-10 items-center gap-2 rounded-pill px-4 text-xs font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-negative disabled:opacity-60"
+      :disabled="busy"
+      @click="pendingDeleteStems = true"
+    >
+      <Trash2 class="size-3.5" />
+      Delete Stems ({{ formatMegabytes(track.stemsBytes) }})
+    </button>
 
     <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3">
       <p
@@ -198,5 +216,15 @@ function useSource(backingSource: BackingSource) {
     >
       {{ actionError }}
     </p>
+
+    <ConfirmDialog
+      :open="pendingDeleteStems"
+      title="Delete these Stems?"
+      :message="`The Instrumental and Vocals Stem will be removed, reclaiming ${formatMegabytes(track.stemsBytes)}. The Track and everything sung on it are untouched, and separating again will make Stems anew.`"
+      confirm-label="Delete"
+      :busy="busy"
+      @confirm="confirmDeleteStems"
+      @cancel="pendingDeleteStems = false"
+    />
   </section>
 </template>

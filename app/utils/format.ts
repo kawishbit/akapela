@@ -40,6 +40,12 @@ export function formatGain(gain: number): string {
   return `${Math.round(gain * 100)}%`
 }
 
+/** A byte count as megabytes, the unit Stems land in (ADR 0005 puts a pair at about 80 MB). */
+export function formatMegabytes(bytes: number): string {
+  const mb = bytes / (1024 * 1024)
+  return mb < 10 ? `${mb.toFixed(1)} MB` : `${Math.round(mb)} MB`
+}
+
 /** A timestamp such as a Take's `createdAt`, in the browser's own locale and time zone. */
 export function formatDate(ms: number): string {
   return new Date(ms).toLocaleString(undefined, {

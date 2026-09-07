@@ -16,6 +16,7 @@ import tracksIdDelete from '../../server/api/tracks/[id].delete'
 import tracksIdRetryPost from '../../server/api/tracks/[id]/retry.post'
 import tracksIdSeparatePost from '../../server/api/tracks/[id]/separate.post'
 import tracksIdSeparateRetryPost from '../../server/api/tracks/[id]/separate/retry.post'
+import tracksIdStemsDelete from '../../server/api/tracks/[id]/stems.delete'
 import tracksIdCoverGet from '../../server/api/tracks/[id]/cover.get'
 import tracksIdBackingGet from '../../server/api/tracks/[id]/backing.get'
 import tracksIdBackingSourcePut from '../../server/api/tracks/[id]/backing-source.put'
@@ -115,6 +116,7 @@ export async function createTestApi() {
   router.post('/api/tracks/:id/retry', tracksIdRetryPost)
   router.post('/api/tracks/:id/separate', tracksIdSeparatePost)
   router.post('/api/tracks/:id/separate/retry', tracksIdSeparateRetryPost)
+  router.delete('/api/tracks/:id/stems', tracksIdStemsDelete)
   router.get('/api/tracks/:id/cover', tracksIdCoverGet)
   router.get('/api/tracks/:id/backing', tracksIdBackingGet)
   router.put('/api/tracks/:id/backing-source', tracksIdBackingSourcePut)

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import {
@@ -42,6 +42,14 @@ const BACKING_SOURCE_FILES: Record<BackingSource, string> = {
   instrumental: 'instrumental.wav',
 }
 
+/**
+ * The Vocals Stem a separation writes alongside the Instrumental one. Never a
+ * Backing Source — nothing plays it — but Delete Stems removes it too, since
+ * it is still ~80 MB (ADR 0005) of disk a Track someone keeps has no more use
+ * for once its Instrumental Stem is gone.
+ */
+const VOCALS_STEM_FILE = 'vocals.wav'
+
 /** A Track together with its most recent import Job, which carries import progress and error. */
 export type TrackWithJob = Track & { job: Job | null }
 
@@ -62,6 +70,8 @@ export type TrackDetail = TrackWithJob & {
    * what decides whether there is a Backing Source to choose between at all.
    */
   hasStems: boolean
+  /** Combined size of both Stem files on disk, in bytes; 0 once there are none. Delete Stems reads this to say what it will reclaim. */
+  stemsBytes: number
   /** Newest first. */
   takes: Take[]
   /** Every Mix of every Take on this Track, newest first, each with its render Job. */
@@ -213,6 +223,7 @@ export function trackDetail(akapela: Akapela, track: TrackWithJob): TrackDetail 
     ...track,
     separationJob: latestSeparationJob(akapela, track.id),
     hasStems: hasStems(akapela, track),
+    stemsBytes: stemsBytes(akapela, track),
     lyrics: getLyrics(akapela, track.id),
     takes: listTakes(akapela, track.id),
     mixes: listMixesForTrack(akapela, track.id),
@@ -375,6 +386,46 @@ export function backingTrackPath(akapela: Akapela, track: Track, source: Backing
  */
 export function hasStems(akapela: Akapela, track: Track): boolean {
   return existsSync(backingTrackPath(akapela, track, 'instrumental'))
+}
+
+/** Absolute paths of both Stem files a separation writes, whether or not they exist. */
+function stemPaths(akapela: Akapela, track: Track): string[] {
+  const dir = trackDir(akapela, track.id)
+  return [join(dir, BACKING_SOURCE_FILES.instrumental), join(dir, VOCALS_STEM_FILE)]
+}
+
+/**
+ * Combined size of a Track's Stem files on disk, which is what Delete Stems
+ * offers to reclaim before the singer confirms it. Zero once there are none.
+ */
+export function stemsBytes(akapela: Akapela, track: Track): number {
+  return stemPaths(akapela, track).reduce((total, path) => {
+    try {
+      return total + statSync(path).size
+    }
+    catch {
+      return total
+    }
+  }, 0)
+}
+
+/**
+ * Removes both Stem files and puts the Track back the way it was before it
+ * was ever separated: singing over its original audio, with nothing to
+ * choose between. Takes and Mixes are untouched — only the Track's own state
+ * and the two files move. A Mix that named the Instrumental Stem still
+ * remembers having done so; re-rendering it is what has to notice the Stems
+ * are gone, not this.
+ */
+export function deleteStems(akapela: Akapela, track: TrackWithJob): TrackWithJob {
+  for (const path of stemPaths(akapela, track)) rmSync(path, { force: true })
+  const now = Date.now()
+  akapela.db
+    .update(tracks)
+    .set({ backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', updatedAt: now })
+    .where(eq(tracks.id, track.id))
+    .run()
+  return { ...track, backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', updatedAt: now }
 }
 
 /**
