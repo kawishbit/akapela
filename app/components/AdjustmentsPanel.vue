@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { Link2, Link2Off, Minus, Plus, RotateCcw } from 'lucide-vue-next'
+import { ChevronDown, Link2, Link2Off, Minus, Plus, RotateCcw } from 'lucide-vue-next'
 import {
   DEFAULT_ADJUSTMENTS,
+  LOWPASS_HZ_MAX,
+  LOWPASS_HZ_MIN,
   PITCH_SEMITONES_MAX,
   PITCH_SEMITONES_MIN,
+  REVERB_AMOUNT_MAX,
+  REVERB_AMOUNT_MIN,
   TEMPO_PERCENT_MAX,
   TEMPO_PERCENT_MIN,
   effectivePitchSemitones,
@@ -16,7 +20,9 @@ const emit = defineEmits<{ change: [patch: Partial<Adjustments>], reset: [] }>()
 const isDefault = computed(() =>
   props.adjustments.pitchSemitones === DEFAULT_ADJUSTMENTS.pitchSemitones
   && props.adjustments.tempoPercent === DEFAULT_ADJUSTMENTS.tempoPercent
-  && props.adjustments.linked === DEFAULT_ADJUSTMENTS.linked,
+  && props.adjustments.linked === DEFAULT_ADJUSTMENTS.linked
+  && props.adjustments.reverbAmount === DEFAULT_ADJUSTMENTS.reverbAmount
+  && props.adjustments.lowpassHz === DEFAULT_ADJUSTMENTS.lowpassHz,
 )
 
 /** The pitch actually heard: the setting, or whatever the tempo implies when linked. */
@@ -38,6 +44,36 @@ function onPitchInput(event: Event) {
 
 function onTempoInput(event: Event) {
   setTempo(Number((event.target as HTMLInputElement).value))
+}
+
+function setReverb(amount: number) {
+  const clamped = Math.max(REVERB_AMOUNT_MIN, Math.min(REVERB_AMOUNT_MAX, Math.round(amount)))
+  if (clamped !== props.adjustments.reverbAmount) emit('change', { reverbAmount: clamped })
+}
+
+function onReverbInput(event: Event) {
+  setReverb(Number((event.target as HTMLInputElement).value))
+}
+
+/** Slider steps, mapped log-scaled onto the Hz range so the low end (where the ear is sensitive) gets more of the travel. */
+const LOWPASS_SLIDER_MAX = 1000
+const lowpassLogMin = Math.log(LOWPASS_HZ_MIN)
+const lowpassLogMax = Math.log(LOWPASS_HZ_MAX)
+
+const lowpassSliderValue = computed(() => {
+  const t = (Math.log(props.adjustments.lowpassHz) - lowpassLogMin) / (lowpassLogMax - lowpassLogMin)
+  return Math.round(t * LOWPASS_SLIDER_MAX)
+})
+
+function setLowpass(hz: number) {
+  const clamped = Math.max(LOWPASS_HZ_MIN, Math.min(LOWPASS_HZ_MAX, Math.round(hz)))
+  if (clamped !== props.adjustments.lowpassHz) emit('change', { lowpassHz: clamped })
+}
+
+function onLowpassInput(event: Event) {
+  const sliderValue = Number((event.target as HTMLInputElement).value)
+  const t = sliderValue / LOWPASS_SLIDER_MAX
+  setLowpass(Math.exp(lowpassLogMin + t * (lowpassLogMax - lowpassLogMin)))
 }
 </script>
 
@@ -177,6 +213,65 @@ function onTempoInput(event: Event) {
         />
         Link pitch to tempo
       </button>
+
+      <details class="group border-t border-border-light pt-4">
+        <summary class="flex cursor-pointer list-none items-center justify-between text-sm font-bold [&::-webkit-details-marker]:hidden">
+          Effects
+          <ChevronDown class="size-4 text-text-muted transition-transform group-open:rotate-180" />
+        </summary>
+
+        <div class="mt-4 flex flex-col gap-5">
+          <div>
+            <div class="mb-1 flex items-baseline justify-between">
+              <label
+                for="adjust-reverb"
+                class="text-sm font-bold"
+              >Reverb</label>
+              <output
+                for="adjust-reverb"
+                class="text-2xl font-bold tabular-nums"
+              >{{ formatReverbAmount(adjustments.reverbAmount) }}</output>
+            </div>
+            <input
+              id="adjust-reverb"
+              type="range"
+              class="h-12 w-full cursor-pointer accent-accent"
+              :min="REVERB_AMOUNT_MIN"
+              :max="REVERB_AMOUNT_MAX"
+              step="1"
+              :value="adjustments.reverbAmount"
+              aria-label="Reverb amount"
+              :aria-valuetext="formatReverbAmount(adjustments.reverbAmount)"
+              @input="onReverbInput"
+            >
+          </div>
+
+          <div>
+            <div class="mb-1 flex items-baseline justify-between">
+              <label
+                for="adjust-lowpass"
+                class="text-sm font-bold"
+              >Low-pass</label>
+              <output
+                for="adjust-lowpass"
+                class="text-2xl font-bold tabular-nums"
+              >{{ formatLowpassHz(adjustments.lowpassHz) }}</output>
+            </div>
+            <input
+              id="adjust-lowpass"
+              type="range"
+              class="h-12 w-full cursor-pointer accent-accent"
+              min="0"
+              :max="LOWPASS_SLIDER_MAX"
+              step="1"
+              :value="lowpassSliderValue"
+              aria-label="Low-pass cutoff"
+              :aria-valuetext="formatLowpassHz(adjustments.lowpassHz)"
+              @input="onLowpassInput"
+            >
+          </div>
+        </div>
+      </details>
     </div>
   </section>
 </template>

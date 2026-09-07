@@ -3,12 +3,18 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { mixes, takes, type Take } from '../db/schema'
+import { parseAdjustments } from '../../shared/adjustments'
 import type { TakeReviewUpdate, TakeUploadMeta } from '../../shared/take'
 import type { Akapela } from './akapela'
 import { trackDir } from './tracks'
 
 /** Takes live under `takes/` inside their Track's directory (ADR 0006), one WAV per Take. */
 const TAKES_DIRNAME = 'takes'
+
+/** Same gap as `tracks.ts`'s `withParsedAdjustments`, for a Take's own `adjustments` column. */
+function withParsedAdjustments(take: Take): Take {
+  return { ...take, adjustments: parseAdjustments(take.adjustments) }
+}
 
 /** Every Take of a Track, newest first. */
 export function listTakes(akapela: Akapela, trackId: string): Take[] {
@@ -18,6 +24,7 @@ export function listTakes(akapela: Akapela, trackId: string): Take[] {
     .where(eq(takes.trackId, trackId))
     .orderBy(desc(takes.createdAt), desc(sql`${takes}.rowid`))
     .all()
+    .map(withParsedAdjustments)
 }
 
 /**
@@ -56,11 +63,12 @@ export function createTake(
 
 /** One Take of a Track by id, or undefined when there is none — including a Take id from another Track. */
 export function getTake(akapela: Akapela, trackId: string, takeId: string): Take | undefined {
-  return akapela.db
+  const row = akapela.db
     .select()
     .from(takes)
     .where(and(eq(takes.trackId, trackId), eq(takes.id, takeId)))
     .get()
+  return row && withParsedAdjustments(row)
 }
 
 /** Saves what the Review screen (ticket 08) lets a singer change on a Take: latency nudge, the gain pair, and Adjustments. */

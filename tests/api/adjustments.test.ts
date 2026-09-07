@@ -51,6 +51,22 @@ describe("a Track's last Adjustments", () => {
     expect(reopened.adjustments).toEqual({ ...DEFAULTS, tempoPercent: 120, linked: true })
   })
 
+  test('a phase-one row already in the database, never re-saved since, still loads with both Effects bypassed', async () => {
+    const track = await importTrack()
+    // Bypasses the app entirely, the way a row written before this pair of
+    // fields existed actually looks: no `parseAdjustments` has ever touched it.
+    api.akapela.sqlite
+      .prepare(`UPDATE tracks SET adjustments = ? WHERE id = ?`)
+      .run(JSON.stringify({ pitchSemitones: 3, tempoPercent: 110, linked: false }), track.id)
+    const expected = { pitchSemitones: 3, tempoPercent: 110, linked: false, reverbAmount: 0, lowpassHz: 20000 }
+
+    const fetched = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(fetched.adjustments).toEqual(expected)
+
+    const listed = await (await api.get('/api/tracks')).json()
+    expect(listed[0].adjustments).toEqual(expected)
+  })
+
   test('saving a phase-one three-field body defaults both Effects to bypassed', async () => {
     const track = await importTrack()
     const res = await api.put(`/api/tracks/${track.id}/adjustments`, { pitchSemitones: -2, tempoPercent: 90, linked: false })

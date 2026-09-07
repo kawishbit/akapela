@@ -11,7 +11,7 @@ import {
   type Take,
   type Track,
 } from '../db/schema'
-import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
+import { DEFAULT_ADJUSTMENTS, parseAdjustments, type Adjustments } from '../../shared/adjustments'
 import { DEFAULT_BACKING_SOURCE, type BackingSource } from '../../shared/backing-source'
 import { UNSUPPORTED_UPLOAD_MESSAGE, uploadExtension } from '../../shared/upload'
 import {
@@ -192,6 +192,19 @@ function selectTracksWithJob(akapela: Akapela) {
 }
 
 /**
+ * A row straight off the `tracks` table carries whatever JSON was last
+ * written, which for anything from before this pair of fields existed is a
+ * phase-one three-field blob — `$type<Adjustments>()` only asserts the shape
+ * at compile time. `parseAdjustments` is the same tolerant boundary the PUT
+ * endpoint uses, defaulting the two Effects rather than throwing, so a
+ * phase-one Track still loads (and plays as a straight wire) instead of
+ * handing the engine `undefined` Effects and a non-finite AudioParam.
+ */
+function withParsedAdjustments(row: { track: Track, job: Job | null }): TrackWithJob {
+  return { ...row.track, adjustments: parseAdjustments(row.track.adjustments), job: row.job }
+}
+
+/**
  * Every Track, newest first, optionally narrowed to those whose title or artist
  * contains `query`. Matching is case-insensitive for any script, which SQLite's
  * ASCII-only `lower()` cannot do, so the (single-user sized) list is filtered here.
@@ -201,7 +214,7 @@ export function listTracks(akapela: Akapela, query = ''): TrackWithJob[] {
   const rows = selectTracksWithJob(akapela)
     .orderBy(desc(tracks.createdAt), desc(sql`${tracks}.rowid`))
     .all()
-    .map(row => ({ ...row.track, job: row.job }))
+    .map(withParsedAdjustments)
   if (!needle) return rows
   return rows.filter(track =>
     foldCase(track.title).includes(needle) || foldCase(track.artist ?? '').includes(needle),
@@ -214,7 +227,7 @@ function foldCase(text: string): string {
 
 export function getTrack(akapela: Akapela, id: string): TrackWithJob | undefined {
   const row = selectTracksWithJob(akapela).where(eq(tracks.id, id)).get()
-  return row && { ...row.track, job: row.job }
+  return row && withParsedAdjustments(row)
 }
 
 /** The Track with its Lyrics and Takes, which is what opening one is for. */

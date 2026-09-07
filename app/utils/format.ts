@@ -1,3 +1,5 @@
+import { LOWPASS_HZ_MAX } from '~~/shared/adjustments'
+
 /** Formats a duration in milliseconds as `m:ss`, or `h:mm:ss` from one hour up. */
 export function formatDuration(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return '--:--'
@@ -27,6 +29,17 @@ export function formatLyricsOffset(offsetMs: number): string {
 /** A tempo as a percentage of the original. */
 export function formatTempo(percent: number): string {
   return `${percent}%`
+}
+
+/** A reverb amount, the dry/wet crossfade percentage. */
+export function formatReverbAmount(amount: number): string {
+  return `${amount}%`
+}
+
+/** A low-pass cutoff in Hz; its top of range reads as "Off" since that bypasses the filter. */
+export function formatLowpassHz(hz: number): string {
+  if (hz >= LOWPASS_HZ_MAX) return 'Off'
+  return hz >= 1000 ? `${(hz / 1000).toFixed(hz % 1000 === 0 ? 0 : 1)} kHz` : `${hz} Hz`
 }
 
 /** A latency nudge in milliseconds with its sign, since it moves the vocal earlier or later. */

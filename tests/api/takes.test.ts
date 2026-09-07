@@ -96,6 +96,19 @@ describe('listing Takes', () => {
     expect(list.map((t: { id: string }) => t.id)).toEqual([second.id, first.id])
   })
 
+  test('a phase-one row already in the database, never re-saved since, still loads with both Effects bypassed', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
+    // Bypasses the app entirely, the way a row written before this pair of
+    // fields existed actually looks: no `parseAdjustments` has ever touched it.
+    api.akapela.sqlite
+      .prepare(`UPDATE takes SET adjustments = ? WHERE id = ?`)
+      .run(JSON.stringify(VALID_META.adjustments), take.id)
+
+    const list = await (await api.get(`/api/tracks/${track.id}/takes`)).json()
+    expect(list[0].adjustments).toEqual({ ...VALID_META.adjustments, reverbAmount: 0, lowpassHz: 20000 })
+  })
+
   test('an unknown Track is a 404', async () => {
     expect((await api.get('/api/tracks/nope/takes')).status).toBe(404)
   })

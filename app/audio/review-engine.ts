@@ -13,13 +13,15 @@ export interface ReviewEngineListener {
 /**
  * Plays a Take's dry vocal over its Backing Track for the Review screen
  * (ticket 08). The Backing Track runs through the same Rubber Band engine
- * used everywhere else, seeked to the Take's start position; the vocal is
- * unprocessed PCM played on the same AudioContext (ADR 0006) so both advance
- * on one clock. Tempo is locked to the Take's own value, so the Backing
- * Track's song position keeps advancing, relative to wall time, at the same
- * rate it did while the Take was sung — the dry vocal, itself untouched,
- * stays in sync by being scheduled from that same relationship rather than
- * needing its own time-stretching.
+ * used everywhere else, seeked to the Take's start position, so its Effects
+ * (ticket 06) apply here too; the vocal is unprocessed PCM connected straight
+ * to the destination, on the same AudioContext (ADR 0006) so both advance on
+ * one clock but only the backing ever runs through reverb or the low-pass.
+ * Tempo is locked to the Take's own value, so the Backing Track's song
+ * position keeps advancing, relative to wall time, at the same rate it did
+ * while the Take was sung — the dry vocal, itself untouched, stays in sync by
+ * being scheduled from that same relationship rather than needing its own
+ * time-stretching.
  */
 export class TakeReviewEngine {
   private backing = new BackingTrackEngine({

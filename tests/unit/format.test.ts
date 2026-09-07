@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { errorSummary, formatMegabytes, formatDuration, formatGain, formatLatencyNudge, formatLyricsOffset, formatPitch, formatTempo } from '../../app/utils/format'
+import { errorSummary, formatMegabytes, formatDuration, formatGain, formatLatencyNudge, formatLowpassHz, formatLyricsOffset, formatPitch, formatReverbAmount, formatTempo } from '../../app/utils/format'
 
 describe('formatPitch', () => {
   test('shows whole semitones with an explicit sign', () => {
@@ -18,6 +18,31 @@ describe('formatTempo', () => {
   test('shows a percentage', () => {
     expect(formatTempo(100)).toBe('100%')
     expect(formatTempo(85)).toBe('85%')
+  })
+})
+
+describe('formatReverbAmount', () => {
+  test('shows a percentage', () => {
+    expect(formatReverbAmount(0)).toBe('0%')
+    expect(formatReverbAmount(42)).toBe('42%')
+    expect(formatReverbAmount(100)).toBe('100%')
+  })
+})
+
+describe('formatLowpassHz', () => {
+  test('shows Hz below 1000', () => {
+    expect(formatLowpassHz(200)).toBe('200 Hz')
+    expect(formatLowpassHz(999)).toBe('999 Hz')
+  })
+
+  test('shows kHz at 1000 and above, one decimal unless whole', () => {
+    expect(formatLowpassHz(1000)).toBe('1 kHz')
+    expect(formatLowpassHz(1500)).toBe('1.5 kHz')
+    expect(formatLowpassHz(8000)).toBe('8 kHz')
+  })
+
+  test('reads as Off at the bypass value', () => {
+    expect(formatLowpassHz(20000)).toBe('Off')
   })
 })
 
