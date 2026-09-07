@@ -14,6 +14,8 @@ import tracksGet from '../../server/api/tracks.get'
 import tracksIdGet from '../../server/api/tracks/[id].get'
 import tracksIdDelete from '../../server/api/tracks/[id].delete'
 import tracksIdRetryPost from '../../server/api/tracks/[id]/retry.post'
+import tracksIdSeparatePost from '../../server/api/tracks/[id]/separate.post'
+import tracksIdSeparateRetryPost from '../../server/api/tracks/[id]/separate/retry.post'
 import tracksIdCoverGet from '../../server/api/tracks/[id]/cover.get'
 import tracksIdBackingGet from '../../server/api/tracks/[id]/backing.get'
 import tracksIdAdjustmentsPut from '../../server/api/tracks/[id]/adjustments.put'
@@ -110,6 +112,8 @@ export async function createTestApi() {
   router.get('/api/tracks/:id', tracksIdGet)
   router.delete('/api/tracks/:id', tracksIdDelete)
   router.post('/api/tracks/:id/retry', tracksIdRetryPost)
+  router.post('/api/tracks/:id/separate', tracksIdSeparatePost)
+  router.post('/api/tracks/:id/separate/retry', tracksIdSeparateRetryPost)
   router.get('/api/tracks/:id/cover', tracksIdCoverGet)
   router.get('/api/tracks/:id/backing', tracksIdBackingGet)
   router.put('/api/tracks/:id/adjustments', tracksIdAdjustmentsPut)
@@ -211,10 +215,32 @@ export async function createTestApi() {
         .prepare(`UPDATE jobs SET state = ?, progress = ?, error = ?, finished_at = ? WHERE id = ?`)
         .run(state, state === 'succeeded' ? 100 : 0, error, Date.now(), id)
     },
+    /** Stand in for the worker's import job succeeding: it marks both the job and the Track. */
+    finishImport(trackId: string, jobId: string) {
+      this.finishJob(jobId, 'succeeded')
+      akapela.sqlite.prepare(`UPDATE tracks SET import_state = 'ready' WHERE id = ?`).run(trackId)
+    },
     /** Stand in for the worker's import job failing: it marks both the job and the Track. */
     failImport(trackId: string, jobId: string, error: string) {
       this.finishJob(jobId, 'failed', error)
       akapela.sqlite.prepare(`UPDATE tracks SET import_state = 'failed' WHERE id = ?`).run(trackId)
+    },
+    /**
+     * Stand in for the worker's separate job ending: it marks the job and moves
+     * the Track's `separation_state` on, which is the worker's to own the way
+     * `import_state` is.
+     */
+    finishSeparation(trackId: string, jobId: string, state: 'succeeded' | 'failed', error: string | null = null) {
+      this.finishJob(jobId, state, error)
+      akapela.sqlite
+        .prepare(`UPDATE tracks SET separation_state = ? WHERE id = ?`)
+        .run(state === 'succeeded' ? 'ready' : 'failed', trackId)
+    },
+    /** Every Job of one type queued against a target, so a route that must not queue a second can say so. */
+    jobsTargeting(targetId: string, type: string) {
+      return akapela.sqlite
+        .prepare(`SELECT id FROM jobs WHERE target_id = ? AND type = ?`)
+        .all(targetId, type) as { id: string }[]
     },
     /** Stand in for the worker's render job succeeding: it writes the Mix's file paths and finishes the job. */
     finishMix(mixId: string, jobId: string, paths: { mp3Path: string, wavPath?: string | null }) {

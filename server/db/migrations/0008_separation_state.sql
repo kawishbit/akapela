@@ -1,0 +1,1 @@
+ALTER TABLE `tracks` ADD `separation_state` text DEFAULT 'none' NOT NULL;

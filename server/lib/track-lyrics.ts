@@ -8,9 +8,7 @@
 import { parseManualLyricsText, unavailableProviderMessage, type LyricsProviderName } from '../../shared/lyrics'
 import { LyricsProviderError, type FetchedLyrics } from '../lyrics/provider'
 import { getLyrics, lyricsProviderNamed, replaceLyrics } from './lyrics'
-import { listMixesForTrack } from './mixes'
 import type { Akapela } from './akapela'
-import { listTakes } from './takes'
 import {
   confirmedSong,
   replaceCoverWithAlbumArt,
@@ -96,13 +94,8 @@ export async function fetchLyricsForTrack(
   // The Lyrics on a Track always belong to the Song confirmed on it, so the
   // ones the Song before had go even when nothing arrives to replace them.
   // Asking again is how a singer retries a provider that was down.
-  const stored = replaceLyrics(akapela, chosen.id, found && { provider: name, ...found })
-  const detail = {
-    ...chosen,
-    lyrics: stored,
-    takes: listTakes(akapela, chosen.id),
-    mixes: listMixesForTrack(akapela, chosen.id),
-  }
+  replaceLyrics(akapela, chosen.id, found && { provider: name, ...found })
+  const detail = trackDetail(akapela, chosen)
   return lyricsError === undefined ? detail : { ...detail, lyricsError }
 }
 
@@ -127,10 +120,6 @@ export async function withAlbumArt(akapela: Akapela, track: TrackWithJob): Promi
 export function saveManualLyrics(akapela: Akapela, track: TrackWithJob, text: unknown): TrackDetail {
   const lines = parseManualLyricsText(text)
   const owned = saveLyricsProvider(akapela, track, 'manual')
-  return {
-    ...owned,
-    lyrics: replaceLyrics(akapela, owned.id, { provider: 'manual', kind: 'plain', lines }),
-    takes: listTakes(akapela, owned.id),
-    mixes: listMixesForTrack(akapela, owned.id),
-  }
+  replaceLyrics(akapela, owned.id, { provider: 'manual', kind: 'plain', lines })
+  return trackDetail(akapela, owned)
 }

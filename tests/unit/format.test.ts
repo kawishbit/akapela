@@ -74,4 +74,10 @@ describe('errorSummary', () => {
     expect(errorSummary(null)).toBe('Import failed')
     expect(errorSummary('')).toBe('Import failed')
   })
+
+  test('the fallback names the job the singer was watching', () => {
+    expect(errorSummary(null, 'Separation failed')).toBe('Separation failed')
+    expect(errorSummary('SeparationError:', 'Separation failed')).toBe('Separation failed')
+    expect(errorSummary('SeparationError: no network', 'Separation failed')).toBe('no network')
+  })
 })

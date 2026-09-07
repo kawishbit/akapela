@@ -9,7 +9,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | # | Ticket | Status | Boxes | What is left |
 | - | ------ | ------ | ----- | ------------ |
 | 01 | [Separator interface, separate Job, and Stems on disk](issues/01-separator-and-separate-job.md) | done | 8/8 | Running the real model once, which ticket 10's manual checklist owns |
-| 02 | [Separate action, separation state, and Stems in the API](issues/02-separate-action-and-api.md) | ready-for-agent | 0/7 | Everything |
+| 02 | [Separate action, separation state, and Stems in the API](issues/02-separate-action-and-api.md) | done | 7/7 | Watching a real separation run to the end on the Track page, which ticket 10's manual checklist owns |
 | 03 | [Backing Source on the Track](issues/03-backing-source.md) | ready-for-agent | 0/7 | Everything |
 | 04 | [Delete Stems and reclaim disk](issues/04-delete-stems.md) | ready-for-agent | 0/5 | Everything |
 | 05 | [Effects on Adjustments: shared shape, tolerant parse](issues/05-effects-on-adjustments.md) | ready-for-agent | 0/6 | Everything |

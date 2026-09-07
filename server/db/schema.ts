@@ -3,7 +3,7 @@ import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
 
-export const JOB_TYPES = ['noop', 'import', 'render'] as const
+export const JOB_TYPES = ['noop', 'import', 'render', 'separate'] as const
 export type JobType = (typeof JOB_TYPES)[number]
 
 export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed'] as const
@@ -41,6 +41,9 @@ export type SourceKind = (typeof SOURCE_KINDS)[number]
 export const IMPORT_STATES = ['importing', 'ready', 'failed'] as const
 export type ImportState = (typeof IMPORT_STATES)[number]
 
+export const SEPARATION_STATES = ['none', 'separating', 'ready', 'failed'] as const
+export type SeparationState = (typeof SEPARATION_STATES)[number]
+
 /**
  * An entry in the library, created by importing one Source. Every file the
  * Track owns lives under `<dataDir>/tracks/<id>/`: the original Source audio
@@ -58,6 +61,16 @@ export const tracks = sqliteTable('tracks', {
   /** The YouTube URL or the original upload's filename. */
   sourceRef: text('source_ref').notNull(),
   importState: text('import_state', { enum: IMPORT_STATES }).notNull().default('importing'),
+  /**
+   * How far vocal removal has got on this Track, mirroring `import_state`. The
+   * separate Job carries the mechanics — its progress, its error, when it
+   * started — and is gone as soon as the Track is deleted; this carries what a
+   * card renders, which has to survive being read without joining the Job and
+   * has to distinguish a Track that has Stems from one nobody has asked to
+   * separate. `none` until the singer asks, and back to `none` when the Stems
+   * are deleted.
+   */
+  separationState: text('separation_state', { enum: SEPARATION_STATES }).notNull().default('none'),
   /** The last Adjustments used on this Track, restored when it is opened again. */
   adjustments: text('adjustments', { mode: 'json' })
     .$type<Adjustments>()

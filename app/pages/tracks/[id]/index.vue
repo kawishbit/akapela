@@ -10,9 +10,11 @@ const POLL_MS = 1000
 
 const { track, error, notFound, refresh } = useTrackDetail(id)
 
-// Keep the page current while the worker is still importing or rendering a Mix.
+// Keep the page current while the worker is still importing, separating, or
+// rendering a Mix.
 const active = computed(() =>
   track.value?.importState === 'importing'
+  || track.value?.separationState === 'separating'
   || (track.value?.mixes.some(mix => mix.job && (mix.job.state === 'queued' || mix.job.state === 'running')) ?? false),
 )
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -218,6 +220,13 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
         class="mb-4"
         :track="track"
         @changed="track = $event"
+      />
+
+      <StemsPanel
+        v-if="track.importState === 'ready'"
+        class="mb-4"
+        :track="track"
+        @changed="refresh()"
       />
 
       <TakesPanel

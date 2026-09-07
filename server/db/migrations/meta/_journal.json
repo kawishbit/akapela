@@ -57,6 +57,13 @@
       "when": 1788632903732,
       "tag": "0007_job_trace_parent",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788782343258,
+      "tag": "0008_separation_state",
+      "breakpoints": true
     }
   ]
 }

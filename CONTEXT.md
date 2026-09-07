@@ -30,6 +30,10 @@ _Avoid_: Backing mode, stem toggle
 The outputs of vocal removal on a Track: a Vocals Stem and an Instrumental Stem. A Track has them only if vocal removal has been asked for; both are kept, and the original audio is never replaced by them.
 _Avoid_: Separated audio, layers
 
+**Separation**:
+Running vocal removal on one Track: the Job that makes its Stems, and the state the Track carries while it runs, after it fails, and once it has finished. Asked for per Track rather than done on every import, since it costs minutes of CPU and a Track imported from a karaoke video needs none of it.
+_Avoid_: Splitting, extraction, isolation
+
 ### Lyrics
 
 **Lyrics**:

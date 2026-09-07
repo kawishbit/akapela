@@ -48,12 +48,16 @@ export function formatDate(ms: number): string {
   })
 }
 
-/** The first line of a worker error, which is the human-readable summary before any traceback. */
-export function errorSummary(error: string | null | undefined): string {
-  if (!error) return 'Import failed'
-  const firstLine = error.split('\n').find(line => line.trim()) ?? 'Import failed'
+/**
+ * The first line of a worker error, which is the human-readable summary before
+ * any traceback. `fallback` is what a job that failed without saying why is
+ * called, so it names the job the singer was watching.
+ */
+export function errorSummary(error: string | null | undefined, fallback = 'Import failed'): string {
+  if (!error) return fallback
+  const firstLine = error.split('\n').find(line => line.trim()) ?? fallback
   // Worker errors read "ExceptionType: message"; the type name is noise to a singer.
-  return firstLine.replace(/^[A-Za-z_][\w.]*(Error|Exception):\s*/, '').trim() || 'Import failed'
+  return firstLine.replace(/^[A-Za-z_][\w.]*(Error|Exception):\s*/, '').trim() || fallback
 }
 
 /** A one-line message for a failed request: the server's status message when it sent one. */

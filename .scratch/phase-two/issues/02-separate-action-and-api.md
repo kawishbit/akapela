@@ -6,12 +6,12 @@ The one deliberate departure from phase one's conventions is the progress displa
 
 **Blocked by:** 01 (Separator interface, separate Job, and Stems on disk)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Migration adds `separation_state` to `tracks`, defaulting to `none`, and the schema comment says why it exists alongside the Job
-- [ ] `POST /api/tracks/:id/separate` enqueues a separate Job and moves the Track to `separating`; requesting one on a Track already separating is rejected rather than queueing a second
-- [ ] `POST /api/tracks/:id/separate/retry` re-enqueues a failed separation on the same Track, matching the import retry shape
-- [ ] `separation_state` and the separate Job appear on the Track detail response so the page can render state without a second call
-- [ ] Track detail shows a Separate button, and while separating shows an elapsed timer rather than a percentage
-- [ ] A failed separation shows its error message with a retry button
-- [ ] API tests cover the separate request, the double-request rejection, retry, and the Track's state transitions
+- [x] Migration adds `separation_state` to `tracks`, defaulting to `none`, and the schema comment says why it exists alongside the Job
+- [x] `POST /api/tracks/:id/separate` enqueues a separate Job and moves the Track to `separating`; requesting one on a Track already separating is rejected rather than queueing a second
+- [x] `POST /api/tracks/:id/separate/retry` re-enqueues a failed separation on the same Track, matching the import retry shape
+- [x] `separation_state` and the separate Job appear on the Track detail response so the page can render state without a second call
+- [x] Track detail shows a Separate button, and while separating shows an elapsed timer rather than a percentage
+- [x] A failed separation shows its error message with a retry button
+- [x] API tests cover the separate request, the double-request rejection, retry, and the Track's state transitions

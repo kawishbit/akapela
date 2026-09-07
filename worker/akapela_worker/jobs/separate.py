@@ -11,8 +11,11 @@ so switching back to the original audio stays instant and lossless.
 
 Going via the scratch directory is what makes re-separation bearable: the model
 run is the long, failure-prone part, and a Track that already has Stems keeps
-them until that run has produced replacements. Any failure re-raises so the
-runner records the message on the job row. Nothing retries on its own.
+them until that run has produced replacements. Either way the Track's
+`separation_state` moves to `ready` or `failed` the way the import job moves
+`import_state`: the job row carries the mechanics, the Track carries what a card
+renders. Any failure re-raises so the runner records the message on the job row.
+Nothing retries on its own.
 """
 
 from __future__ import annotations
@@ -22,10 +25,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..audio import normalize_to_backing_track
+from ..db import now_ms
 from ..separators import INSTRUMENTAL_STEM_FILE, VOCALS_STEM_FILE, Separator
 from .import_track import BACKING_TRACK_FILE, ensure_not_deleted, track_dir, track_exists
 
 if TYPE_CHECKING:
+    import sqlite3
+
     from ..runner import Handler, JobContext
 
 MODELS_DIRNAME = "models"
@@ -63,24 +69,45 @@ def run_separate(ctx: JobContext, separator: Separator) -> None:
         raise LookupError(f"Track {track_id} does not exist")
 
     directory = track_dir(ctx.data_dir, track_id)
-    backing = directory / BACKING_TRACK_FILE
-    if not backing.is_file():
-        raise FileNotFoundError(f"Track {track_id} has no Backing Track to separate")
-    ctx.progress(PROGRESS_STARTED)
-
-    models = models_dir(ctx.data_dir)
-    separator.fetch_model(models)
-    ctx.progress(PROGRESS_MODEL_READY)
-
-    scratch = directory / SEPARATION_DIRNAME
-    shutil.rmtree(scratch, ignore_errors=True)
+    # Everything from here on is inside the guard, so every failure a Track can
+    # still be reached after leaves it `failed` rather than stuck `separating`:
+    # the panel hides the retry button while a Track separates, so a Track
+    # stranded there is unrecoverable without touching the database.
     try:
-        stems = separator.separate(backing, scratch, models)
-        ensure_not_deleted(ctx.conn, track_id, directory, during="separation")
-        normalize_to_backing_track(stems.instrumental, directory / INSTRUMENTAL_STEM_FILE)
-        normalize_to_backing_track(stems.vocals, directory / VOCALS_STEM_FILE)
-    finally:
-        shutil.rmtree(scratch, ignore_errors=True)
-    ctx.progress(PROGRESS_STEMS_WRITTEN)
+        backing = directory / BACKING_TRACK_FILE
+        if not backing.is_file():
+            raise FileNotFoundError(f"Track {track_id} has no Backing Track to separate")
+        ctx.progress(PROGRESS_STARTED)
 
-    ensure_not_deleted(ctx.conn, track_id, directory, during="separation")
+        models = models_dir(ctx.data_dir)
+        separator.fetch_model(models)
+        ctx.progress(PROGRESS_MODEL_READY)
+
+        scratch = directory / SEPARATION_DIRNAME
+        shutil.rmtree(scratch, ignore_errors=True)
+        try:
+            stems = separator.separate(backing, scratch, models)
+            ensure_not_deleted(ctx.conn, track_id, directory, during="separation")
+            normalize_to_backing_track(stems.instrumental, directory / INSTRUMENTAL_STEM_FILE)
+            normalize_to_backing_track(stems.vocals, directory / VOCALS_STEM_FILE)
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+        ctx.progress(PROGRESS_STEMS_WRITTEN)
+
+        ensure_not_deleted(ctx.conn, track_id, directory, during="separation")
+        _set_separation_state(ctx.conn, track_id, "ready")
+    except Exception:
+        # The job row carries the message; the Track carries the state a card
+        # renders, and it is `failed` that puts the error and its retry button
+        # on the Track. A Track deleted mid-run has no state to move, so the
+        # guard runs first and gives up rather than resurrecting the row.
+        ensure_not_deleted(ctx.conn, track_id, directory, during="separation")
+        _set_separation_state(ctx.conn, track_id, "failed")
+        raise
+
+
+def _set_separation_state(conn: sqlite3.Connection, track_id: str, state: str) -> None:
+    conn.execute(
+        "UPDATE tracks SET separation_state = ?, updated_at = ? WHERE id = ?",
+        (state, now_ms(), track_id),
+    )

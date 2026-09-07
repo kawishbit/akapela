@@ -134,14 +134,22 @@ class FakeSeparator:
 
 
 def insert_track(conn: sqlite3.Connection) -> None:
+    """A Track as the app leaves it when it enqueues the job: already `separating`."""
     conn.execute(
         "INSERT INTO tracks (id, title, artist, duration_ms, cover_path, source_kind,"
-        " source_ref, import_state, created_at, updated_at)"
+        " source_ref, import_state, separation_state, created_at, updated_at)"
         " VALUES (?, 'Sine Song', NULL, 2000, 'cover.svg', 'upload', 'sine.wav',"
-        " 'ready', 1000, 1000)",
+        " 'ready', 'separating', 1000, 1000)",
         (TRACK_ID,),
     )
     conn.commit()
+
+
+def separation_state(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute(
+        "SELECT separation_state FROM tracks WHERE id = ?", (TRACK_ID,)
+    ).fetchone()
+    return row["separation_state"] if row else None
 
 
 def enqueue_separate(conn: sqlite3.Connection, *, job_id: str = "j1") -> None:
@@ -343,3 +351,44 @@ def test_a_track_deleted_while_the_model_runs_leaves_no_orphan_directory(
     assert job["state"] == "failed"
     assert "deleted during separation" in job["error"]
     assert not track_dir.exists()
+
+
+def test_a_successful_separation_leaves_the_track_ready(conn, data_dir: Path, track_dir: Path):
+    """The card renders `separation_state`, so the Track has to move as the job ends."""
+    insert_track(conn)
+    enqueue_separate(conn)
+
+    run_the_job(conn, data_dir, FakeSeparator())
+
+    assert separation_state(conn) == "ready"
+
+
+def test_a_failed_separation_leaves_the_track_failed(conn, data_dir: Path, track_dir: Path):
+    insert_track(conn)
+    enqueue_separate(conn)
+
+    run_the_job(conn, data_dir, FakeSeparator(separate_error="the model refused this audio"))
+
+    # `failed` is what puts the error and its retry button on the Track.
+    assert separation_state(conn) == "failed"
+    assert "the model refused this audio" in get_job(conn, "j1")["error"]
+
+
+def test_a_track_whose_backing_track_is_missing_does_not_stay_separating(
+    conn, data_dir: Path, track_dir: Path
+):
+    """Every reachable failure has to leave a state the singer can retry from.
+
+    The panel hides the button while a Track is `separating` and the page polls
+    on it, so a Track stuck there is unrecoverable without touching the
+    database — which is why this failure has to move the Track the way every
+    other one does.
+    """
+    insert_track(conn)
+    (track_dir / "backing.wav").unlink()
+    enqueue_separate(conn)
+
+    run_the_job(conn, data_dir, FakeSeparator())
+
+    assert get_job(conn, "j1")["state"] == "failed"
+    assert separation_state(conn) == "failed"

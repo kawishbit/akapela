@@ -1,8 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { desc, eq, sql } from 'drizzle-orm'
-import { jobs, tracks, type Job, type Lyrics, type SourceKind, type Take, type Track } from '../db/schema'
+import { and, desc, eq, sql } from 'drizzle-orm'
+import {
+  jobs,
+  tracks,
+  type Job,
+  type Lyrics,
+  type SourceKind,
+  type Take,
+  type Track,
+} from '../db/schema'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../../shared/adjustments'
 import { UNSUPPORTED_UPLOAD_MESSAGE, uploadExtension } from '../../shared/upload'
 import {
@@ -24,11 +32,20 @@ import { listTakes } from './takes'
 /** Filename of the normalized 44.1 kHz stereo WAV the worker writes into the Track directory (ADR 0005). */
 export const BACKING_TRACK_FILE = 'backing.wav'
 
-/** A Track together with its most recent Job, which carries import progress and error. */
+/** A Track together with its most recent import Job, which carries import progress and error. */
 export type TrackWithJob = Track & { job: Job | null }
+
+/** What the separate routes answer with: the Track as it now is, and the Job that will do the work. */
+export type TrackWithSeparationJob = TrackWithJob & { separationJob: Job }
 
 /** Everything the Track detail and Sing pages need in one response. */
 export type TrackDetail = TrackWithJob & {
+  /**
+   * The most recent separate Job, which carries what `separation_state` cannot:
+   * how long the run has been going, and why the last one failed. Null until
+   * separation has ever been asked for on this Track.
+   */
+  separationJob: Job | null
   lyrics: Lyrics | null
   /** Newest first. */
   takes: Take[]
@@ -111,6 +128,7 @@ function startImport(
     sourceKind: input.sourceKind,
     sourceRef: input.sourceRef,
     importState: 'importing',
+    separationState: 'none',
     adjustments: { ...DEFAULT_ADJUSTMENTS },
     songArtist: null,
     songTitle: null,
@@ -127,10 +145,15 @@ function startImport(
   return { ...track, job }
 }
 
-/** The id of the most recently created Job targeting a Track, as a correlated subquery. */
-const latestJobId = sql<string | null>`(
+/**
+ * The id of the most recently created import Job targeting a Track, as a
+ * correlated subquery. Narrowed to imports because two kinds of Job now target
+ * a Track — the import and the Separation — and a card asking about one must
+ * not be handed the other.
+ */
+const latestImportJobId = sql<string | null>`(
   select j.id from jobs j
-  where j.target_id = ${tracks.id}
+  where j.target_id = ${tracks.id} and j.type = 'import'
   order by j.created_at desc, j.rowid desc
   limit 1
 )`
@@ -139,7 +162,7 @@ function selectTracksWithJob(akapela: Akapela) {
   return akapela.db
     .select({ track: tracks, job: jobs })
     .from(tracks)
-    .leftJoin(jobs, eq(jobs.id, latestJobId))
+    .leftJoin(jobs, eq(jobs.id, latestImportJobId))
 }
 
 /**
@@ -172,6 +195,7 @@ export function getTrack(akapela: Akapela, id: string): TrackWithJob | undefined
 export function trackDetail(akapela: Akapela, track: TrackWithJob): TrackDetail {
   return {
     ...track,
+    separationJob: latestSeparationJob(akapela, track.id),
     lyrics: getLyrics(akapela, track.id),
     takes: listTakes(akapela, track.id),
     mixes: listMixesForTrack(akapela, track.id),
@@ -325,4 +349,32 @@ export function retryImport(akapela: Akapela, track: Track): TrackWithJob {
     .run()
   const job = enqueueJob(akapela, { type: 'import', targetId: track.id })
   return { ...track, importState: 'importing', updatedAt: now, job }
+}
+
+/** The most recent separate Job on a Track, which is the one whose progress and error the page shows. */
+function latestSeparationJob(akapela: Akapela, trackId: string): Job | null {
+  return akapela.db
+    .select()
+    .from(jobs)
+    .where(and(eq(jobs.targetId, trackId), eq(jobs.type, 'separate')))
+    .orderBy(desc(jobs.createdAt), desc(sql`${jobs}.rowid`))
+    .limit(1)
+    .get() ?? null
+}
+
+/**
+ * Puts a Track into separating state and enqueues the separate job that writes
+ * its Stems. Both asking for the first separation and retrying a failed one end
+ * here; only the guard in front of them differs, since re-separating is
+ * deliberately allowed (a better model later should not mean re-importing).
+ */
+export function startSeparation(akapela: Akapela, track: TrackWithJob): TrackWithSeparationJob {
+  const now = Date.now()
+  akapela.db
+    .update(tracks)
+    .set({ separationState: 'separating', updatedAt: now })
+    .where(eq(tracks.id, track.id))
+    .run()
+  const separationJob = enqueueJob(akapela, { type: 'separate', targetId: track.id })
+  return { ...track, separationState: 'separating', updatedAt: now, separationJob }
 }
