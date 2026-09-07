@@ -18,10 +18,16 @@ const TAKE_WAV_BYTES = Buffer.from('RIFF....WAVEfmt data0123456789')
 const RENDERED_MP3_BYTES = Buffer.from('a very small rendered Mix, standing in for a real MP3')
 const RENDERED_WAV_BYTES = Buffer.from('a very small rendered Mix, standing in for a real WAV')
 
-const TAKE_META = { startPositionMs: 12_000, durationMs: 8_000, adjustments: { pitchSemitones: 2, tempoPercent: 90, linked: false } }
+const TAKE_META = {
+  startPositionMs: 12_000,
+  durationMs: 8_000,
+  adjustments: { pitchSemitones: 2, tempoPercent: 90, linked: false },
+  backingSource: 'original',
+}
 
 const MIX_REQUEST = {
   adjustments: { pitchSemitones: 3, tempoPercent: TAKE_META.adjustments.tempoPercent, linked: false },
+  backingSource: 'original',
   latencyNudgeMs: 40,
   vocalGain: 1.2,
   backingGain: 0.9,
@@ -31,6 +37,23 @@ const MIX_REQUEST = {
 async function createTrackWithTake() {
   const track = (await (await api.upload('/api/tracks', 'Yesterday.mp3', MP3_BYTES)).json()) as { id: string }
   const take = await (await api.uploadTake(track.id, TAKE_WAV_BYTES, TAKE_META)).json()
+  return { track, take }
+}
+
+/** A Track with Stems on disk and a Take sung against the original audio, ready to request an override on. */
+async function separatedTrackWithTake() {
+  const track = (await (await api.post('/api/tracks', { url: 'https://youtu.be/dQw4w9WgXcQ' })).json()) as {
+    id: string
+    job: { id: string }
+  }
+  api.finishImport(track.id, track.job.id)
+  const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+  mkdirSync(join(api.dataDir, 'tracks', track.id), { recursive: true })
+  writeFileSync(join(api.dataDir, 'tracks', track.id, 'instrumental.wav'), 'the instrumental')
+  api.finishSeparation(track.id, separationJob.id, 'succeeded')
+  // Sung against the original, so an instrumental request is genuinely an override.
+  await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
+  const take = await (await api.uploadTake(track.id, TAKE_WAV_BYTES, { ...TAKE_META, backingSource: 'original' })).json()
   return { track, take }
 }
 
@@ -58,6 +81,7 @@ describe('requesting a Mix', () => {
       pitchSemitones: 3,
       tempoPercent: TAKE_META.adjustments.tempoPercent,
       linked: false,
+      backingSource: 'original',
       latencyNudgeMs: 40,
       vocalGain: 1.2,
       backingGain: 0.9,
@@ -94,6 +118,30 @@ describe('requesting a Mix', () => {
     expect(detail.mixes[0].takeId).toBe(take.id)
   })
 
+  test('overrides the Take\'s own Backing Source when the Track has an Instrumental Stem to sing over', async () => {
+    const { track, take } = await separatedTrackWithTake()
+    expect(take.backingSource).toBe('original')
+
+    const mix = await (await api.requestMix(track.id, take.id, {
+      ...MIX_REQUEST,
+      backingSource: 'instrumental',
+    })).json()
+    expect(mix.backingSource).toBe('instrumental')
+
+    // Switching the Track back afterwards does not reach the Mix already made.
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
+    const list = await (await api.get(`/api/tracks/${track.id}/takes/${take.id}/mixes`)).json()
+    expect(list.find((m: { id: string }) => m.id === mix.id).backingSource).toBe('instrumental')
+  })
+
+  test('rejects an instrumental override on a Track with no Stems and creates no Mix', async () => {
+    const { track, take } = await createTrackWithTake()
+
+    const res = await api.requestMix(track.id, take.id, { ...MIX_REQUEST, backingSource: 'instrumental' })
+    expect(res.status).toBe(409)
+    expect(await (await api.get(`/api/tracks/${track.id}/takes/${take.id}/mixes`)).json()).toEqual([])
+  })
+
   test('rejects a request for a different tempo and creates no Mix', async () => {
     const { track, take } = await createTrackWithTake()
 
@@ -112,6 +160,7 @@ describe('requesting a Mix', () => {
     { ...MIX_REQUEST, backingGain: 3 },
     { ...MIX_REQUEST, wav: 'yes' },
     { ...MIX_REQUEST, adjustments: { pitchSemitones: 99, tempoPercent: TAKE_META.adjustments.tempoPercent, linked: false } },
+    { ...MIX_REQUEST, backingSource: 'nope' },
   ])('invalid request %j is rejected and creates no Mix', async (body) => {
     const { track, take } = await createTrackWithTake()
     const res = await api.requestMix(track.id, take.id, body)

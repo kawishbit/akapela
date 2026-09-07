@@ -2,6 +2,7 @@ import { TakeRecorder } from '~/audio/recorder'
 import { encodeWav } from '~/audio/wav'
 import type { Take } from '~~/server/db/schema'
 import type { Adjustments } from '~~/shared/adjustments'
+import type { BackingSource } from '~~/shared/backing-source'
 
 const DEVICE_STORAGE_KEY = 'akapela:mic-device-id'
 const COUNTDOWN_SECONDS = 3
@@ -58,6 +59,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
   let countdownTimer: ReturnType<typeof setInterval> | undefined
   let startPositionMs = 0
   let recordedAdjustments: Adjustments = { ...player.state.value.adjustments }
+  let recordedBackingSource: BackingSource = player.state.value.backingSource
   let pendingUpload: { wavBytes: Uint8Array, durationMs: number } | undefined
 
   watch(() => state.value.monitoring, (on) => {
@@ -142,6 +144,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
     state.value.error = null
     startPositionMs = player.state.value.positionMs
     recordedAdjustments = { ...player.state.value.adjustments }
+    recordedBackingSource = player.state.value.backingSource
     if (player.state.value.playing) player.pause()
     // A resume triggered from this click satisfies the browser's user-gesture
     // requirement; the countdown that follows runs on a timer, not a gesture.
@@ -211,7 +214,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
       const take = await uploadTake(
         trackId.value,
         wavBytes,
-        { startPositionMs, durationMs, adjustments: recordedAdjustments },
+        { startPositionMs, durationMs, adjustments: recordedAdjustments, backingSource: recordedBackingSource },
         (percent) => { state.value.uploadProgress = percent },
       )
       pendingUpload = undefined
@@ -288,7 +291,7 @@ function saveRememberedDeviceId(deviceId: string): void {
 function uploadTake(
   trackId: string,
   wavBytes: Uint8Array,
-  meta: { startPositionMs: number, durationMs: number, adjustments: Adjustments },
+  meta: { startPositionMs: number, durationMs: number, adjustments: Adjustments, backingSource: BackingSource },
   onProgress: (percent: number) => void,
 ): Promise<Take> {
   return new Promise((resolve, reject) => {

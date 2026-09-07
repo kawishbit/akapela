@@ -152,6 +152,13 @@ export const takes = sqliteTable('takes', {
   filePath: text('file_path').notNull(),
   /** What was heard while singing, so a rendered Mix reproduces it. */
   adjustments: text('adjustments', { mode: 'json' }).$type<Adjustments>().notNull(),
+  /**
+   * The Backing Source in force when this Take was sung, fixed at record time
+   * and never changed afterwards — unlike a Mix's own, which may override it.
+   * Defaults to `original` so every phase-one Take, sung before Stems existed,
+   * keeps meaning what it meant (ADR 0003 amendment).
+   */
+  backingSource: text('backing_source', { enum: BACKING_SOURCES }).notNull().default(DEFAULT_BACKING_SOURCE),
   /** Vocal delay correction in milliseconds, set on the Review screen. */
   latencyNudgeMs: integer('latency_nudge_ms').notNull().default(0),
   /** Linear gain multipliers applied at Mix render; 1 is unity. */
@@ -188,6 +195,13 @@ export const mixes = sqliteTable('mixes', {
   /** The two Effects, copied onto the row at request time like every other render parameter (ticket 07). */
   reverbAmount: integer('reverb_amount').notNull().default(REVERB_AMOUNT_MIN),
   lowpassHz: integer('lowpass_hz').notNull().default(LOWPASS_HZ_MAX),
+  /**
+   * Which audio this Mix was rendered against, copied onto the row at request
+   * time and defaulting to the Take's own — a request may override it, so
+   * singing along to the original with the real singer audible can still
+   * render a Mix against the Instrumental Stem (ADR 0003 amendment).
+   */
+  backingSource: text('backing_source', { enum: BACKING_SOURCES }).notNull().default(DEFAULT_BACKING_SOURCE),
   latencyNudgeMs: integer('latency_nudge_ms').notNull(),
   vocalGain: real('vocal_gain').notNull(),
   backingGain: real('backing_gain').notNull(),

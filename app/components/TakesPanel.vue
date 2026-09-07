@@ -42,6 +42,7 @@ async function render(take: TrackDetail['takes'][number]) {
       method: 'POST',
       body: toMixRequest({
         ...take.adjustments,
+        backingSource: take.backingSource,
         latencyNudgeMs: take.latencyNudgeMs,
         vocalGain: take.vocalGain,
         backingGain: take.backingGain,

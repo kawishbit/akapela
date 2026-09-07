@@ -1,6 +1,7 @@
 import { BackingTrackEngine } from './engine'
 import type { Take } from '~~/server/db/schema'
 import type { Adjustments } from '~~/shared/adjustments'
+import type { BackingSource } from '~~/shared/backing-source'
 
 export interface ReviewEngineListener {
   /** A fresh position report, as milliseconds elapsed since the Take's start position. */
@@ -34,6 +35,9 @@ export class TakeReviewEngine {
   private vocalSource: AudioBufferSourceNode | undefined
   private vocalGainNode: GainNode | undefined
 
+  private trackId = ''
+  private adjustments: Adjustments | undefined
+  private backingSource: BackingSource = 'original'
   private startPositionMs = 0
   private takeDurationMs = 0
   private tempoPercent = 100
@@ -45,15 +49,18 @@ export class TakeReviewEngine {
 
   /** Fetches and decodes the Backing Track and the Take's vocal, ready to play from the Take's start position. */
   async load(
-    backingUrl: string,
+    trackId: string,
     vocalUrl: string,
-    take: Pick<Take, 'startPositionMs' | 'durationMs' | 'adjustments'>,
+    take: Pick<Take, 'startPositionMs' | 'durationMs' | 'adjustments' | 'backingSource'>,
   ): Promise<void> {
+    this.trackId = trackId
+    this.adjustments = take.adjustments
+    this.backingSource = take.backingSource
     this.startPositionMs = take.startPositionMs
     this.takeDurationMs = take.durationMs
     this.tempoPercent = take.adjustments.tempoPercent
 
-    await this.backing.load(backingUrl, take.adjustments)
+    await this.backing.load(this.backingUrl(take.backingSource), take.adjustments)
     const context = this.backing.audioContext!
     this.backing.seek(this.startPositionMs)
 
@@ -66,9 +73,32 @@ export class TakeReviewEngine {
     this.vocalGainNode.connect(context.destination)
   }
 
+  private backingUrl(source: BackingSource): string {
+    return `/api/tracks/${this.trackId}/backing?source=${source}`
+  }
+
   /** Applies new Adjustments to the Backing Track; only pitch is expected to change (tempo is locked). */
   setAdjustments(adjustments: Adjustments): void {
+    this.adjustments = adjustments
     this.backing.setAdjustments(adjustments)
+  }
+
+  /**
+   * Auditions the other Backing Source for a Mix override (ticket 09): a
+   * reload, exactly like switching it on the persistent player, that picks up
+   * at the same song position and resumes if it was playing. Never written
+   * back to the Take — only what a later render request carries.
+   */
+  async setBackingSource(source: BackingSource): Promise<void> {
+    if (source === this.backingSource || !this.adjustments) return
+    const resumeAtMs = this.backing.positionMs
+    const wasPlaying = this.playing
+    this.backing.pause()
+    this.stopVocal()
+    this.playing = false
+    this.backingSource = source
+    await this.backing.load(this.backingUrl(source), this.adjustments, resumeAtMs)
+    if (wasPlaying) await this.play()
   }
 
   setVocalGain(gain: number): void {

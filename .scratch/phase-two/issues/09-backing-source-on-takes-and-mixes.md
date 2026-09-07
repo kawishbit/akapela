@@ -11,12 +11,22 @@ Tempo stays locked to the Take — the vocal was sung to it. Pitch, both Effects
 
 **Blocked by:** 03 (Backing Source on the Track), 07 (Effects in the Mix render)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `takes` gains `backing_source`, defaulting to `original` so every phase-one Take keeps meaning what it meant
-- [ ] Recording a Take stores the Backing Source in force at the time, alongside the Adjustments it already stores
-- [ ] `mixes` gains `backing_source`, copied onto the row at request time and defaulting to the Take's own
-- [ ] The Mix request accepts a Backing Source override, rejecting `instrumental` when the Track has no Stems
-- [ ] The render job reads the backing input file from the Mix's `backing_source`, so a Mix reproduces its own source regardless of what the Track has been switched to since
-- [ ] The Review screen offers the override next to the pitch control, showing tempo's lock the same visible way, and auditions the chosen source through the stream route's `?source=` parameter
-- [ ] Tests cover a phase-one Take re-rendered against a newly separated instrumental, the override reaching the rendered file, and the no-Stems rejection
+- [x] `takes` gains `backing_source`, defaulting to `original` so every phase-one Take keeps meaning what it meant
+- [x] Recording a Take stores the Backing Source in force at the time, alongside the Adjustments it already stores
+- [x] `mixes` gains `backing_source`, copied onto the row at request time and defaulting to the Take's own
+- [x] The Mix request accepts a Backing Source override, rejecting `instrumental` when the Track has no Stems
+- [x] The render job reads the backing input file from the Mix's `backing_source`, so a Mix reproduces its own source regardless of what the Track has been switched to since
+- [x] The Review screen offers the override next to the pitch control, showing tempo's lock the same visible way, and auditions the chosen source through the stream route's `?source=` parameter
+- [x] Tests cover a phase-one Take re-rendered against a newly separated instrumental, the override reaching the rendered file, and the no-Stems rejection
+
+## Comments
+
+The Review screen's override is deliberately never saved back onto the Take —
+unlike pitch and the Effects, which this screen already persists onto the
+Take row as "what review currently shows." Backing Source is different: the
+Take records what it was *sung* to, permanently, and the override exists only
+to shape the next Mix request. `TakeReviewEngine.setBackingSource` reloads the
+Backing Track (a fetch and decode, like the persistent player's own switch)
+and resumes at the same position; it never touches `takes.backing_source`.

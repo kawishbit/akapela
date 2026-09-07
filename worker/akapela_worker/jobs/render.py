@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from ..audio import probe_duration_ms, render_mix
 from ..db import now_ms
+from ..separators import INSTRUMENTAL_STEM_FILE
 
 if TYPE_CHECKING:
     import sqlite3
@@ -26,6 +27,9 @@ if TYPE_CHECKING:
 
 BACKING_TRACK_FILE = "backing.wav"
 MIXES_DIRNAME = "mixes"
+
+# Mirrors `BACKING_SOURCE_FILES` in `server/lib/tracks.ts`.
+BACKING_SOURCE_FILES = {"original": BACKING_TRACK_FILE, "instrumental": INSTRUMENTAL_STEM_FILE}
 
 PROGRESS_STARTED = 10
 PROGRESS_RENDERED = 80
@@ -45,7 +49,7 @@ def run_render(ctx: JobContext) -> None:
         raise ValueError("render job has no target Mix")
     row = ctx.conn.execute(
         "SELECT m.id, m.pitch_semitones, m.tempo_percent, m.linked, m.reverb_amount, m.lowpass_hz,"
-        " m.latency_nudge_ms, m.vocal_gain, m.backing_gain, m.wav_requested,"
+        " m.backing_source, m.latency_nudge_ms, m.vocal_gain, m.backing_gain, m.wav_requested,"
         " t.track_id, t.start_position_ms, t.file_path AS take_file_path"
         " FROM mixes m JOIN takes t ON t.id = m.take_id"
         " WHERE m.id = ?",
@@ -57,7 +61,17 @@ def run_render(ctx: JobContext) -> None:
     ctx.progress(PROGRESS_STARTED)
 
     directory = track_dir(ctx.data_dir, row["track_id"])
-    backing = directory / BACKING_TRACK_FILE
+    # A Mix reproduces its own Backing Source regardless of what the Track has
+    # been switched to since (ADR 0003 amendment). Stems can be deleted after a
+    # Mix named them, so a missing file fails loudly here rather than silently
+    # falling back to the original.
+    backing_source = row["backing_source"]
+    backing = directory / BACKING_SOURCE_FILES[backing_source]
+    if not backing.is_file():
+        raise FileNotFoundError(
+            f"This Mix was requested against its {backing_source} Backing Source, "
+            "which is no longer on disk."
+        )
     vocal = directory / row["take_file_path"]
     mixes_dir = directory / MIXES_DIRNAME
     mp3_path = mixes_dir / f"{mix_id}.mp3"

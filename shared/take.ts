@@ -1,4 +1,5 @@
 import { parseAdjustments, type Adjustments } from './adjustments'
+import { parseBackingSource, type BackingSource } from './backing-source'
 
 /**
  * Take: one recorded attempt at singing a Track. This module knows the shape
@@ -10,20 +11,27 @@ export interface TakeUploadMeta {
   startPositionMs: number
   durationMs: number
   adjustments: Adjustments
+  /** The Backing Source in force while singing, fixed on the Take forever (ADR 0003 amendment). */
+  backingSource: BackingSource
 }
 
 export const INVALID_TAKE_META_MESSAGE
-  = 'A Take needs a whole-number start position and duration in milliseconds, and its Adjustments.'
+  = 'A Take needs a whole-number start position and duration in milliseconds, its Adjustments, and a Backing Source.'
 
 /** Turns the `meta` field of a Take upload into `TakeUploadMeta`, or throws with `INVALID_TAKE_META_MESSAGE`. */
 export function parseTakeUploadMeta(input: unknown): TakeUploadMeta {
   if (!input || typeof input !== 'object') throw new Error(INVALID_TAKE_META_MESSAGE)
-  const { startPositionMs, durationMs, adjustments } = input as Record<string, unknown>
+  const { startPositionMs, durationMs, adjustments, backingSource } = input as Record<string, unknown>
   if (!isIntegerBetween(startPositionMs, 0, Infinity) || !isIntegerBetween(durationMs, 1, Infinity)) {
     throw new Error(INVALID_TAKE_META_MESSAGE)
   }
   try {
-    return { startPositionMs, durationMs, adjustments: parseAdjustments(adjustments) }
+    return {
+      startPositionMs,
+      durationMs,
+      adjustments: parseAdjustments(adjustments),
+      backingSource: parseBackingSource(backingSource),
+    }
   }
   catch {
     throw new Error(INVALID_TAKE_META_MESSAGE)

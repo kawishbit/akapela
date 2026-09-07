@@ -8,6 +8,7 @@ import {
   REVERB_AMOUNT_MAX,
   REVERB_AMOUNT_MIN,
 } from '~~/shared/adjustments'
+import { BACKING_SOURCES, BACKING_SOURCE_LABELS, type BackingSource } from '~~/shared/backing-source'
 import { toMixRequest } from '~~/shared/mix'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 
@@ -108,6 +109,10 @@ function onBackingGainInput(event: Event) {
 }
 function onPitchInput(event: Event) {
   review.setPitch(Number((event.target as HTMLInputElement).value))
+}
+function selectBackingSource(source: BackingSource) {
+  if (source === state.value.backingSource) return
+  review.setBackingSource(source)
 }
 function onReverbInput(event: Event) {
   review.setReverbAmount(Number((event.target as HTMLInputElement).value))
@@ -328,6 +333,34 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             class="mt-1 text-xs text-text-muted"
           >
             Following tempo, which is locked — pitch can't move on its own.
+          </p>
+        </div>
+
+        <div v-if="track.hasStems">
+          <div class="mb-1 flex items-baseline justify-between">
+            <span class="text-sm font-bold">Backing Source</span>
+          </div>
+          <div
+            class="flex items-center gap-1 rounded-pill bg-surface-mid p-1"
+            role="group"
+            aria-label="Backing Source"
+          >
+            <button
+              v-for="source in BACKING_SOURCES"
+              :key="source"
+              type="button"
+              class="inline-flex h-9 flex-1 items-center justify-center rounded-pill px-4 text-xs font-bold uppercase tracking-[1.4px] transition"
+              :class="source === state.backingSource
+                ? 'bg-text text-ground'
+                : 'text-text-muted hover:text-text'"
+              :aria-pressed="source === state.backingSource"
+              @click="selectBackingSource(source)"
+            >
+              {{ BACKING_SOURCE_LABELS[source] }}
+            </button>
+          </div>
+          <p class="mt-1 text-xs text-text-muted">
+            Overrides what this Take was sung to, for the next Mix only.
           </p>
         </div>
 

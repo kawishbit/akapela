@@ -243,10 +243,16 @@ describe('deleting Stems', () => {
     const take = await (await api.uploadTake(
       track.id,
       Buffer.from('RIFF....WAVEfmt data0123456789'),
-      { startPositionMs: 1000, durationMs: 2000, adjustments: { pitchSemitones: 0, tempoPercent: 100, linked: false } },
+      {
+        startPositionMs: 1000,
+        durationMs: 2000,
+        adjustments: { pitchSemitones: 0, tempoPercent: 100, linked: false },
+        backingSource: 'original',
+      },
     )).json()
     const mix = await (await api.requestMix(track.id, take.id, {
       adjustments: { pitchSemitones: 0, tempoPercent: 100, linked: false },
+      backingSource: 'original',
       latencyNudgeMs: 0,
       vocalGain: 1,
       backingGain: 1,

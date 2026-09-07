@@ -10,6 +10,7 @@ import {
   REVERB_AMOUNT_MIN,
   type Adjustments,
 } from '~~/shared/adjustments'
+import { DEFAULT_BACKING_SOURCE, type BackingSource } from '~~/shared/backing-source'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 import type { Take } from '~~/server/db/schema'
 
@@ -28,6 +29,8 @@ export interface TakeReviewState {
   tempoPercent: number
   reverbAmount: number
   lowpassHz: number
+  /** A Mix-time override of the Take's own (ADR 0003 amendment); never saved back onto it. */
+  backingSource: BackingSource
   error: string | null
   saveError: string | null
   deleting: boolean
@@ -52,6 +55,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     tempoPercent: 100,
     reverbAmount: DEFAULT_ADJUSTMENTS.reverbAmount,
     lowpassHz: DEFAULT_ADJUSTMENTS.lowpassHz,
+    backingSource: DEFAULT_BACKING_SOURCE,
     error: null,
     saveError: null,
     deleting: false,
@@ -77,6 +81,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     state.value.tempoPercent = current.adjustments.tempoPercent
     state.value.reverbAmount = current.adjustments.reverbAmount
     state.value.lowpassHz = current.adjustments.lowpassHz
+    state.value.backingSource = current.backingSource
 
     engine = new TakeReviewEngine({
       onPosition: (vocalElapsedMs) => {
@@ -94,7 +99,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     })
     try {
       await engine.load(
-        `/api/tracks/${trackId.value}/backing`,
+        trackId.value,
         `/api/tracks/${trackId.value}/takes/${current.id}/audio`,
         current,
       )
@@ -169,6 +174,16 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     state.value.lowpassHz = clamped
     engine?.setAdjustments(currentAdjustments())
     scheduleSave()
+  }
+
+  /**
+   * Overrides the Backing Source for the Mix a render will request — a
+   * Mix-time parameter, not saved onto the Take, which keeps meaning what it
+   * was sung to (ADR 0003 amendment). Auditions the choice immediately.
+   */
+  function setBackingSource(source: BackingSource): void {
+    state.value.backingSource = source
+    void engine?.setBackingSource(source)
   }
 
   const heardPitch = computed(() => effectivePitchSemitones(currentAdjustments()))
@@ -252,6 +267,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     setPitch,
     setReverbAmount,
     setLowpassHz,
+    setBackingSource,
     flushSave,
     discard,
     destroy,

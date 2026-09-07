@@ -155,6 +155,7 @@ def insert_mix(
     linked: bool = False,
     reverb_amount: int = 0,
     lowpass_hz: int = 20000,
+    backing_source: str = "original",
     latency_nudge_ms: int = 0,
     vocal_gain: float = 1.0,
     backing_gain: float = 1.0,
@@ -162,9 +163,9 @@ def insert_mix(
 ) -> None:
     conn.execute(
         "INSERT INTO mixes (id, take_id, mp3_path, wav_path, wav_requested, pitch_semitones,"
-        " tempo_percent, linked, reverb_amount, lowpass_hz, latency_nudge_ms, vocal_gain,"
-        " backing_gain, job_id, created_at, updated_at)"
-        " VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1000, 1000)",
+        " tempo_percent, linked, reverb_amount, lowpass_hz, backing_source, latency_nudge_ms,"
+        " vocal_gain, backing_gain, job_id, created_at, updated_at)"
+        " VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1000, 1000)",
         (
             mix_id,
             take_id,
@@ -174,6 +175,7 @@ def insert_mix(
             int(linked),
             reverb_amount,
             lowpass_hz,
+            backing_source,
             latency_nudge_ms,
             vocal_gain,
             backing_gain,
@@ -545,3 +547,44 @@ def test_defaults_produce_output_matching_the_no_effects_path(conn, data_dir: Pa
     implicit_bytes = (track_dir / "mixes" / "implicit.wav").read_bytes()
     explicit_bytes = (track_dir / "mixes" / "explicit.wav").read_bytes()
     assert implicit_bytes == explicit_bytes
+
+
+def test_a_mix_renders_against_its_own_backing_source_even_if_the_track_has_moved_on(
+    conn, data_dir: Path
+):
+    track_dir = data_dir / "tracks" / TRACK_ID
+    write_sine_wav(track_dir / "backing.wav", frequency=220, seconds=2.0)
+    write_sine_wav(track_dir / "instrumental.wav", frequency=330, seconds=2.0)
+    write_sine_wav(track_dir / "takes" / "take1.wav", frequency=880, seconds=0.5)
+    insert_track(conn)
+    insert_take(conn, file_path="takes/take1.wav", start_position_ms=500, duration_ms=500)
+    insert_mix(conn, mix_id="m1", job_id="j1", backing_source="instrumental", wav_requested=True)
+    enqueue_render(conn, mix_id="m1")
+    conn.commit()
+
+    Runner(conn, data_dir).run_once()
+
+    job = get_job(conn, "j1")
+    assert job["state"] == "succeeded", job["error"]
+    assert (track_dir / "mixes" / "m1.wav").exists()
+
+
+def test_rendering_against_a_deleted_instrumental_stem_fails_with_a_message_naming_it(
+    conn, data_dir: Path
+):
+    track_dir = data_dir / "tracks" / TRACK_ID
+    write_sine_wav(track_dir / "backing.wav", frequency=220, seconds=2.0)
+    # No instrumental.wav on disk: the Stems were deleted after this Mix named them.
+    write_sine_wav(track_dir / "takes" / "take1.wav", frequency=880, seconds=0.5)
+    insert_track(conn)
+    insert_take(conn, file_path="takes/take1.wav", start_position_ms=500, duration_ms=500)
+    insert_mix(conn, mix_id="m1", job_id="j1", backing_source="instrumental")
+    enqueue_render(conn, mix_id="m1")
+    conn.commit()
+
+    Runner(conn, data_dir).run_once()
+
+    job = get_job(conn, "j1")
+    assert job["state"] == "failed"
+    assert "instrumental" in job["error"]
+    assert not (track_dir / "mixes" / "m1.mp3").exists()

@@ -51,6 +51,7 @@ export function createTake(
     durationMs: input.durationMs,
     filePath,
     adjustments: input.adjustments,
+    backingSource: input.backingSource,
     latencyNudgeMs: 0,
     vocalGain: 1,
     backingGain: 1,

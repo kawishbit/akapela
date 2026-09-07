@@ -16,7 +16,12 @@ afterEach(async () => {
 const MP3_BYTES = Buffer.from('ID3 not really an mp3 but the API stores it as delivered')
 const WAV_BYTES = Buffer.from('RIFF....WAVEfmt data0123456789')
 
-const VALID_META = { startPositionMs: 12_000, durationMs: 8_000, adjustments: { pitchSemitones: 2, tempoPercent: 90, linked: false } }
+const VALID_META = {
+  startPositionMs: 12_000,
+  durationMs: 8_000,
+  adjustments: { pitchSemitones: 2, tempoPercent: 90, linked: false },
+  backingSource: 'original',
+}
 
 async function createTrack() {
   return (await (await api.upload('/api/tracks', 'Yesterday.mp3', MP3_BYTES)).json()) as { id: string }
@@ -35,6 +40,7 @@ describe('uploading a Take', () => {
       startPositionMs: 12_000,
       durationMs: 8_000,
       adjustments: VALID_META.adjustments,
+      backingSource: 'original',
       latencyNudgeMs: 0,
       vocalGain: 1,
       backingGain: 1,
@@ -73,6 +79,7 @@ describe('uploading a Take', () => {
     { startPositionMs: 12_000, durationMs: 0, adjustments: VALID_META.adjustments },
     { startPositionMs: 12.5, durationMs: 8_000, adjustments: VALID_META.adjustments },
     { startPositionMs: 12_000, durationMs: 8_000, adjustments: { pitchSemitones: 99, tempoPercent: 100, linked: false } },
+    { startPositionMs: 12_000, durationMs: 8_000, adjustments: VALID_META.adjustments, backingSource: 'nope' },
   ])('invalid metadata %j is rejected and creates no Take', async (meta) => {
     const track = await createTrack()
     const res = await api.uploadTake(track.id, WAV_BYTES, meta)
@@ -83,6 +90,12 @@ describe('uploading a Take', () => {
   test('uploading to an unknown Track is a 404', async () => {
     const res = await api.uploadTake('nope', WAV_BYTES, VALID_META)
     expect(res.status).toBe(404)
+  })
+
+  test('stores the Backing Source in force while singing, fixed on the Take forever', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, { ...VALID_META, backingSource: 'original' })).json()
+    expect(take.backingSource).toBe('original')
   })
 })
 
@@ -133,6 +146,7 @@ describe('deleting a Take', () => {
     const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
     const mix = await (await api.requestMix(track.id, take.id, {
       adjustments: VALID_META.adjustments,
+      backingSource: 'original',
       latencyNudgeMs: 0,
       vocalGain: 1,
       backingGain: 1,
