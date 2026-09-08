@@ -2,6 +2,7 @@ import { TakeReviewEngine } from '~/audio/review-engine'
 import {
   DEFAULT_ADJUSTMENTS,
   effectivePitchSemitones,
+  type EffectsTarget,
   LOWPASS_HZ_MAX,
   LOWPASS_HZ_MIN,
   PITCH_SEMITONES_MAX,
@@ -29,6 +30,8 @@ export interface TakeReviewState {
   tempoPercent: number
   reverbAmount: number
   lowpassHz: number
+  /** Which side the Effects colour; one choice for reverb and low-pass together (ticket 13). */
+  effectsTarget: EffectsTarget
   /** A Mix-time override of the Take's own (ADR 0003 amendment); never saved back onto it. */
   backingSource: BackingSource
   error: string | null
@@ -55,6 +58,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     tempoPercent: 100,
     reverbAmount: DEFAULT_ADJUSTMENTS.reverbAmount,
     lowpassHz: DEFAULT_ADJUSTMENTS.lowpassHz,
+    effectsTarget: DEFAULT_ADJUSTMENTS.effectsTarget,
     backingSource: DEFAULT_BACKING_SOURCE,
     error: null,
     saveError: null,
@@ -81,6 +85,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     state.value.tempoPercent = current.adjustments.tempoPercent
     state.value.reverbAmount = current.adjustments.reverbAmount
     state.value.lowpassHz = current.adjustments.lowpassHz
+    state.value.effectsTarget = current.adjustments.effectsTarget
     state.value.backingSource = current.backingSource
 
     engine = new TakeReviewEngine({
@@ -129,13 +134,19 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     }
   }
 
-  /** The nudge slider: audible immediately, with no restart of the Backing Track. */
-  function setNudge(nudgeMs: number): void {
+  /**
+   * The typed nudge (ticket 12): audible immediately, with no restart of the
+   * Backing Track. Returns the whole number of milliseconds actually applied,
+   * which is what lets the Review screen say so when a typed figure was
+   * rounded or clamped rather than taken as written.
+   */
+  function setNudge(nudgeMs: number): number {
     const clamped = Math.max(LATENCY_NUDGE_MS_MIN, Math.min(LATENCY_NUDGE_MS_MAX, Math.round(nudgeMs)))
     state.value.latencyNudgeMs = clamped
     engine?.setNudge(clamped)
     saveRememberedNudgeMs(clamped)
     scheduleSave()
+    return clamped
   }
 
   function setVocalGain(gain: number): void {
@@ -177,6 +188,17 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
   }
 
   /**
+   * Which side the Effects colour (ticket 13). One choice governs reverb and
+   * low-pass together, and it moves them between the Backing Track's chain and
+   * the vocal's without either being reloaded — `setAdjustments` reaches both.
+   */
+  function setEffectsTarget(target: EffectsTarget): void {
+    state.value.effectsTarget = target
+    engine?.setAdjustments(currentAdjustments())
+    scheduleSave()
+  }
+
+  /**
    * Overrides the Backing Source for the Mix a render will request — a
    * Mix-time parameter, not saved onto the Take, which keeps meaning what it
    * was sung to (ADR 0003 amendment). Auditions the choice immediately.
@@ -202,6 +224,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
       linked: state.value.linked,
       reverbAmount: state.value.reverbAmount,
       lowpassHz: state.value.lowpassHz,
+      effectsTarget: state.value.effectsTarget,
     }
   }
 
@@ -274,6 +297,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     setPitch,
     setReverbAmount,
     setLowpassHz,
+    setEffectsTarget,
     setBackingSource,
     flushSave,
     discard,

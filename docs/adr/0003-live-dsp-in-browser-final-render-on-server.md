@@ -15,3 +15,13 @@ Once a Track can have Stems, *which audio* the Backing Track is becomes a parame
 - Sing over the original recording with the real singer audible to stay on pitch, then render the Mix against the Instrumental Stem so only your voice is on it.
 - A Take recorded before its Track had Stems is re-renderable against an instrumental separated later. Nothing already sung goes stale.
 - A Mix carries its own Backing Source, so it reproduces what was requested regardless of what the Track has been switched to since. Rendering against Stems that have since been deleted fails with a message rather than quietly using the original.
+
+## Amendment (phase two): the Effects have a Target
+
+Reverb and the low-pass started out on the Backing Track and nowhere else, on both engines, which made "Effects" read as though they coloured everything you heard. They now carry a target — Vocal, Backing Track, Both, or None — chosen once for the pair, since the domain treats them as one set (`CONTEXT.md`).
+
+It sits on the same side of the line as pitch and Backing Source, for the same reason: a dry signal can be sent through reverb and a low-pass at playback or at render time, so nothing about it has to have been recorded differently.
+
+- The recorded vocal is stored dry whatever the Target says. Singing with reverb on your own voice is decided at review and at render, never a property of the Take.
+- The browser gives the vocal its own chain — the same convolver and biquad, against the same impulse response — and the worker's render gives it the same `afir` and `lowpass` segments. Either side is left out of its graph entirely when the target does not reach it, so nothing is coloured by a filter merely set to be neutral.
+- `backing` is the default, and the value every Take, Track, and Mix written before the target existed parses as, so nothing already recorded or rendered changes meaning.

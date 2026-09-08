@@ -51,12 +51,16 @@ _Avoid_: Delay, sync correction
 ### Performance
 
 **Adjustments**:
-The playback settings applied to a Backing Track: pitch in semitones, tempo as a percentage, whether pitch and tempo are linked, and the Effects. Only ever applied to a Backing Track. What you sing is recorded dry, so Adjustments shape what you sing over, never what you sang.
+The playback settings applied to a Backing Track: pitch in semitones, tempo as a percentage, whether pitch and tempo are linked, the Effects, and the Effects Target. Pitch and tempo only ever reach the Backing Track. What you sing is recorded dry, so Adjustments shape what you sing over, never what you sang.
 _Avoid_: Settings, filters, FX chain
 
 **Effects**:
-The part of Adjustments that colours the Backing Track's sound rather than its pitch or speed: a reverb and a low-pass filter. Applied live in the browser and again when a Mix is rendered (ADR 0003).
+The part of Adjustments that colours a sound rather than its pitch or speed: a reverb and a low-pass filter. One set, always chosen together. Applied live in the browser and again when a Mix is rendered (ADR 0003).
 _Avoid_: FX, processing, filters (a filter is one Effect, not the set)
+
+**Effects Target**:
+Which side of a Mix the Effects colour: the Vocal, the Backing Track, Both, or None. A Mix-time parameter like Backing Source — the recording itself is always dry, and the reverb is added on the way out (ADR 0003 amendment).
+_Avoid_: Routing, send, bus, wet channel
 
 **Preset**:
 A named bundle of Adjustments, such as Slowed and Reverb.

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '../../shared/take'
 import { errorSummary, formatMegabytes, formatDuration, formatGain, formatLatencyNudge, formatLowpassHz, formatLyricsOffset, formatPitch, formatReverbAmount, formatTempo } from '../../app/utils/format'
 
 describe('formatPitch', () => {
@@ -60,6 +61,11 @@ describe('formatLatencyNudge', () => {
     expect(formatLatencyNudge(0)).toBe('0 ms')
     expect(formatLatencyNudge(80)).toBe('+80 ms')
     expect(formatLatencyNudge(-40)).toBe('-40 ms')
+  })
+
+  test('still reads as milliseconds at the far ends of the range', () => {
+    expect(formatLatencyNudge(LATENCY_NUDGE_MS_MAX)).toBe('+5000 ms')
+    expect(formatLatencyNudge(LATENCY_NUDGE_MS_MIN)).toBe('-5000 ms')
   })
 })
 

@@ -1,6 +1,7 @@
+import { effectsReachVocal, type Adjustments } from '~~/shared/adjustments'
+import { EffectsChain } from './effects-chain'
 import { BackingTrackEngine } from './engine'
 import type { Take } from '~~/server/db/schema'
-import type { Adjustments } from '~~/shared/adjustments'
 import type { BackingSource } from '~~/shared/backing-source'
 
 export interface ReviewEngineListener {
@@ -15,9 +16,15 @@ export interface ReviewEngineListener {
  * Plays a Take's dry vocal over its Backing Track for the Review screen
  * (ticket 08). The Backing Track runs through the same Rubber Band engine
  * used everywhere else, seeked to the Take's start position, so its Effects
- * (ticket 06) apply here too; the vocal is unprocessed PCM connected straight
- * to the destination, on the same AudioContext (ADR 0006) so both advance on
- * one clock but only the backing ever runs through reverb or the low-pass.
+ * (ticket 06) apply here too; the vocal is the recording's own PCM on the same
+ * AudioContext (ADR 0006), so both advance on one clock.
+ *
+ * The vocal is stored dry and stays dry — but it gets an `EffectsChain` of its
+ * own, against the same impulse response the Backing Track's uses, so an
+ * Effects Target of Vocal or Both colours it at playback the way the worker's
+ * render will (ticket 13). Under the default target, Backing, that chain sits
+ * bypassed and the vocal reaches the gain stage untouched.
+ *
  * Tempo is locked to the Take's own value, so the Backing Track's song
  * position keeps advancing, relative to wall time, at the same rate it did
  * while the Take was sung — the dry vocal, itself untouched, stays in sync by
@@ -34,6 +41,7 @@ export class TakeReviewEngine {
   private vocalBuffer: AudioBuffer | undefined
   private vocalSource: AudioBufferSourceNode | undefined
   private vocalGainNode: GainNode | undefined
+  private vocalEffects: EffectsChain | undefined
 
   private trackId = ''
   private adjustments: Adjustments | undefined
@@ -71,16 +79,31 @@ export class TakeReviewEngine {
     this.vocalGainNode = context.createGain()
     this.vocalGainNode.gain.value = this.vocalGain
     this.vocalGainNode.connect(context.destination)
+
+    // The Backing Track's own load has already fetched and decoded the impulse
+    // response by now, so the vocal convolves against that very buffer.
+    this.vocalEffects = new EffectsChain(context, this.backing.impulseResponse!)
+    this.vocalEffects.output.connect(this.vocalGainNode)
+    this.applyVocalEffects(take.adjustments)
   }
 
   private backingUrl(source: BackingSource): string {
     return `/api/tracks/${this.trackId}/backing?source=${source}`
   }
 
-  /** Applies new Adjustments to the Backing Track; only pitch is expected to change (tempo is locked). */
+  /**
+   * Applies new Adjustments to both sides: the Backing Track, where only pitch
+   * and the Effects are expected to change (tempo is locked), and the vocal's
+   * own Effects chain, which the target decides between them.
+   */
   setAdjustments(adjustments: Adjustments): void {
     this.adjustments = adjustments
     this.backing.setAdjustments(adjustments)
+    this.applyVocalEffects(adjustments)
+  }
+
+  private applyVocalEffects(adjustments: Adjustments): void {
+    this.vocalEffects?.apply(adjustments, effectsReachVocal(adjustments.effectsTarget))
   }
 
   /**
@@ -163,7 +186,7 @@ export class TakeReviewEngine {
 
     const source = context.createBufferSource()
     source.buffer = buffer
-    source.connect(this.vocalGainNode!)
+    source.connect(this.vocalEffects!.input)
     source.start(when, offset)
     this.vocalSource = source
   }

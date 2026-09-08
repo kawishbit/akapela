@@ -1,4 +1,4 @@
-import { parseAdjustments, type Adjustments } from './adjustments'
+import { parseAdjustments, type Adjustments, type EffectsTarget } from './adjustments'
 import { parseBackingSource, type BackingSource } from './backing-source'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from './take'
 
@@ -33,6 +33,7 @@ export interface MixRequestSource {
   linked: boolean
   reverbAmount: number
   lowpassHz: number
+  effectsTarget: EffectsTarget
   backingSource: BackingSource
   latencyNudgeMs: number
   vocalGain: number
@@ -47,6 +48,7 @@ export function toMixRequest(source: MixRequestSource, wav: boolean): MixRequest
       linked: source.linked,
       reverbAmount: source.reverbAmount,
       lowpassHz: source.lowpassHz,
+      effectsTarget: source.effectsTarget,
     },
     backingSource: source.backingSource,
     latencyNudgeMs: source.latencyNudgeMs,

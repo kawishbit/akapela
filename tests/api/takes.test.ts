@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '../../shared/take'
 import { createTestApi, type TestApi } from './harness'
 
 let api: TestApi
@@ -109,7 +110,7 @@ describe('listing Takes', () => {
     expect(list.map((t: { id: string }) => t.id)).toEqual([second.id, first.id])
   })
 
-  test('a phase-one row already in the database, never re-saved since, still loads with both Effects bypassed', async () => {
+  test('a phase-one row already in the database, never re-saved since, still loads with both Effects bypassed and aimed at the backing', async () => {
     const track = await createTrack()
     const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
     // Bypasses the app entirely, the way a row written before this pair of
@@ -119,7 +120,7 @@ describe('listing Takes', () => {
       .run(JSON.stringify(VALID_META.adjustments), take.id)
 
     const list = await (await api.get(`/api/tracks/${track.id}/takes`)).json()
-    expect(list[0].adjustments).toEqual({ ...VALID_META.adjustments, reverbAmount: 0, lowpassHz: 20000 })
+    expect(list[0].adjustments).toEqual({ ...VALID_META.adjustments, reverbAmount: 0, lowpassHz: 20000, effectsTarget: 'backing' })
   })
 
   test('an unknown Track is a 404', async () => {
@@ -225,6 +226,17 @@ describe('updating a Take\'s review parameters', () => {
     expect(list[0]).toMatchObject(REVIEW_UPDATE)
   })
 
+  test('accepts a nudge at either end of the widened range', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
+
+    for (const latencyNudgeMs of [LATENCY_NUDGE_MS_MIN, LATENCY_NUDGE_MS_MAX]) {
+      const res = await api.put(`/api/tracks/${track.id}/takes/${take.id}`, { ...REVIEW_UPDATE, latencyNudgeMs })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ latencyNudgeMs })
+    }
+  })
+
   test('rejects a tempo change and leaves the Take unchanged', async () => {
     const track = await createTrack()
     const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
@@ -241,7 +253,7 @@ describe('updating a Take\'s review parameters', () => {
 
   test.each([
     {},
-    { latencyNudgeMs: 600, vocalGain: 1, backingGain: 1, adjustments: VALID_META.adjustments },
+    { latencyNudgeMs: 6000, vocalGain: 1, backingGain: 1, adjustments: VALID_META.adjustments },
     { latencyNudgeMs: 0, vocalGain: -1, backingGain: 1, adjustments: VALID_META.adjustments },
     { latencyNudgeMs: 0, vocalGain: 1, backingGain: 3, adjustments: VALID_META.adjustments },
     { latencyNudgeMs: 0.5, vocalGain: 1, backingGain: 1, adjustments: VALID_META.adjustments },

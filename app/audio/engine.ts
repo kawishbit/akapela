@@ -1,5 +1,12 @@
 import rubberBandWasmUrl from 'rubberband-wasm/dist/rubberband.wasm?url'
-import { DEFAULT_ADJUSTMENTS, LOWPASS_HZ_MAX, pitchScale, timeRatio, type Adjustments } from '~~/shared/adjustments'
+import {
+  DEFAULT_ADJUSTMENTS,
+  effectsReachBacking,
+  pitchScale,
+  timeRatio,
+  type Adjustments,
+} from '~~/shared/adjustments'
+import { EffectsChain } from './effects-chain'
 import { songTimeAfter } from './song-time'
 
 /** Served from `public/`; AudioWorklet modules load by URL and cannot be bundled with the app. */
@@ -36,16 +43,8 @@ export class BackingTrackEngine {
   private context: AudioContext | undefined
   private node: AudioWorkletNode | undefined
   private gainNode: GainNode | undefined
-  /** The reverb's dry and wet legs; both always connected so their gains alone crossfade the effect. */
-  private dryGain: GainNode | undefined
-  private wetGain: GainNode | undefined
-  /** Where the dry and wet legs recombine, and what the lowpass reads from (or is bypassed around). */
-  private reverbSum: GainNode | undefined
-  private convolver: ConvolverNode | undefined
-  private lowpass: BiquadFilterNode | undefined
-  /** Whether the convolver/lowpass are currently patched into the graph; tracked so `applyEffects` only (dis)connects on a real change. */
-  private reverbConnected = false
-  private lowpassConnected = false
+  private effects: EffectsChain | undefined
+  private impulse: AudioBuffer | undefined
   private setup: Promise<AudioWorkletNode> | undefined
   private waiting = new Map<string, { resolve: (message: WorkletMessage) => void, reject: (error: Error) => void }>()
   private loadGeneration = 0
@@ -64,6 +63,16 @@ export class BackingTrackEngine {
    */
   get audioContext(): AudioContext | undefined {
     return this.context
+  }
+
+  /**
+   * The one impulse response ADR 0003 requires both engines to share, once
+   * loading has fetched it. Exposed so the Review screen's vocal chain
+   * (ticket 13) convolves against the very same buffer rather than fetching
+   * and decoding a second copy of the same file.
+   */
+  get impulseResponse(): AudioBuffer | undefined {
+    return this.impulse
   }
 
   /** Song position in milliseconds, interpolated from the last report while playing. */
@@ -182,88 +191,28 @@ export class BackingTrackEngine {
     })
     node.port.onmessage = (event: MessageEvent<WorkletMessage>) => this.onMessage(event.data)
 
-    // worklet → convolver (dry/wet gains) → biquad lowpass → output gain. The
-    // worker's ffmpeg render (ticket 07) must build the same chain in the
-    // same order (ADR 0003). The convolver and the biquad are unplugged
-    // entirely at their bypass values (`applyEffects`) rather than merely set
-    // to a neutral parameter, so an untouched Track's path is these three
-    // unity-gain nodes and nothing more — inaudible, and cheap.
+    // worklet → Effects (convolver dry/wet, then biquad lowpass) → output
+    // gain. The worker's ffmpeg render (ticket 07) must build the same chain
+    // in the same order (ADR 0003); `EffectsChain` is that stretch of graph,
+    // and the Review screen's vocal has one of its own.
     const gainNode = context.createGain()
-    const dryGain = context.createGain()
-    const wetGain = context.createGain()
-    wetGain.gain.value = 0
-    const reverbSum = context.createGain()
-    const convolver = context.createConvolver()
-    // Normalization off on both sides of ADR 0003's contract: the gain compensation a browser's
-    // ConvolverNode applies automatically is engine-specific and won't match ffmpeg's afir, so the
-    // impulse response file itself is pre-scaled to unity-ish convolution gain instead.
-    convolver.normalize = false
-    convolver.buffer = impulseResponse
-    const lowpass = context.createBiquadFilter()
-    lowpass.type = 'lowpass'
-    lowpass.frequency.value = LOWPASS_HZ_MAX
+    const effects = new EffectsChain(context, impulseResponse)
 
-    node.connect(dryGain).connect(reverbSum)
-    reverbSum.connect(gainNode)
+    node.connect(effects.input)
+    effects.output.connect(gainNode)
     gainNode.connect(context.destination)
 
     await this.request(node, { type: 'init', wasm }, 'ready', [wasm])
     this.node = node
     this.gainNode = gainNode
-    this.dryGain = dryGain
-    this.wetGain = wetGain
-    this.reverbSum = reverbSum
-    this.convolver = convolver
-    this.lowpass = lowpass
+    this.effects = effects
+    this.impulse = impulseResponse
     return node
   }
 
-  /** Patches the convolver and the lowpass into (or out of) the graph and updates their live parameters; see the chain comment in `createNode`. */
+  /** Colours the Backing Track only when the Effects Target reaches it; otherwise its chain stays bypassed (ticket 13). */
   private applyEffects(adjustments: Adjustments): void {
-    this.applyReverb(adjustments.reverbAmount)
-    this.applyLowpass(adjustments.lowpassHz)
-  }
-
-  private applyReverb(amount: number): void {
-    const { node, dryGain, wetGain, convolver, reverbSum } = this
-    if (!node || !dryGain || !wetGain || !convolver || !reverbSum) return
-    const enabled = amount > 0
-    if (enabled !== this.reverbConnected) {
-      if (enabled) {
-        node.connect(convolver)
-        convolver.connect(wetGain)
-        wetGain.connect(reverbSum)
-      }
-      else {
-        node.disconnect(convolver)
-        convolver.disconnect(wetGain)
-        wetGain.disconnect(reverbSum)
-      }
-      this.reverbConnected = enabled
-    }
-    const wet = amount / 100
-    dryGain.gain.value = 1 - wet
-    wetGain.gain.value = wet
-  }
-
-  private applyLowpass(hz: number): void {
-    const { reverbSum, lowpass, gainNode } = this
-    if (!reverbSum || !lowpass || !gainNode) return
-    const enabled = hz < LOWPASS_HZ_MAX
-    if (enabled !== this.lowpassConnected) {
-      if (enabled) {
-        reverbSum.disconnect(gainNode)
-        reverbSum.connect(lowpass)
-        lowpass.connect(gainNode)
-      }
-      else {
-        reverbSum.disconnect(lowpass)
-        lowpass.disconnect(gainNode)
-        reverbSum.connect(gainNode)
-      }
-      this.lowpassConnected = enabled
-    }
-    if (enabled) lowpass.frequency.value = hz
+    this.effects?.apply(adjustments, effectsReachBacking(adjustments.effectsTarget))
   }
 
   private onMessage(message: WorkletMessage): void {

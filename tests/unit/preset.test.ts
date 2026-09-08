@@ -10,13 +10,14 @@ const NIGHTCORE: Pick<Preset, 'pitchSemitones' | 'tempoPercent' | 'linked' | 're
 }
 
 describe('applying a Preset to Adjustments', () => {
-  test('lifts out the five Adjustments fields the Preset carries', () => {
+  test('lifts out the five Adjustments fields the Preset carries, aiming the Effects at the Backing Track', () => {
     expect(presetAdjustments(NIGHTCORE)).toEqual({
       pitchSemitones: 0,
       tempoPercent: 130,
       linked: true,
       reverbAmount: 20,
       lowpassHz: 20000,
+      effectsTarget: 'backing',
     })
   })
 

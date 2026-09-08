@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ArrowLeft, Disc3, Loader2, Pause, Play, Trash2 } from 'lucide-vue-next'
 import {
+  EFFECTS_TARGETS,
+  EFFECTS_TARGET_LABELS,
   LOWPASS_HZ_MAX,
   LOWPASS_HZ_MIN,
   PITCH_SEMITONES_MAX,
   PITCH_SEMITONES_MIN,
   REVERB_AMOUNT_MAX,
   REVERB_AMOUNT_MIN,
+  type EffectsTarget,
 } from '~~/shared/adjustments'
 import { BACKING_SOURCES, BACKING_SOURCE_LABELS, type BackingSource } from '~~/shared/backing-source'
 import { toMixRequest } from '~~/shared/mix'
@@ -116,8 +119,34 @@ async function keep() {
   await navigateTo(`/tracks/${id.value}`)
 }
 
-function onNudgeInput(event: Event) {
-  review.setNudge(Number((event.target as HTMLInputElement).value))
+// The nudge is typed rather than dragged (ticket 12): a device's real
+// round-trip latency can be most of a second, and no slider travel reads
+// cleanly across that range. It commits on change — Enter, a step from the
+// arrow keys, or leaving the field — so a half-typed number is never mistaken
+// for one, and the field is then snapped to whatever `setNudge` actually
+// applied, since it rounds and clamps.
+const nudgeClampNotice = ref<string | null>(null)
+
+function onNudgeChange(event: Event) {
+  const field = event.target as HTMLInputElement
+  const typed = Number(field.value)
+  // A number input reports anything it cannot parse as the empty string, so a
+  // field left blank or holding a lone minus sign arrives the same way: not a
+  // value, and not an error either — the nudge in force simply stays.
+  if (field.value.trim() === '' || !Number.isFinite(typed)) {
+    field.value = String(state.value.latencyNudgeMs)
+    nudgeClampNotice.value = null
+    return
+  }
+  const applied = review.setNudge(typed)
+  // Saying a figure was adjusted is what keeps a clamped one from looking like
+  // a control that simply ignored the singer.
+  nudgeClampNotice.value = applied === Math.round(typed)
+    ? null
+    : `That is further than the nudge reaches; ${formatLatencyNudge(applied)} was applied.`
+  // Written straight to the field rather than left to the `:value` binding,
+  // which has nothing to re-render when the applied value did not change.
+  field.value = String(applied)
 }
 function onVocalGainInput(event: Event) {
   review.setVocalGain(Number((event.target as HTMLInputElement).value))
@@ -134,6 +163,10 @@ function selectBackingSource(source: BackingSource) {
 }
 function onReverbInput(event: Event) {
   review.setReverbAmount(Number((event.target as HTMLInputElement).value))
+}
+function selectEffectsTarget(target: EffectsTarget) {
+  if (target === state.value.effectsTarget) return
+  review.setEffectsTarget(target)
 }
 
 /** Slider steps, mapped log-scaled onto the Hz range so the low end (where the ear is sensitive) gets more of the travel. */
@@ -241,33 +274,51 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
 
       <section
         class="mb-4 flex flex-col gap-5 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
-        aria-label="Review settings"
+        aria-labelledby="review-voice-heading"
       >
         <div>
-          <div class="mb-1 flex items-baseline justify-between">
-            <label
-              for="review-nudge"
-              class="text-sm font-bold"
-            >Latency nudge</label>
-            <output
-              for="review-nudge"
-              class="text-2xl font-bold tabular-nums"
-            >{{ formatLatencyNudge(state.latencyNudgeMs) }}</output>
-          </div>
-          <input
-            id="review-nudge"
-            type="range"
-            class="h-12 w-full cursor-pointer accent-accent"
-            :min="LATENCY_NUDGE_MS_MIN"
-            :max="LATENCY_NUDGE_MS_MAX"
-            step="5"
-            :value="state.latencyNudgeMs"
-            aria-label="Latency nudge in milliseconds"
-            :aria-valuetext="formatLatencyNudge(state.latencyNudgeMs)"
-            @input="onNudgeInput"
+          <h2
+            id="review-voice-heading"
+            class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted"
           >
+            Your voice
+          </h2>
           <p class="mt-1 text-xs text-text-muted">
-            Moves your voice earlier or later against the Backing Track. Nudge while playing to align by ear.
+            Where your recording sits against the Backing Track, and how loud it is. What you sang is stored dry
+            and stays that way.
+          </p>
+        </div>
+
+        <div>
+          <label
+            for="review-nudge"
+            class="mb-1 block text-sm font-bold"
+          >Latency nudge</label>
+          <div class="flex items-center gap-2">
+            <input
+              id="review-nudge"
+              type="number"
+              inputmode="numeric"
+              class="h-12 w-32 rounded-[6px] border border-border-light bg-surface-mid px-3 text-right text-2xl font-bold tabular-nums text-text outline-none focus:border-text"
+              :min="LATENCY_NUDGE_MS_MIN"
+              :max="LATENCY_NUDGE_MS_MAX"
+              step="1"
+              :value="state.latencyNudgeMs"
+              aria-label="Latency nudge in milliseconds"
+              @change="onNudgeChange"
+            >
+            <span class="text-sm font-bold text-text-muted">ms</span>
+          </div>
+          <p class="mt-1 text-xs text-text-muted">
+            Moves your voice earlier or later against the Backing Track. Type a figure and press Enter while playing to
+            align by ear; anything from {{ LATENCY_NUDGE_MS_MIN }} to {{ LATENCY_NUDGE_MS_MAX }} ms.
+          </p>
+          <p
+            v-if="nudgeClampNotice"
+            class="mt-1 text-xs text-warning"
+            role="status"
+          >
+            {{ nudgeClampNotice }}
           </p>
         </div>
 
@@ -294,6 +345,24 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             :aria-valuetext="formatGain(state.vocalGain)"
             @input="onVocalGainInput"
           >
+        </div>
+      </section>
+
+      <section
+        class="mb-4 flex flex-col gap-5 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
+        aria-labelledby="review-backing-heading"
+      >
+        <div>
+          <h2
+            id="review-backing-heading"
+            class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted"
+          >
+            Backing Track
+          </h2>
+          <p class="mt-1 text-xs text-text-muted">
+            Pitch, tempo, and Backing Source only ever shape what you sang over — never the recording itself
+            (ADR 0003).
+          </p>
         </div>
 
         <div>
@@ -378,7 +447,63 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             </button>
           </div>
           <p class="mt-1 text-xs text-text-muted">
-            Overrides what this Take was sung to, for the next Mix only.
+            Which audio you sang over, overridden for the next Mix only.
+          </p>
+        </div>
+
+        <div class="rounded-[6px] bg-surface-mid px-3 py-2">
+          <p class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+            Tempo
+          </p>
+          <p class="mt-0.5 text-sm text-text">
+            <span class="font-bold tabular-nums">{{ formatTempo(state.tempoPercent) }}</span>
+            · locked, since this Take was sung at this tempo
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="mb-4 flex flex-col gap-5 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
+        aria-labelledby="review-effects-heading"
+      >
+        <div>
+          <h2
+            id="review-effects-heading"
+            class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted"
+          >
+            Effects
+          </h2>
+          <p class="mt-1 text-xs text-text-muted">
+            Reverb and Low-pass are one set, and they go wherever this points — so they sit here rather than under
+            either side.
+          </p>
+        </div>
+
+        <div>
+          <p class="mb-1 text-sm font-bold">
+            Apply to
+          </p>
+          <div
+            class="flex items-center gap-1 rounded-pill bg-surface-mid p-1"
+            role="group"
+            aria-label="Effects Target"
+          >
+            <button
+              v-for="target in EFFECTS_TARGETS"
+              :key="target"
+              type="button"
+              class="inline-flex h-9 flex-1 items-center justify-center rounded-pill px-3 text-xs font-bold uppercase tracking-[1.4px] transition"
+              :class="target === state.effectsTarget
+                ? 'bg-text text-ground'
+                : 'text-text-muted hover:text-text'"
+              :aria-pressed="target === state.effectsTarget"
+              @click="selectEffectsTarget(target)"
+            >
+              {{ EFFECTS_TARGET_LABELS[target] }}
+            </button>
+          </div>
+          <p class="mt-1 text-xs text-text-muted">
+            Your recording stays dry either way — the reverb is added on the way out, at playback and again in the Mix.
           </p>
         </div>
 
@@ -430,16 +555,6 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             :aria-valuetext="formatLowpassHz(state.lowpassHz)"
             @input="onLowpassInput"
           >
-        </div>
-
-        <div class="rounded-[6px] bg-surface-mid px-3 py-2">
-          <p class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-            Tempo
-          </p>
-          <p class="mt-0.5 text-sm text-text">
-            <span class="font-bold tabular-nums">{{ formatTempo(state.tempoPercent) }}</span>
-            · locked, since this Take was sung at this tempo
-          </p>
         </div>
 
         <p

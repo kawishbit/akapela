@@ -19,6 +19,13 @@ BACKING_CHANNELS = 2
 REVERB_AMOUNT_BYPASSED = 0
 LOWPASS_HZ_BYPASSED = 20000
 
+# Which side of a Mix the Effects colour (shared/adjustments.ts's
+# EFFECTS_TARGETS). "backing" is the default, and the only behaviour there
+# was before the target existed.
+EFFECTS_TARGET_BACKING = "backing"
+EFFECTS_TARGETS_ON_BACKING = frozenset({EFFECTS_TARGET_BACKING, "both"})
+EFFECTS_TARGETS_ON_VOCAL = frozenset({"vocal", "both"})
+
 # The one impulse response ADR 0003 requires both engines to share; the
 # browser's `app/audio/engine.ts` loads the same file from `public/audio/`.
 IMPULSE_RESPONSE_PATH = Path(__file__).parent / "assets" / "large-hall-ir.wav"
@@ -70,6 +77,41 @@ def _clean_ffmpeg_stderr(stderr: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def _append_effects(
+    segments: list[str],
+    *,
+    label: str,
+    prefix: str,
+    reverb_amount: int,
+    lowpass_hz: int,
+    impulse_label: str,
+) -> str:
+    """Appends the Effects — reverb, then low-pass, the order both engines build
+    them in (ADR 0003) — onto one signal's `segments`, and returns the label
+    they leave it on.
+
+    Either filter at its bypassed value contributes no segment at all, so a
+    signal the Effects Target does not reach passes through exactly as it would
+    have before there were Effects to apply.
+    """
+    if reverb_amount > REVERB_AMOUNT_BYPASSED:
+        wet = reverb_amount / 100
+        dry = 1 - wet
+        segments.append(f"[{label}]asplit=2[{prefix}_dry][{prefix}_wet_in]")
+        segments.append(f"[{prefix}_wet_in]{impulse_label}afir=dry=1:wet=1[{prefix}_wet]")
+        segments.append(
+            f"[{prefix}_dry][{prefix}_wet]amix=inputs=2:"
+            f"weights={dry:.6f} {wet:.6f}:normalize=0[{prefix}_reverbed]"
+        )
+        label = f"{prefix}_reverbed"
+
+    if lowpass_hz < LOWPASS_HZ_BYPASSED:
+        segments.append(f"[{label}]lowpass=f={lowpass_hz}[{prefix}_lp]")
+        label = f"{prefix}_lp"
+
+    return label
+
+
 def render_mix(
     *,
     backing: Path,
@@ -84,6 +126,7 @@ def render_mix(
     target_duration_ms: int,
     reverb_amount: int = REVERB_AMOUNT_BYPASSED,
     lowpass_hz: int = LOWPASS_HZ_BYPASSED,
+    effects_target: str = EFFECTS_TARGET_BACKING,
 ) -> None:
     """Renders a Mix: the Backing Track stretched by Rubber Band, then the two
     Effects (ticket 07), then the Take's dry vocal placed at `vocal_wall_ms`
@@ -97,13 +140,22 @@ def render_mix(
     Reverb is `afir` convolved against the bundled impulse response, always
     fully wet on its own output; the dry/wet crossfade the singer actually
     hears is an `amix` of that against an unprocessed copy, mirroring the
-    convolver/dry-gain/wet-gain graph `app/audio/engine.ts` builds in the
+    convolver/dry-gain/wet-gain graph `app/audio/effects-chain.ts` builds in the
     browser. The low-pass is ffmpeg's `lowpass` filter at its default (two-pole)
     Q, matching a Web Audio `BiquadFilterNode` lowpass at its own default
     without tuning either side. Both filters are left out of the filter graph
     entirely at their bypassed values, not merely configured to be neutral, so
     a Mix rendered from an untouched Track is what phase one would have
     produced.
+
+    `effects_target` decides which of the two signals that pair of filters
+    lands on (ticket 13): the vocal, the backing, both, or neither. Each side
+    builds the same two segments in the same order, so a Mix reproduces
+    whichever chains the Review screen had active. The vocal's `volume` stays
+    ahead of its Effects rather than after them as the backing's is; both
+    filters are linear, so a scalar commutes through them exactly, and leaving
+    it there keeps the default target's filter graph the string it has always
+    been.
 
     A negative `vocal_wall_ms` means the Take started before the tempo-adjusted
     Backing Track does (a large negative nudge on an early Take); rather than
@@ -120,39 +172,56 @@ def render_mix(
         trim_seconds = -vocal_wall_ms / 1000
         vocal_chain = f"atrim=start={trim_seconds:.6f},asetpts=PTS-STARTPTS,volume={vocal_gain}"
 
-    reverb_enabled = reverb_amount > REVERB_AMOUNT_BYPASSED
-    lowpass_enabled = lowpass_hz < LOWPASS_HZ_BYPASSED
+    on_backing = effects_target in EFFECTS_TARGETS_ON_BACKING
+    on_vocal = effects_target in EFFECTS_TARGETS_ON_VOCAL
+    backing_reverb = reverb_amount if on_backing else REVERB_AMOUNT_BYPASSED
+    vocal_reverb = reverb_amount if on_vocal else REVERB_AMOUNT_BYPASSED
+
+    # One impulse response input feeds at most two `afir`s, and a stream can be
+    # consumed only once, so it is split when both sides want it.
+    backing_wants_ir = backing_reverb > REVERB_AMOUNT_BYPASSED
+    vocal_wants_ir = vocal_reverb > REVERB_AMOUNT_BYPASSED
+    ir_segments: list[str] = []
+    backing_ir = vocal_ir = "[2:a]"
+    if backing_wants_ir and vocal_wants_ir:
+        ir_segments.append("[2:a]asplit=2[ir_bg][ir_voc]")
+        backing_ir, vocal_ir = "[ir_bg]", "[ir_voc]"
 
     backing_segments = [f"[0:a]rubberband=tempo={tempo}:pitch={pitch}[stretched]"]
-    backing_label = "stretched"
-
-    if reverb_enabled:
-        wet = reverb_amount / 100
-        dry = 1 - wet
-        backing_segments.append(f"[{backing_label}]asplit=2[bg_dry][bg_wet_in]")
-        backing_segments.append("[bg_wet_in][2:a]afir=dry=1:wet=1[bg_wet]")
-        backing_segments.append(
-            f"[bg_dry][bg_wet]amix=inputs=2:weights={dry:.6f} {wet:.6f}:normalize=0[bg_reverbed]"
-        )
-        backing_label = "bg_reverbed"
-
-    if lowpass_enabled:
-        backing_segments.append(f"[{backing_label}]lowpass=f={lowpass_hz}[bg_lp]")
-        backing_label = "bg_lp"
-
+    backing_label = _append_effects(
+        backing_segments,
+        label="stretched",
+        prefix="bg",
+        reverb_amount=backing_reverb,
+        lowpass_hz=lowpass_hz if on_backing else LOWPASS_HZ_BYPASSED,
+        impulse_label=backing_ir,
+    )
     backing_segments.append(
         f"[{backing_label}]apad=whole_dur={target_seconds:.6f},atrim=end={target_seconds:.6f},"
         f"asetpts=PTS-STARTPTS,volume={backing_gain}[bg]"
     )
 
-    filter_complex = (
-        ";".join(backing_segments)
-        + f";[1:a]{vocal_chain}[voc];"
-        "[bg][voc]amix=inputs=2:duration=first:normalize=0[out]"
+    vocal_segments = [f"[1:a]{vocal_chain}[voc]"]
+    vocal_label = _append_effects(
+        vocal_segments,
+        label="voc",
+        prefix="voc",
+        reverb_amount=vocal_reverb,
+        lowpass_hz=lowpass_hz if on_vocal else LOWPASS_HZ_BYPASSED,
+        impulse_label=vocal_ir,
+    )
+
+    filter_complex = ";".join(
+        [
+            *ir_segments,
+            *backing_segments,
+            *vocal_segments,
+            f"[bg][{vocal_label}]amix=inputs=2:duration=first:normalize=0[out]",
+        ]
     )
 
     inputs = ["-i", str(backing), "-i", str(vocal)]
-    if reverb_enabled:
+    if backing_wants_ir or vocal_wants_ir:
         inputs += ["-i", str(IMPULSE_RESPONSE_PATH)]
 
     tmp_wav = dst_mp3.with_suffix(".part.wav")

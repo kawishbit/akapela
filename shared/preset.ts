@@ -1,4 +1,5 @@
 import {
+  DEFAULT_EFFECTS_TARGET,
   LOWPASS_HZ_MAX,
   LOWPASS_HZ_MIN,
   PITCH_SEMITONES_MAX,
@@ -32,7 +33,12 @@ export interface Preset {
   updatedAt: number
 }
 
-/** The Adjustments a Preset carries, lifted out of its Track-agnostic fields. */
+/**
+ * The Adjustments a Preset carries, lifted out of its Track-agnostic fields.
+ * The Effects Target is not one of them — a Preset colours a Backing Track,
+ * and there is no Take in sight when one is applied — so it lands on the
+ * default the way a Track's own Adjustments do.
+ */
 export function presetAdjustments(preset: Pick<Preset, 'pitchSemitones' | 'tempoPercent' | 'linked' | 'reverbAmount' | 'lowpassHz'>): Adjustments {
   return {
     pitchSemitones: preset.pitchSemitones,
@@ -40,6 +46,7 @@ export function presetAdjustments(preset: Pick<Preset, 'pitchSemitones' | 'tempo
     linked: preset.linked,
     reverbAmount: preset.reverbAmount,
     lowpassHz: preset.lowpassHz,
+    effectsTarget: DEFAULT_EFFECTS_TARGET,
   }
 }
 
@@ -86,7 +93,7 @@ export function parsePresetCreate(input: unknown): PresetCreate {
   }
   return {
     name: name.trim(),
-    adjustments: { pitchSemitones, tempoPercent, linked, reverbAmount, lowpassHz },
+    adjustments: { pitchSemitones, tempoPercent, linked, reverbAmount, lowpassHz, effectsTarget: DEFAULT_EFFECTS_TARGET },
   }
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   DEFAULT_ADJUSTMENTS,
+  EFFECTS_TARGETS,
   INVALID_ADJUSTMENTS_MESSAGE,
   effectivePitchSemitones,
   parseAdjustments,
@@ -43,30 +44,37 @@ describe('what the engine applies', () => {
 })
 
 describe('parseAdjustments', () => {
-  test('accepts pitch in semitones, tempo in percent, the link flag, reverb amount, and low-pass cutoff', () => {
-    expect(parseAdjustments({ pitchSemitones: -3, tempoPercent: 85, linked: false, reverbAmount: 40, lowpassHz: 8000 })).toEqual({
+  test('accepts pitch in semitones, tempo in percent, the link flag, reverb amount, low-pass cutoff, and Effects target', () => {
+    expect(parseAdjustments({ pitchSemitones: -3, tempoPercent: 85, linked: false, reverbAmount: 40, lowpassHz: 8000, effectsTarget: 'vocal' })).toEqual({
       pitchSemitones: -3,
       tempoPercent: 85,
       linked: false,
       reverbAmount: 40,
       lowpassHz: 8000,
+      effectsTarget: 'vocal',
     })
   })
 
+  test.each(EFFECTS_TARGETS)('accepts %s as an Effects target', (effectsTarget) => {
+    expect(parseAdjustments({ ...DEFAULT_ADJUSTMENTS, effectsTarget })).toMatchObject({ effectsTarget })
+  })
+
   test('accepts the extremes of every range', () => {
-    expect(parseAdjustments({ pitchSemitones: -12, tempoPercent: 50, linked: true, reverbAmount: 0, lowpassHz: 200 })).toEqual({
+    expect(parseAdjustments({ pitchSemitones: -12, tempoPercent: 50, linked: true, reverbAmount: 0, lowpassHz: 200, effectsTarget: 'none' })).toEqual({
       pitchSemitones: -12,
       tempoPercent: 50,
       linked: true,
       reverbAmount: 0,
       lowpassHz: 200,
+      effectsTarget: 'none',
     })
-    expect(parseAdjustments({ pitchSemitones: 12, tempoPercent: 150, linked: false, reverbAmount: 100, lowpassHz: 20000 })).toEqual({
+    expect(parseAdjustments({ pitchSemitones: 12, tempoPercent: 150, linked: false, reverbAmount: 100, lowpassHz: 20000, effectsTarget: 'backing' })).toEqual({
       pitchSemitones: 12,
       tempoPercent: 150,
       linked: false,
       reverbAmount: 100,
       lowpassHz: 20000,
+      effectsTarget: 'backing',
     })
   })
 
@@ -78,7 +86,12 @@ describe('parseAdjustments', () => {
 
   test('defaults reverbAmount and lowpassHz to bypassed when a phase-one three-field row is parsed', () => {
     const parsed = parseAdjustments({ pitchSemitones: -2, tempoPercent: 90, linked: false })
-    expect(parsed).toEqual({ pitchSemitones: -2, tempoPercent: 90, linked: false, reverbAmount: 0, lowpassHz: 20000 })
+    expect(parsed).toEqual({ ...DEFAULT_ADJUSTMENTS, pitchSemitones: -2, tempoPercent: 90 })
+  })
+
+  test('defaults the Effects target to the Backing Track when a row written before it existed is parsed', () => {
+    const fiveField = { pitchSemitones: 0, tempoPercent: 100, linked: false, reverbAmount: 40, lowpassHz: 6000 }
+    expect(parseAdjustments(fiveField)).toEqual({ ...fiveField, effectsTarget: 'backing' })
   })
 
   test.each([
@@ -99,6 +112,8 @@ describe('parseAdjustments', () => {
     ['low-pass above twenty thousand', { pitchSemitones: 0, tempoPercent: 100, linked: false, lowpassHz: 20001 }],
     ['fractional low-pass', { pitchSemitones: 0, tempoPercent: 100, linked: false, lowpassHz: 500.5 }],
     ['low-pass as a string', { pitchSemitones: 0, tempoPercent: 100, linked: false, lowpassHz: '20000' }],
+    ['an Effects target that is not one of the four', { ...DEFAULT_ADJUSTMENTS, effectsTarget: 'everything' }],
+    ['a null Effects target', { ...DEFAULT_ADJUSTMENTS, effectsTarget: null }],
     ['not an object', 'fast'],
     ['null', null],
   ])('rejects %s', (_label, input) => {

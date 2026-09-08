@@ -50,8 +50,15 @@ export interface TakeReviewUpdate {
   adjustments: Adjustments
 }
 
-export const LATENCY_NUDGE_MS_MIN = -500
-export const LATENCY_NUDGE_MS_MAX = 500
+/**
+ * How far the vocal may be moved against the Backing Track. Generous rather
+ * than tight: a real round-trip latency of well over half a second is ordinary
+ * on Bluetooth headphones, a TV or a soundbar, and the singer types the figure
+ * in rather than dragging for it, so the bound only has to be past anything a
+ * device could plausibly need.
+ */
+export const LATENCY_NUDGE_MS_MIN = -5000
+export const LATENCY_NUDGE_MS_MAX = 5000
 export const GAIN_MIN = 0
 export const GAIN_MAX = 2
 

@@ -109,6 +109,23 @@ describe('requesting a Mix', () => {
     expect(threeFieldRequest).toMatchObject({ reverbAmount: 0, lowpassHz: 20000 })
   })
 
+  test.each(['vocal', 'backing', 'both', 'none'])('carries an Effects target of %s onto the row', async (effectsTarget) => {
+    const { track, take } = await createTrackWithTake()
+
+    const mix = await (await api.requestMix(track.id, take.id, {
+      ...MIX_REQUEST,
+      adjustments: { ...MIX_REQUEST.adjustments, reverbAmount: 65, effectsTarget },
+    })).json()
+    expect(mix).toMatchObject({ effectsTarget })
+  })
+
+  test('defaults a request that names no Effects target to the Backing Track', async () => {
+    const { track, take } = await createTrackWithTake()
+
+    const mix = await (await api.requestMix(track.id, take.id, MIX_REQUEST)).json()
+    expect(mix).toMatchObject({ effectsTarget: 'backing' })
+  })
+
   test('appears on the Track detail response, alongside its Take', async () => {
     const { track, take } = await createTrackWithTake()
     const mix = await (await api.requestMix(track.id, take.id, MIX_REQUEST)).json()
@@ -155,12 +172,13 @@ describe('requesting a Mix', () => {
 
   test.each([
     {},
-    { ...MIX_REQUEST, latencyNudgeMs: 600 },
+    { ...MIX_REQUEST, latencyNudgeMs: 6000 },
     { ...MIX_REQUEST, vocalGain: -1 },
     { ...MIX_REQUEST, backingGain: 3 },
     { ...MIX_REQUEST, wav: 'yes' },
     { ...MIX_REQUEST, adjustments: { pitchSemitones: 99, tempoPercent: TAKE_META.adjustments.tempoPercent, linked: false } },
     { ...MIX_REQUEST, backingSource: 'nope' },
+    { ...MIX_REQUEST, adjustments: { ...MIX_REQUEST.adjustments, effectsTarget: 'everything' } },
   ])('invalid request %j is rejected and creates no Mix', async (body) => {
     const { track, take } = await createTrackWithTake()
     const res = await api.requestMix(track.id, take.id, body)

@@ -49,6 +49,7 @@ def run_render(ctx: JobContext) -> None:
         raise ValueError("render job has no target Mix")
     row = ctx.conn.execute(
         "SELECT m.id, m.pitch_semitones, m.tempo_percent, m.linked, m.reverb_amount, m.lowpass_hz,"
+        " m.effects_target,"
         " m.backing_source, m.latency_nudge_ms, m.vocal_gain, m.backing_gain, m.wav_requested,"
         " t.track_id, t.start_position_ms, t.file_path AS take_file_path"
         " FROM mixes m JOIN takes t ON t.id = m.take_id"
@@ -100,6 +101,7 @@ def run_render(ctx: JobContext) -> None:
         target_duration_ms=target_duration_ms,
         reverb_amount=row["reverb_amount"],
         lowpass_hz=row["lowpass_hz"],
+        effects_target=row["effects_target"],
     )
     ctx.progress(PROGRESS_RENDERED)
 

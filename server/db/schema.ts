@@ -1,5 +1,12 @@
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { DEFAULT_ADJUSTMENTS, LOWPASS_HZ_MAX, REVERB_AMOUNT_MIN, type Adjustments } from '../../shared/adjustments'
+import {
+  DEFAULT_ADJUSTMENTS,
+  DEFAULT_EFFECTS_TARGET,
+  EFFECTS_TARGETS,
+  LOWPASS_HZ_MAX,
+  REVERB_AMOUNT_MIN,
+  type Adjustments,
+} from '../../shared/adjustments'
 import { BACKING_SOURCES, DEFAULT_BACKING_SOURCE } from '../../shared/backing-source'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
@@ -195,6 +202,14 @@ export const mixes = sqliteTable('mixes', {
   /** The two Effects, copied onto the row at request time like every other render parameter (ticket 07). */
   reverbAmount: integer('reverb_amount').notNull().default(REVERB_AMOUNT_MIN),
   lowpassHz: integer('lowpass_hz').notNull().default(LOWPASS_HZ_MAX),
+  /**
+   * Which side of this Mix the two Effects above colour (ticket 13). A column
+   * of its own rather than a field of `adjustments`, because `mixes` flattens
+   * Adjustments the way every other render parameter is flattened. Defaults to
+   * the Backing Track, so a Mix requested before the target existed reproduces
+   * exactly what it reproduced then.
+   */
+  effectsTarget: text('effects_target', { enum: EFFECTS_TARGETS }).notNull().default(DEFAULT_EFFECTS_TARGET),
   /**
    * Which audio this Mix was rendered against, copied onto the row at request
    * time and defaulting to the Take's own — a request may override it, so
