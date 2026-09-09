@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { and, desc, eq, sql } from 'drizzle-orm'
+import { trackDir as trackDirFor } from './jobs/track-paths'
 import {
   jobs,
   tracks,
@@ -85,7 +86,7 @@ export type TrackDetail = TrackWithJob & {
 
 /** Absolute path of the directory owning every file of one Track. */
 export function trackDir(akapela: Akapela, trackId: string): string {
-  return join(akapela.dataDir, 'tracks', trackId)
+  return trackDirFor(akapela.dataDir, trackId)
 }
 
 /**

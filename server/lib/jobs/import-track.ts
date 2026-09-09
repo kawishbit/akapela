@@ -1,9 +1,9 @@
-import { readdir, rm } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type Database from 'better-sqlite3'
 import { normalizeToBackingTrack, probeDurationMs } from '../audio'
 import { ORIGINAL_BASENAME, type ProgressCallback, type SourceFetcher } from '../sources'
 import type { Handler, JobContext } from '../jobs-runner'
+import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir } from './track-paths'
 
 /**
  * The import job: turn a Track's Source into its Backing Track. Ported from
@@ -20,16 +20,10 @@ import type { Handler, JobContext } from '../jobs-runner'
  * row. Nothing retries on its own.
  */
 
-export const BACKING_TRACK_FILE = 'backing.wav'
-
 // Progress milestones. The YouTube download fills the gap between the first two.
 const PROGRESS_SOURCE_KNOWN = 10
 const PROGRESS_AUDIO_ON_DISK = 50
 const PROGRESS_NORMALIZED = 80
-
-export function trackDir(dataDir: string, trackId: string): string {
-  return join(dataDir, 'tracks', trackId)
-}
 
 /** The original Source audio, kept as delivered with whatever extension it came with. */
 async function findOriginal(directory: string): Promise<string> {
@@ -37,26 +31,6 @@ async function findOriginal(directory: string): Promise<string> {
   const candidates = entries.filter(name => name.startsWith(`${ORIGINAL_BASENAME}.`)).sort()
   if (candidates.length === 0) throw new Error(`no original audio in ${directory}`)
   return join(directory, candidates[0]!)
-}
-
-function trackExists(sqlite: Database.Database, trackId: string): boolean {
-  return sqlite.prepare(`SELECT 1 FROM tracks WHERE id = ?`).get(trackId) !== undefined
-}
-
-/**
- * The singer may delete a Track while a job that writes into it runs. The app
- * removes the rows and the directory; anything written afterwards is an
- * orphan, so remove it and give up rather than resurrect the Track.
- */
-async function ensureNotDeleted(
-  sqlite: Database.Database,
-  trackId: string,
-  directory: string,
-  during: string,
-): Promise<void> {
-  if (trackExists(sqlite, trackId)) return
-  await rm(directory, { recursive: true, force: true })
-  throw new Error(`Track ${trackId} was deleted during ${during}`)
 }
 
 export function importHandler(fetcher: SourceFetcher): Handler {

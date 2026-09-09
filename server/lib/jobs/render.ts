@@ -7,6 +7,7 @@ import { BACKING_SOURCE_FILES } from '../tracks'
 import type { Handler } from '../jobs-runner'
 import type { BackingSource } from '../../../shared/backing-source'
 import type { EffectsTarget } from '../../../shared/adjustments'
+import { trackDir } from './track-paths'
 
 /**
  * The render job: turn a Take into a Mix. Ported from
@@ -27,10 +28,6 @@ const MIXES_DIRNAME = 'mixes'
 
 const PROGRESS_STARTED = 10
 const PROGRESS_RENDERED = 80
-
-function trackDir(dataDir: string, trackId: string): string {
-  return join(dataDir, 'tracks', trackId)
-}
 
 function mixExists(sqlite: Database.Database, mixId: string): boolean {
   return sqlite.prepare(`SELECT 1 FROM mixes WHERE id = ?`).get(mixId) !== undefined

@@ -48,26 +48,23 @@ function hanningSymmetric(length: number): Float64Array {
   return window
 }
 
-/** In place: scales `channels` down to `maxPeak` if their combined peak exceeds it. Never amplifies (this app's `amplification_threshold` is always 0). */
-export function normalizePeak(channels: [Float64Array, Float64Array], maxPeak = 0.9): void {
-  let peak = 0
-  for (const channel of channels) {
-    for (const sample of channel) peak = Math.max(peak, Math.abs(sample))
-  }
-  if (peak > maxPeak) {
-    const scale = maxPeak / peak
-    for (const channel of channels) {
-      for (let i = 0; i < channel.length; i++) channel[i]! *= scale
-    }
-  }
-}
-
 function peakOf(channels: [Float64Array, Float64Array]): number {
   let peak = 0
   for (const channel of channels) {
     for (const sample of channel) peak = Math.max(peak, Math.abs(sample))
   }
   return peak
+}
+
+/** In place: scales `channels` down to `maxPeak` if their combined peak exceeds it. Never amplifies (this app's `amplification_threshold` is always 0). */
+export function normalizePeak(channels: [Float64Array, Float64Array], maxPeak = 0.9): void {
+  const peak = peakOf(channels)
+  if (peak > maxPeak) {
+    const scale = maxPeak / peak
+    for (const channel of channels) {
+      for (let i = 0; i < channel.length; i++) channel[i]! *= scale
+    }
+  }
 }
 
 /** The one method this module actually calls on a session — small enough that a test can fake it without touching onnxruntime at all. */

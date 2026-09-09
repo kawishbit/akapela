@@ -3,10 +3,10 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
-import type Database from 'better-sqlite3'
 import { decodeWav, encodeWav } from '../../../app/audio/wav'
 import { fetchModel } from '../separators/download-model'
 import type { Handler } from '../jobs-runner'
+import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir, trackExists } from './track-paths'
 
 /**
  * The separation model is to vocal removal what yt-dlp is to importing — a
@@ -112,7 +112,6 @@ function runSeparateCli(
 
 export const INSTRUMENTAL_STEM_FILE = 'instrumental.wav'
 export const VOCALS_STEM_FILE = 'vocals.wav'
-const BACKING_TRACK_FILE = 'backing.wav'
 const SEPARATION_DIRNAME = 'stems.part'
 
 const MODELS_DIRNAME = 'cache/models'
@@ -124,10 +123,6 @@ const LEGACY_MODELS_DIRNAME = 'models'
 const PROGRESS_STARTED = 10
 const PROGRESS_MODEL_READY = 30
 const PROGRESS_STEMS_WRITTEN = 85
-
-function trackDir(dataDir: string, trackId: string): string {
-  return join(dataDir, 'tracks', trackId)
-}
 
 /**
  * Where model weights are cached, migrating a pre-cache-split layout in
@@ -144,21 +139,6 @@ async function modelsDir(dataDir: string): Promise<string> {
     await rename(legacy, current)
   }
   return current
-}
-
-function trackExists(sqlite: Database.Database, trackId: string): boolean {
-  return sqlite.prepare(`SELECT 1 FROM tracks WHERE id = ?`).get(trackId) !== undefined
-}
-
-async function ensureNotDeleted(
-  sqlite: Database.Database,
-  trackId: string,
-  directory: string,
-  during: string,
-): Promise<void> {
-  if (trackExists(sqlite, trackId)) return
-  await rm(directory, { recursive: true, force: true })
-  throw new Error(`Track ${trackId} was deleted during ${during}`)
 }
 
 /** The separate job bound to the separator that will stand in for the model. */
