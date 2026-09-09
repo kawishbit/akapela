@@ -1,1 +1,0 @@
-"""Akapela background worker."""

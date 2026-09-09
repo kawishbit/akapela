@@ -4,11 +4,11 @@ A self-hosted karaoke app. Read `CONTEXT.md` for the vocabulary and `DESIGN.md` 
 
 ## Two ways to run it, and which is which
 
-**`aspire run` is the development path.** It starts the app and the Worker as local processes with hot reload, on one shared data directory, with their logs and traces pooled in the Aspire Dashboard. Use it for everything you do here. It needs the Aspire CLI, which is a development-time dependency and nothing else.
+**`aspire run` is the development path.** It starts the app as a local process with hot reload, with its logs and traces reported into the Aspire Dashboard. Use it for everything you do here. It needs the Aspire CLI, which is a development-time dependency and nothing else.
 
-**`docker compose up` is what a self-hoster runs.** It is the shipping artifact, it is what the Dockerfiles build, and the AppHost is never in that path (ADR 0007). It is not a development loop — it rebuilds on every edit and has no hot reload — so reach for it only when you are changing the Dockerfiles or compose file themselves, or checking that what ships still works. A self-hoster never installs the Aspire CLI and never needs to know it exists; `README.md` is written so they do not have to.
+**`docker compose up` is what a self-hoster runs.** It is the shipping artifact, it is what the Dockerfile builds, and the AppHost is never in that path (ADR 0007). It is not a development loop — it rebuilds on every edit and has no hot reload — so reach for it only when you are changing the Dockerfile or compose file themselves, or checking that what ships still works. A self-hoster never installs the Aspire CLI and never needs to know it exists; `README.md` is written so they do not have to.
 
-Neither path is needed for the checks. `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `uv run pytest` in `worker/` all run against the source with nothing started.
+Neither path is needed for the checks. `pnpm lint`, `pnpm typecheck`, and `pnpm test` all run against the source with nothing started.
 
 ## Running it locally
 
@@ -16,21 +16,21 @@ Neither path is needed for the checks. `pnpm lint`, `pnpm typecheck`, `pnpm test
 aspire run
 ```
 
-From anywhere in the repo. Starts the app and the Worker on one shared data directory, and opens the Aspire Dashboard, which carries the app's endpoint link and both their logs. Needs the [Aspire CLI](https://aspire.dev) and [uv](https://docs.astral.sh/uv/); `pnpm install` at the root first, as always. The Worker's dependencies are `uv sync`'d for you.
+From anywhere in the repo. Starts the app and opens the Aspire Dashboard, which carries its endpoint link and its logs. Needs the [Aspire CLI](https://aspire.dev); `pnpm install` at the root first, as always.
 
-Agents working without a terminal to sit in: `aspire start` runs it in the background, then `aspire wait app`, `aspire describe app` for the endpoint, `aspire logs app` or `aspire logs worker`, and `aspire stop`. `aspire resource worker restart` restarts just the Worker.
+Agents working without a terminal to sit in: `aspire start` runs it in the background, then `aspire wait app`, `aspire describe app` for the endpoint, `aspire logs app`, and `aspire stop`.
 
-`pnpm dev` and `uv run akapela-worker` still run either half on its own if you would rather not, but then the data directory and the port are yours to keep in agreement.
+`pnpm dev` runs the app on its own the same way, without the Dashboard.
 
-`README.md` carries the full prerequisite list for both paths. The Worker also shells out to `ffmpeg` and `ffprobe`, and to `node` for the JavaScript yt-dlp runs against YouTube. The AppHost checks the PATH for all three and says so in the Dashboard: the Worker goes unhealthy without ffmpeg or ffprobe, and degraded without Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
+`README.md` carries the full prerequisite list for both paths. The app also shells out to `ffmpeg`, `ffprobe`, and `yt-dlp`, and to `node` for the JavaScript yt-dlp runs against YouTube. The AppHost checks the PATH for all of these and says so in the Dashboard: the app goes unhealthy without ffmpeg or ffprobe, and degraded without yt-dlp or Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
 
 ### Following a failure
 
-Under `aspire run` the app's server, the Worker, and the browser all report into the Dashboard, so an import or a Mix that goes wrong is one view rather than three. Requests are spans named for their route — `POST /api/tracks/:id/takes`, not one span per Track — and a Job carries the `traceparent` of the request that enqueued it, so a click, the API route, and the Worker shelling out to ffmpeg are one trace. The dev server's own traffic is filtered out; see `server/lib/routes.ts`. The browser's `console.error` and `console.warn` are relayed to `/api/telemetry/browser` and appear as structured logs, so a failure while recording a Take is visible without opening devtools.
+Under `aspire run` the app's server and the browser both report into the Dashboard, so an import or a Mix that goes wrong is one view rather than two. Requests are spans named for their route — `POST /api/tracks/:id/takes`, not one span per Track — and a Job carries the `traceparent` of the request that enqueued it, so a click, the API route, and the Job it started are one trace. The dev server's own traffic is filtered out; see `server/lib/routes.ts`. The browser's `console.error` and `console.warn` are relayed to `/api/telemetry/browser` and appear as structured logs, so a failure while recording a Take is visible without opening devtools.
 
-Read it with `aspire otel traces app`, `aspire otel spans worker`, and `aspire otel logs app`, or in the Dashboard.
+Read it with `aspire otel traces app` and `aspire otel logs app`, or in the Dashboard.
 
-None of it exists outside the AppHost. The OpenTelemetry packages are `devDependencies` on both sides, loaded only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and eliminated from the production build entirely — `docker compose up` and `pnpm dev` export nothing, need no collector, and send nothing off the machine. `server/lib/telemetry.ts` explains what keeps that true, including why its imports are written the way they are.
+None of it exists outside the AppHost. The OpenTelemetry packages are `devDependencies`, loaded only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and eliminated from the production build entirely — `docker compose up` and `pnpm dev` export nothing, need no collector, and send nothing off the machine. `server/lib/telemetry.ts` explains what keeps that true, including why its imports are written the way they are.
 
 `apphost/apphost.mts` is the only file under `apphost/` to hand-edit: `.aspire/modules/` is generated from it and is rewritten on every restore.
 

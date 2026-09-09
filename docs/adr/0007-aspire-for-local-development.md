@@ -12,3 +12,11 @@ It is a development-time overlay and nothing else. `docker compose up` remains w
 - Running the compose stack for development. Rejected: rebuilds on every edit and loses hot reload, which is the whole point of a development loop.
 - Replacing compose with Aspire's own deployment output. Rejected: self-hosters get one file they can read and edit; Aspire is a tool this project's users should not need.
 - An AppHost at the repo root. Rejected: it would merge Aspire's dependencies into the app's manifest and lockfile, and from there into the Docker build.
+
+## Amendment: one runtime now, not two
+
+Worker-to-TypeScript (`.scratch/worker-to-typescript/`) deleted the Python worker; every Job now runs inside the app process, with the separate Job's ONNX inference isolated into its own subprocess rather than a second service. The "two runtimes that must agree on one data directory" problem this ADR opens with is gone — there is one process to start, one manifest, one package manager.
+
+The decision stands anyway: hot reload, health checks (now for the app's own tool prerequisites — ffmpeg, ffprobe, yt-dlp, Node — not a second resource's), the Parameters tab, and the OTel Dashboard are all still worth having for a single process, and none of them come free without an AppHost. `apphost.mts` lost its second resource and the health check that watched it, but kept everything else, including staying out of the app's own manifest — a benefit that was never only about keeping Python's dependencies separate.
+
+What's now genuinely weaker: "an AppHost at the repo root would merge Aspire's dependencies into the app's manifest" was two reasons before (Python isolation, dependency isolation) and is one now. Worth revisiting if `apphost/`'s separateness ever earns its own ADR; not revisited here; this amendment only says why the reasoning changed, not what to do about it.

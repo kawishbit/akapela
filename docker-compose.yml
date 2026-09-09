@@ -2,8 +2,11 @@
 #
 #   docker compose up -d
 #
-# Two services share one data volume (ADR 0002): `app` serves the UI and API
-# and owns the database schema; `worker` runs imports and produces Mixes.
+# One service. `app` serves the UI and API and runs every background Job —
+# import, render, vocal removal — itself; there used to be a second `worker`
+# service here, but every Job now runs in process, with vocal removal's ONNX
+# inference isolated into its own subprocess rather than a separate
+# container (ADR 0002 superseded).
 #
 # Data lives in the named volume `akapela-data` by default. To use a host
 # directory instead, set AKAPELA_DATA=./some/dir in .env (see .env.example).
@@ -22,25 +25,9 @@ services:
     volumes:
       - ${AKAPELA_DATA:-akapela-data}:/data
     restart: unless-stopped
-    # Recommended limits; adjust to taste.
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 512M
-
-  worker:
-    build: ./worker
-    environment:
-      AKAPELA_DATA_DIR: /data
-      AKAPELA_POLL_INTERVAL: "1.0"
-    volumes:
-      - ${AKAPELA_DATA:-akapela-data}:/data
-    depends_on:
-      - app
-    restart: unless-stopped
-    # Imports are light; vocal removal (a later phase) wants several cores
-    # and a few GB of memory. Raise these when that lands.
+    # Recommended limits; adjust to taste. Vocal removal is the heaviest
+    # Job — several cores and a few GB of memory make it worth having —
+    # everything else this service does is light by comparison.
     deploy:
       resources:
         limits:

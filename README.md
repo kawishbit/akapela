@@ -23,7 +23,7 @@ _A quick tour of the library, a Track's Lyrics and Stems, the Adjustments preset
 
 ## Running it
 
-Akapela runs as two Docker containers sharing one data folder: one serves the app itself, the other handles imports and renders your Mixes. Docker with Compose is the only thing you need to install.
+Akapela runs as one Docker container with one data folder. Docker with Compose is the only thing you need to install.
 
 ```
 git clone https://github.com/kawishbit/akapela.git
@@ -71,7 +71,7 @@ If pulling gets you nothing newer, the breakage is probably too fresh for a fix 
 
 ### Hardware
 
-Any machine that can run two small containers will do. `docker-compose.yml` allots one core and 512 MB to the app, and two cores and 2 GB to the worker — that's a starting point, not a hard limit, and rendering a Mix of a normal-length song takes only a couple of seconds well within it.
+Any machine that can run one small container will do. `docker-compose.yml` allots it two cores and 2 GB — that's a starting point, not a hard limit, and rendering a Mix of a normal-length song takes only a couple of seconds well within it.
 
 Vocal removal (Separate on a Track) costs more, but only if you use it: a few minutes of CPU per song. It's queued alongside everything else, one Track at a time, so it never competes with a Mix render. The two Stems it produces add roughly 80 MB per Track on disk, on top of the Track's own audio. The separation model itself isn't bundled with the app — the first time you use it, Akapela downloads it into your data folder, a one-time download that survives future updates since it lives with your data, not inside the container.
 
@@ -79,15 +79,15 @@ Vocal removal (Separate on a Track) costs more, but only if you use it: a few mi
 
 If you just want to run Akapela, `docker compose up -d` above is all you need — everything in this section is for working on the code itself.
 
-Development doesn't use Compose. Instead it uses an [Aspire](https://aspire.dev) AppHost that runs the app and the Worker as local processes with hot reload, points them at the same data folder, and streams both their logs and traces into one Dashboard. This is purely a development tool — it's not part of what ships, and it's never something a self-hoster needs to install (see [ADR 0007](docs/adr/0007-aspire-for-local-development.md)).
+Development doesn't use Compose. Instead it uses an [Aspire](https://aspire.dev) AppHost that runs the app as a local process with hot reload and streams its logs and traces into one Dashboard. This is purely a development tool — it's not part of what ships, and it's never something a self-hoster needs to install (see [ADR 0007](docs/adr/0007-aspire-for-local-development.md)).
 
 You'll need:
 
 - **Node 22.19+, 24.11+, or 26+** (Nuxt's supported range, which skips 23 and 25) and **pnpm** — run `corepack enable` and pnpm's pinned version in `package.json` takes care of the rest.
-- **[uv](https://docs.astral.sh/uv/)**, for the Python Worker.
 - **The [Aspire CLI](https://aspire.dev)**, for local development.
-- **Docker**, only if you're changing the Dockerfiles or `docker-compose.yml` and want to confirm the shipped build still works.
-- **`ffmpeg` and `ffprobe`** on your PATH — the Worker calls them for every import and every Mix. The AppHost checks for both at startup and flags the Worker as unhealthy in the Dashboard if either is missing, naming exactly what's missing so you catch it immediately rather than an hour in.
+- **Docker**, only if you're changing the Dockerfile or `docker-compose.yml` and want to confirm the shipped build still works.
+- **`ffmpeg` and `ffprobe`** on your PATH — the app calls them for every import and every Mix. The AppHost checks for both at startup and flags the app as unhealthy in the Dashboard if either is missing, naming exactly what's missing so you catch it immediately rather than an hour in.
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp#installation)** on your PATH, for YouTube imports. Missing, the app still starts — only YouTube imports are affected, and the Dashboard will say so; uploading a file directly is unaffected either way.
 
 Node also doubles as the JavaScript runtime yt-dlp needs to get past YouTube's player checks. Without it, YouTube imports still work but with fewer format options, and the Dashboard will let you know.
 
@@ -98,9 +98,7 @@ pnpm install
 aspire run
 ```
 
-`aspire run` works from anywhere in the repo. It opens the Aspire Dashboard with a link to the running app plus both processes' logs and traces, and installs the Worker's Python dependencies for you along the way. Give it a minute the first time.
-
-You can also run either half on its own — `pnpm dev` for the app, `uv run akapela-worker` for the Worker — just make sure they agree on the data folder and port.
+`aspire run` works from anywhere in the repo. It opens the Aspire Dashboard with a link to the running app plus its logs and traces. `pnpm dev` runs the app on its own the same way, without the Dashboard.
 
 None of the checks need the AppHost running:
 
@@ -108,7 +106,6 @@ None of the checks need the AppHost running:
 pnpm lint
 pnpm typecheck
 pnpm test
-(cd worker && uv run pytest)
 ```
 
 A few docs are worth reading before you dig in: `AGENTS.md` covers day-to-day development, configuring the AppHost, and reading traces; `CONTEXT.md` defines the project's vocabulary (Track, Song, Take, and Mix all have precise meanings here, and the code uses those exact words); `DESIGN.md` covers the visual design system; and `docs/adr/` records the reasoning behind past decisions.

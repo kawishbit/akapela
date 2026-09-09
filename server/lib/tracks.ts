@@ -32,8 +32,8 @@ import { listTakes } from './takes'
 
 /**
  * Which file each Backing Source names inside the Track directory, both
- * normalized 44.1 kHz stereo WAVs the worker writes (ADR 0005) and named to
- * match `worker/akapela_worker/separators.py`, which is what writes them. The
+ * normalized 44.1 kHz stereo WAVs the separate job writes (ADR 0005) and
+ * named to match `server/lib/jobs/separate.ts`, which is what writes them. The
  * Vocals Stem a separation also writes is kept but nothing plays it, so it is
  * not a Backing Source and is not here.
  */

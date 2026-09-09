@@ -158,7 +158,7 @@ export async function createTestApi() {
     traceRequestsAs(value: string) {
       traceParent = value
     },
-    /** The trace stamped on a Job row, which is what the worker reads. */
+    /** The trace stamped on a Job row, which is what the runner reads. */
     jobTraceParent(jobId: string): string | null {
       const row = akapela.sqlite.prepare(`SELECT trace_parent FROM jobs WHERE id = ?`).get(jobId)
       return (row as { trace_parent: string | null } | undefined)?.trace_parent ?? null
@@ -219,28 +219,28 @@ export async function createTestApi() {
     ) {
       return this.put(`/api/tracks/${trackId}/song`, song)
     },
-    /** Stand in for the worker, which owns every state change after `queued`. */
+    /** Stand in for the runner, which owns every state change after `queued`. */
     finishJob(id: string, state: 'succeeded' | 'failed', error: string | null = null) {
       akapela.sqlite
         .prepare(`UPDATE jobs SET state = ?, progress = ?, error = ?, finished_at = ? WHERE id = ?`)
         .run(state, state === 'succeeded' ? 100 : 0, error, Date.now(), id)
     },
-    /** Stand in for the worker's import job succeeding: it marks both the job and the Track. */
+    /** Stand in for the import job succeeding: it marks both the job and the Track. */
     finishImport(trackId: string, jobId: string) {
       this.finishJob(jobId, 'succeeded')
       akapela.sqlite.prepare(`UPDATE tracks SET import_state = 'ready' WHERE id = ?`).run(trackId)
     },
-    /** Stand in for the worker's import job failing: it marks both the job and the Track. */
+    /** Stand in for the import job failing: it marks both the job and the Track. */
     failImport(trackId: string, jobId: string, error: string) {
       this.finishJob(jobId, 'failed', error)
       akapela.sqlite.prepare(`UPDATE tracks SET import_state = 'failed' WHERE id = ?`).run(trackId)
     },
     /**
-     * Stand in for the worker's separate job ending: it marks the job and moves
-     * the Track's `separation_state` on, which is the worker's to own the way
+     * Stand in for the separate job ending: it marks the job and moves
+     * the Track's `separation_state` on, which is the separate job's to own the way
      * `import_state` is. A separation that succeeds also flips the Track onto
      * the Instrumental Stem it just wrote, so the common case takes no extra
-     * tap; `worker/tests/test_separate.py` is what proves the real job does it.
+     * tap; `tests/unit/jobs/separate.test.ts` is what proves the real job does it.
      */
     finishSeparation(trackId: string, jobId: string, state: 'succeeded' | 'failed', error: string | null = null) {
       this.finishJob(jobId, state, error)
@@ -259,7 +259,7 @@ export async function createTestApi() {
         .prepare(`SELECT id FROM jobs WHERE target_id = ? AND type = ?`)
         .all(targetId, type) as { id: string }[]
     },
-    /** Stand in for the worker's render job succeeding: it writes the Mix's file paths and finishes the job. */
+    /** Stand in for the render job succeeding: it writes the Mix's file paths and finishes the job. */
     finishMix(mixId: string, jobId: string, paths: { mp3Path: string, wavPath?: string | null }) {
       akapela.sqlite
         .prepare(`UPDATE mixes SET mp3_path = ?, wav_path = ?, updated_at = ? WHERE id = ?`)

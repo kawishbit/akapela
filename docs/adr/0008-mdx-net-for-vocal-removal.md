@@ -12,3 +12,11 @@ This was also expected to avoid PyTorch, on the grounds that a CPU torch wheel a
 - Every call into the model sits behind a `Separator` interface, so swapping it later is one file. This is the same guard `SourceFetcher` gives yt-dlp, for the same reason: it is a third-party thing that will break or be superseded.
 - The model's outputs are normalized into the Track directory by the Job rather than written there by the model, so both Stems are 44.1 kHz stereo WAV (ADR 0005) whatever a future model emits.
 - Separation quality is never asserted in tests. The real model runs only in the manual checklist.
+
+## Amendment: `audio-separator` and torch are gone, not merely reopened
+
+The paragraph above named the condition for reopening this ADR — "if `audio-separator` sheds torch" — as a possibility to wait for. Worker-to-TypeScript (`.scratch/worker-to-typescript/`) didn't wait for it: `audio-separator` and torch are both gone, replaced by a direct TypeScript port (`server/lib/separators/`) that calls the same UVR-MDX-NET-Inst_HQ_3 ONNX model through `onnxruntime-node`, with the STFT/chunking/overlap-add pipeline `audio-separator` used torch for hand-rolled in TS (`stft.ts`, `mdx-net.ts`) instead. The model choice this ADR argued for stands — same model, same quality reasoning — only the ~1GB torch dependency is gone, not the decision to use MDX-Net.
+
+The port was validated against the real Python/torch path before anything depended on it: a sample-correlation check (ticket 05) on a real, downloaded model, not assumed equivalent from reading the algorithm. See `.scratch/worker-to-typescript/issues/05-validate-typescript-separation.md` for the method and the numbers.
+
+What survives unchanged: the `Separator` interface this ADR asked for (swapping the model later is still one file), the cache path and download-failure handling, and normalizing outputs to 44.1 kHz stereo WAV regardless of what the model emits. What's gone with the Python worker: the `MdxNetSeparator._backend` import-scope guard ("a Worker that only ever imports and renders never loads torch or ONNX Runtime") no longer applies the same way — `onnxruntime-node` is a real dependency of the app now, though a small one next to torch, and the separate Job's own inference is isolated into its own subprocess (`separate-cli.ts`) rather than the main server process either way.
