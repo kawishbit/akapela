@@ -1,4 +1,4 @@
-import type { AppSettings } from '~~/server/lib/settings'
+import type { AppSettings, SettingsChanges } from '~~/server/lib/settings'
 import { DEFAULT_LYRICS_PROVIDER, type LyricsProviderName } from '~~/shared/lyrics'
 
 /**
@@ -7,10 +7,12 @@ import { DEFAULT_LYRICS_PROVIDER, type LyricsProviderName } from '~~/shared/lyri
  * the same question: which providers are there, and which one is the default.
  */
 export function useSettings() {
-  /** What the page shows before the server has answered: the provider that needs no account. */
+  /** What the page shows before the server has answered: the provider that needs no account, both toggles off. */
   const beforeLoaded: AppSettings = {
     defaultLyricsProvider: DEFAULT_LYRICS_PROVIDER,
     lyricsProviders: [DEFAULT_LYRICS_PROVIDER, 'manual'],
+    micProcessingDefault: false,
+    monitoringDefault: false,
   }
 
   const { data, refresh } = useAsyncData<AppSettings>(
@@ -22,15 +24,12 @@ export function useSettings() {
   const saving = ref(false)
   const saveError = ref<string | null>(null)
 
-  /** Makes this the Lyrics Provider new Tracks start out on. */
-  async function setDefaultLyricsProvider(defaultLyricsProvider: LyricsProviderName) {
+  /** Saves whichever of the three choices changed, and shares the failure or the result with every reader. */
+  async function save(changes: SettingsChanges) {
     saving.value = true
     saveError.value = null
     try {
-      data.value = await $fetch<AppSettings>('/api/settings', {
-        method: 'PUT',
-        body: { defaultLyricsProvider },
-      })
+      data.value = await $fetch<AppSettings>('/api/settings', { method: 'PUT', body: changes })
     }
     catch (error) {
       saveError.value = describeError(error)
@@ -40,13 +39,32 @@ export function useSettings() {
     }
   }
 
+  /** Makes this the Lyrics Provider new Tracks start out on. */
+  function setDefaultLyricsProvider(defaultLyricsProvider: LyricsProviderName) {
+    return save({ defaultLyricsProvider })
+  }
+
+  /** Sets whether a new recording session starts with echo cancellation, noise suppression, and auto gain on. */
+  function setMicProcessingDefault(micProcessingDefault: boolean) {
+    return save({ micProcessingDefault })
+  }
+
+  /** Sets whether a new recording session starts with Monitoring on. */
+  function setMonitoringDefault(monitoringDefault: boolean) {
+    return save({ monitoringDefault })
+  }
+
   return {
     settings: computed(() => data.value),
     lyricsProviders: computed<LyricsProviderName[]>(() => data.value?.lyricsProviders ?? []),
     defaultLyricsProvider: computed(() => data.value?.defaultLyricsProvider ?? DEFAULT_LYRICS_PROVIDER),
+    micProcessingDefault: computed(() => data.value?.micProcessingDefault ?? false),
+    monitoringDefault: computed(() => data.value?.monitoringDefault ?? false),
     saving,
     saveError,
     setDefaultLyricsProvider,
+    setMicProcessingDefault,
+    setMonitoringDefault,
     refresh,
   }
 }

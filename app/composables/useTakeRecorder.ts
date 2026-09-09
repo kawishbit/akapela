@@ -35,13 +35,14 @@ export interface TakeRecorderState {
  */
 export function useTakeRecorder(trackId: Ref<string>) {
   const player = usePlayer()
+  const { micProcessingDefault, monitoringDefault } = useSettings()
 
   const state = ref<TakeRecorderState>({
     permission: 'unrequested',
     devices: [],
     selectedDeviceId: null,
-    processingEnabled: false,
-    monitoring: false,
+    processingEnabled: micProcessingDefault.value,
+    monitoring: monitoringDefault.value,
     armed: false,
     phase: 'idle',
     countdown: 0,
@@ -50,6 +51,15 @@ export function useTakeRecorder(trackId: Ref<string>) {
     uploadProgress: 0,
     error: null,
     savedTake: null,
+  })
+
+  // Settings load asynchronously and may still be in flight when this state is
+  // created; keep tracking the singer's saved defaults until the microphone is
+  // actually requested, past which a toggle is the singer's for the session.
+  watch([micProcessingDefault, monitoringDefault], ([processing, monitoring]) => {
+    if (state.value.permission !== 'unrequested') return
+    state.value.processingEnabled = processing
+    state.value.monitoring = monitoring
   })
 
   let stream: MediaStream | undefined

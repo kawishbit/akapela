@@ -140,6 +140,8 @@ describe('a Akapela with no Genius token', () => {
     expect(await (await api.get('/api/settings')).json()).toEqual({
       defaultLyricsProvider: 'lrclib',
       lyricsProviders: ['lrclib', 'manual'],
+      micProcessingDefault: false,
+      monitoringDefault: false,
     })
   })
 
@@ -385,6 +387,8 @@ describe('the default Lyrics Provider', () => {
     expect(await (await api.get('/api/settings')).json()).toEqual({
       defaultLyricsProvider: 'lrclib',
       lyricsProviders: ['lrclib', 'genius', 'manual'],
+      micProcessingDefault: false,
+      monitoringDefault: false,
     })
   })
 

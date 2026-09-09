@@ -12,6 +12,10 @@ export interface AppSettings {
   defaultLyricsProvider: LyricsProviderName
   /** Every Lyrics Provider a Track can be set to here, in the order they are shown. */
   lyricsProviders: LyricsProviderName[]
+  /** Whether a new recording session starts with echo cancellation, noise suppression, and auto gain on. */
+  micProcessingDefault: boolean
+  /** Whether a new recording session starts with Monitoring on. */
+  monitoringDefault: boolean
 }
 
 /** What a singer may pick: Manual always, plus every remote provider this instance can reach. */
@@ -33,11 +37,20 @@ export function getSettings(akapela: Akapela): AppSettings {
     // Track to a provider that cannot answer, so it falls back.
     defaultLyricsProvider: offered.includes(chosen) ? chosen : DEFAULT_LYRICS_PROVIDER,
     lyricsProviders: offered,
+    micProcessingDefault: row?.micProcessingDefault ?? false,
+    monitoringDefault: row?.monitoringDefault ?? false,
   }
 }
 
-/** Saves the choices that apply to every Track. */
-export function saveSettings(akapela: Akapela, changes: { defaultLyricsProvider: LyricsProviderName }): AppSettings {
+/** What a singer may change; any subset, so one control can be saved without resending the others. */
+export interface SettingsChanges {
+  defaultLyricsProvider?: LyricsProviderName
+  micProcessingDefault?: boolean
+  monitoringDefault?: boolean
+}
+
+/** Saves whichever choices changed. */
+export function saveSettings(akapela: Akapela, changes: SettingsChanges): AppSettings {
   const row = { id: SETTINGS_ROW_ID, ...changes, updatedAt: Date.now() }
   akapela.db
     .insert(settings)

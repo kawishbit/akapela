@@ -265,6 +265,10 @@ export const settings = sqliteTable('settings', {
   defaultLyricsProvider: text('default_lyrics_provider', { enum: LYRICS_PROVIDERS })
     .notNull()
     .default(DEFAULT_LYRICS_PROVIDER),
+  /** Whether echo cancellation, noise suppression, and auto gain start on for a new recording session. */
+  micProcessingDefault: integer('mic_processing_default', { mode: 'boolean' }).notNull().default(false),
+  /** Whether Monitoring starts on for a new recording session. */
+  monitoringDefault: integer('monitoring_default', { mode: 'boolean' }).notNull().default(false),
   updatedAt: integer('updated_at').notNull(),
 })
 

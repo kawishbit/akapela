@@ -4,13 +4,13 @@
 
 **Blocked by:** 06 (Genius and Manual Lyrics Providers), 07 (Record a Take)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] A Settings page reads and writes the default Lyrics Provider, microphone processing default, and Monitoring default, stored in the database and applied by the Track and Sing pages
+- [x] A Settings page reads and writes the default Lyrics Provider, microphone processing default, and Monitoring default, stored in the database and applied by the Track and Sing pages
 - [x] The compose file documents the port, named versus bind-mounted data volume, all environment variables, and recommended resource limits for the app and worker
-- [ ] A README covers the one-command quick start, where data lives, that backups are the self-hoster's job, how to get a Genius token, and what to do when yt-dlp breaks
+- [x] A README covers the one-command quick start, where data lives, that backups are the self-hoster's job, how to get a Genius token, and what to do when yt-dlp breaks
 - [ ] Library, Track detail, Sing, Review, and Settings pages are checked on phone portrait and laptop widescreen; every control is reachable and thumb-sized, and the Lyrics screen stays jank-free
-- [ ] API tests cover reading and writing settings
+- [x] API tests cover reading and writing settings
 
 ## Comments
 
@@ -27,3 +27,15 @@
 **Not done, but nearly: the API tests.** `tests/api/lyrics.test.ts` already covers reading settings, writing `defaultLyricsProvider`, rejecting an invalid one, and falling back when the chosen provider loses its token. It does not cover the two settings that do not exist yet, so the box stays open until they do.
 
 **State of the checks at audit time:** `pnpm test` passes, 418 tests across 24 files.
+
+**2026-09-09, agent.** Closed out three of the remaining four boxes; the device pass stays open for a human.
+
+**The Settings page.** `settings` gained `micProcessingDefault` and `monitoringDefault` columns (migration `0015`), `server/lib/settings.ts` reads and writes them alongside `defaultLyricsProvider` through a new `SettingsChanges` partial — any subset of the three can be saved without resending the others, which is what lets `LyricsPanel`'s existing single-field save keep working unchanged. `app/pages/settings.vue` is the new page: a Lyrics Provider picker matching `LyricsPanel`'s, and the same processing/Monitoring toggle pills `RecordControl.vue` already uses for these two concepts (reused rather than a new "settings row" idiom, so the two places a singer sees these toggles look and read the same way). It is reachable from a gear icon on the Library header. `useTakeRecorder` seeds `processingEnabled`/`monitoring` from the saved defaults via a watcher that stops once the microphone is actually requested — safe against the singer's own toggle, since `RecordControl` only shows those toggles once `permission === 'granted'`, past the point the watcher stops applying them.
+
+**The README.** Added a "When YouTube imports break" section: `git pull` + rebuild first, then check yt-dlp's own issue tracker if nothing newer has shipped yet.
+
+**The API tests.** `tests/api/settings.test.ts` covers the two new defaults: they start off, save and read back independently of each other and of `defaultLyricsProvider`, reject non-boolean values, and reject an empty body. `tests/api/lyrics.test.ts`'s two exact-equality reads of `/api/settings` were updated for the two new fields.
+
+**Still not done: the device pass.** Verified live under `aspire run` that the Settings page works — both toggles and the Lyrics Provider picker round-trip through the API and survive a reload — and reviewed Library, Track detail, Sing, Review, and Settings for phone-portrait fitness (thumb-sized `h-11`+ controls throughout, no fixed widths that could overflow, wrapping pill groups), but this sandbox cannot actually resize the browser window to check it (`resize_window` and `window.resizeTo` are both no-ops here; `window.innerWidth` never moved off ~1810px regardless of what was asked for). A code review is not the eyes-on phone-portrait and laptop-widescreen check this box asks for, so it stays unticked and the ticket stays `ready-for-human` for that one box. Whoever picks this up next needs only a real device or a browser whose window this environment can actually resize — nothing else on the ticket is outstanding.
+
+`pnpm lint`, `pnpm typecheck`, and `pnpm test` all pass (542 tests).

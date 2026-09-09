@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, Loader2, Music2, Plus, Search, X } from 'lucide-vue-next'
+import { Link, Loader2, Music2, Plus, Search, Settings, X } from 'lucide-vue-next'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { UPLOAD_ACCEPT, UPLOAD_EXTENSIONS_SENTENCE } from '~~/shared/upload'
 import { INVALID_YOUTUBE_URL_MESSAGE, youtubeVideoId } from '~~/shared/youtube'
@@ -93,6 +93,13 @@ async function onRetry(track: TrackWithJob) {
         Your Library
       </h1>
       <div class="flex flex-wrap items-center gap-2">
+        <NuxtLink
+          to="/settings"
+          class="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
+          aria-label="Settings"
+        >
+          <Settings class="size-5" />
+        </NuxtLink>
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-pill border border-border-light px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:border-text"

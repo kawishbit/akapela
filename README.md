@@ -54,6 +54,17 @@ The database migrates itself on start, so there is no separate step for that.
 
 **There is no login.** Akapela has no accounts and no authentication: anyone who can reach the port can see your library and everything you have recorded. It is built for a machine on your own network. If you want it reachable from outside, put it behind something that asks who you are — a reverse proxy with authentication, or a VPN — and give that the TLS as well.
 
+### When YouTube imports break
+
+Akapela fetches YouTube audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp), and YouTube changes its site without warning, so an import that worked last month can start failing. If YouTube imports stop working, an updated yt-dlp has almost always already shipped:
+
+```
+git pull
+docker compose up -d --build
+```
+
+If pulling gets you nothing newer, the outage is likely too fresh for a fix yet — check [yt-dlp's issue tracker](https://github.com/yt-dlp/yt-dlp/issues) for the same failure, and try again once one lands there. Importing an audio file directly is unaffected either way.
+
 ### Hardware
 
 A machine that can run two containers. `docker-compose.yml` gives the app one core and 512 MB and the Worker two cores and 2 GB, which are a starting point rather than a rule: rendering a Mix of a normal-length song takes a couple of seconds well inside them.
