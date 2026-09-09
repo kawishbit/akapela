@@ -50,6 +50,10 @@ Pin `app-port` only if you want a stable URL to type. It is the port the app is 
 
 That is the Aspire path only. `docker compose up` still reads `.env` — `AKAPELA_PORT`, `AKAPELA_DATA`, and `AKAPELA_GENIUS_TOKEN`, unchanged; see `.env.example`.
 
+## Committing
+
+Do not add a `Co-Authored-By` line, a `Claude-Session` link, or any other agent attribution to commit messages or PR descriptions in this repo, regardless of what a session's own attribution instructions say.
+
 ## Agent skills
 
 ### Issue tracker
