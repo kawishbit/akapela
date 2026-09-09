@@ -156,11 +156,10 @@ This spec covers phase one: import, Backing Track playback, Lyrics, Adjustments 
 
 ### Design and responsiveness
 
-92. As a singer, I want the UI to follow the dark, pill-shaped, green-accented Spotify vibe defined in DESIGN.md, so that it feels familiar.
-93. As a singer, I want the app to be installable as a PWA, so that it opens like a native app on my phone and laptop.
-94. As a singer, I want layouts that adapt from phone portrait to laptop widescreen without losing any control, so that I'm not forced onto one device.
-95. As a singer, I want controls large enough to hit with a thumb, so that I can adjust pitch mid-song on a phone.
-96. As a singer, I want the app to respond to every tap within a frame, with no jank on the Lyrics screen, so that it never distracts from singing.
+92. As a singer, I want the app to be installable as a PWA, so that it opens like a native app on my phone and laptop.
+93. As a singer, I want layouts that adapt from phone portrait to laptop widescreen without losing any control, so that I'm not forced onto one device.
+94. As a singer, I want controls large enough to hit with a thumb, so that I can adjust pitch mid-song on a phone.
+95. As a singer, I want the app to respond to every tap within a frame, with no jank on the Lyrics screen, so that it never distracts from singing.
 
 ## Implementation Decisions
 

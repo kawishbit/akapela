@@ -10,6 +10,11 @@ dependencies = [
   # runs the MDX-Net model; torch comes along as a base dependency and is
   # pinned to the CPU wheel below.
   "audio-separator[cpu]>=0.47.0",
+  # audio-separator's VR architecture and spec_utils import `audioread`
+  # directly (for legacy audio loading) but do not declare it as a dependency
+  # of their own — librosa dropped it as of 1.0.0, so it is no longer pulled
+  # in transitively either. Declared here to make up for that gap upstream.
+  "audioread>=3.0",
   # Named here only so `tool.uv.sources` below can reach it: uv applies a
   # source to a direct dependency, and audio-separator pulls torch in
   # transitively.

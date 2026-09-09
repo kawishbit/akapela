@@ -130,9 +130,20 @@ export class BackingTrackEngine {
     if (this.node) this.post(this.node, { type: 'pause' })
   }
 
+  /**
+   * Moves the transport to a song position, clamped to the Backing Track's own
+   * length. The worklet reports back from a seek, but not before this call
+   * returns, so the interpolation anchor moves here too: `positionMs` answers
+   * with the target straight away rather than with wherever the last report
+   * left it. That is what lets a caller schedule against the new position in
+   * the same turn, which is how the Review screen keeps the vocal in step
+   * across a seek (ticket 15).
+   */
   seek(positionMs: number): void {
     if (!this.node || !this.context) return
-    const frame = Math.round((positionMs / 1000) * this.context.sampleRate)
+    const clamped = Math.max(0, Math.min(positionMs, this.durationMs))
+    const frame = Math.round((clamped / 1000) * this.context.sampleRate)
+    this.lastReport = { ...this.lastReport, positionMs: clamped, atContextTime: this.context.currentTime }
     this.post(this.node, { type: 'seek', frame })
   }
 

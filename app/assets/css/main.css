@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 
-/* Figtree, self-hosted variable font. Substitutes for SpotifyMixUI (DESIGN.md §8). */
 @font-face {
   font-family: 'Figtree';
   font-style: normal;

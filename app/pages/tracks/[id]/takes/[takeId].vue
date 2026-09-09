@@ -12,6 +12,7 @@ import {
   type EffectsTarget,
 } from '~~/shared/adjustments'
 import { BACKING_SOURCES, BACKING_SOURCE_LABELS, type BackingSource } from '~~/shared/backing-source'
+import { takeElapsedAt, takeSongPosition } from '~/audio/song-time'
 import { toMixRequest } from '~~/shared/mix'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 
@@ -50,6 +51,58 @@ const takeNotFound = computed(() => notFound.value || (takeMissing.value && take
 const review = useTakeReview(id, take)
 const state = review.state
 const heardPitch = review.heardPitch
+
+// The transport shows one playhead on two clocks (ticket 15): the Take's own
+// clip, counted from zero, and the same instant as a position in the song.
+// Both lanes read `shownElapsedMs`, so dragging either moves both, and a drag
+// in progress outranks the engine's own reports until it is let go.
+const scrubbingMs = ref<number | null>(null)
+const shownElapsedMs = computed(() => scrubbingMs.value ?? state.value.elapsedMs)
+const shownSongMs = computed(() => takeSongPosition(take.value?.startPositionMs ?? 0, shownElapsedMs.value))
+const seekable = computed(() => !state.value.loading && state.value.error === null)
+
+// The Backing Track's own length, but never shorter than the stretch the Take
+// covers, so the song lane has a sane scale in the moment before the engine
+// has reported a duration at all.
+const songDurationMs = computed(() => Math.max(
+  state.value.backingDurationMs,
+  (take.value?.startPositionMs ?? 0) + (take.value?.durationMs ?? 0),
+  1,
+))
+
+/** Where the Take's clip sits inside the whole song, as the offset and width of the song lane's window marker. */
+const takeWindow = computed(() => {
+  const current = take.value
+  if (!current) return { left: '0%', width: '0%' }
+  return {
+    left: `${(current.startPositionMs / songDurationMs.value) * 100}%`,
+    width: `${(current.durationMs / songDurationMs.value) * 100}%`,
+  }
+})
+
+/** A song position as a position in the Take's clip, clamped to the stretch this screen actually plays. */
+function toTakeElapsed(songPositionMs: number): number {
+  const current = take.value
+  if (!current) return 0
+  return takeElapsedAt(current.startPositionMs, songPositionMs, current.durationMs)
+}
+
+function onTakeScrub(event: Event) {
+  scrubbingMs.value = Number((event.target as HTMLInputElement).value)
+}
+function onTakeSeek(event: Event) {
+  const elapsedMs = Number((event.target as HTMLInputElement).value)
+  scrubbingMs.value = null
+  review.seek(elapsedMs)
+}
+function onSongScrub(event: Event) {
+  scrubbingMs.value = toTakeElapsed(Number((event.target as HTMLInputElement).value))
+}
+function onSongSeek(event: Event) {
+  const elapsedMs = toTakeElapsed(Number((event.target as HTMLInputElement).value))
+  scrubbingMs.value = null
+  review.seek(elapsedMs)
+}
 
 const wavRequested = ref(false)
 const rendering = ref(false)
@@ -125,7 +178,23 @@ async function keep() {
 // arrow keys, or leaving the field — so a half-typed number is never mistaken
 // for one, and the field is then snapped to whatever `setNudge` actually
 // applied, since it rounds and clamps.
+//
+// It is only editable while paused (ticket 17). `TakeReviewEngine.setNudge`
+// still reschedules a running vocal, since loading and a future caller may
+// want that, but this screen no longer asks it to: a nudge is chosen against
+// a stopped playhead and then heard by playing back.
 const nudgeClampNotice = ref<string | null>(null)
+const nudgeField = ref<HTMLInputElement | null>(null)
+
+// The field is disabled while playing, and a browser will not reliably commit
+// a half-typed figure on the way out of one it disables. Snapping it back to
+// the nudge actually in force keeps a number that was never applied from
+// sitting there, greyed out, looking as though it was.
+watch(() => state.value.playing, (playing) => {
+  if (!playing || !nudgeField.value) return
+  nudgeField.value.value = String(state.value.latencyNudgeMs)
+  nudgeClampNotice.value = null
+})
 
 function onNudgeChange(event: Event) {
   const field = event.target as HTMLInputElement
@@ -222,47 +291,158 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
       </header>
 
       <section
-        class="mb-4 flex flex-col items-center gap-3 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
+        class="mb-4 flex flex-col gap-4 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
         aria-label="Playback"
       >
-        <button
-          type="button"
-          class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-ground shadow-[var(--shadow-medium)] transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
-          :disabled="state.loading || state.error !== null"
-          :aria-label="state.playing ? 'Pause' : 'Play the Take over the Backing Track'"
-          @click="review.toggle()"
-        >
-          <Loader2
-            v-if="state.loading"
-            class="size-6 animate-spin"
-          />
-          <Pause
-            v-else-if="state.playing"
-            class="size-6"
-            fill="currentColor"
-          />
-          <Play
-            v-else
-            class="size-6 translate-x-px"
-            fill="currentColor"
-          />
-        </button>
-        <div class="flex w-full items-center gap-3">
-          <span class="w-12 text-right text-xs tabular-nums text-text-muted">{{ formatDuration(state.elapsedMs) }}</span>
+        <div class="flex justify-center">
+          <button
+            type="button"
+            class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-ground shadow-[var(--shadow-medium)] transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
+            :disabled="state.loading || state.error !== null"
+            :aria-label="state.playing ? 'Pause' : 'Play the Take over the Backing Track'"
+            @click="review.toggle()"
+          >
+            <Loader2
+              v-if="state.loading"
+              class="size-6 animate-spin"
+            />
+            <Pause
+              v-else-if="state.playing"
+              class="size-6"
+              fill="currentColor"
+            />
+            <Play
+              v-else
+              class="size-6 translate-x-px"
+              fill="currentColor"
+            />
+          </button>
+        </div>
+
+        <div>
+          <div class="mb-1 flex items-baseline justify-between gap-2">
+            <label
+              for="review-seek-take"
+              class="text-sm font-bold"
+            >Your Take</label>
+            <span class="text-xs tabular-nums text-text-muted">
+              {{ formatDuration(shownElapsedMs) }} / {{ formatDuration(take.durationMs) }}
+            </span>
+          </div>
+          <input
+            id="review-seek-take"
+            type="range"
+            class="h-11 w-full cursor-pointer accent-accent disabled:cursor-default disabled:opacity-50"
+            min="0"
+            :max="Math.max(take.durationMs, 1)"
+            step="100"
+            :value="shownElapsedMs"
+            :disabled="!seekable"
+            aria-label="Seek within your Take"
+            :aria-valuetext="formatDuration(shownElapsedMs)"
+            @input="onTakeScrub"
+            @change="onTakeSeek"
+          >
+        </div>
+
+        <div>
+          <div class="mb-1 flex items-baseline justify-between gap-2">
+            <label
+              for="review-seek-song"
+              class="text-sm font-bold"
+            >Backing Track</label>
+            <span class="text-xs tabular-nums text-text-muted">
+              {{ formatDuration(shownSongMs) }} / {{ formatDuration(songDurationMs) }}
+            </span>
+          </div>
+          <input
+            id="review-seek-song"
+            type="range"
+            class="h-11 w-full cursor-pointer accent-accent disabled:cursor-default disabled:opacity-50"
+            :min="take.startPositionMs"
+            :max="take.startPositionMs + take.durationMs"
+            step="100"
+            :value="shownSongMs"
+            :disabled="!seekable"
+            aria-label="Seek by song position"
+            :aria-valuetext="formatDuration(shownSongMs)"
+            @input="onSongScrub"
+            @change="onSongSeek"
+          >
           <div
-            class="h-2 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-mid"
-            role="progressbar"
-            :aria-valuenow="Math.round(state.elapsedMs)"
-            aria-valuemin="0"
-            :aria-valuemax="take.durationMs"
+            class="relative h-1 overflow-hidden rounded-pill bg-surface-mid"
+            :title="`The stretch of the song your Take covers, out of the whole ${formatDuration(songDurationMs)}`"
+            aria-hidden="true"
           >
             <div
-              class="h-full rounded-pill bg-accent transition-[width] duration-75"
-              :style="{ width: `${Math.min(100, (state.elapsedMs / Math.max(take.durationMs, 1)) * 100)}%` }"
+              class="absolute inset-y-0 min-w-[3px] rounded-pill bg-accent/40"
+              :style="{ left: takeWindow.left, width: takeWindow.width }"
             />
           </div>
-          <span class="w-12 text-xs tabular-nums text-text-muted">{{ formatDuration(take.durationMs) }}</span>
+          <p class="mt-1 text-xs text-text-muted">
+            Two clocks, one playhead: this lane runs
+            {{ formatDuration(take.startPositionMs) }}–{{ formatDuration(take.startPositionMs + take.durationMs) }}
+            of the song — the stretch marked above, out of {{ formatDuration(songDurationMs) }} — and dragging
+            either lane moves both.
+          </p>
         </div>
+
+        <div class="flex flex-col gap-4 border-t border-border/30 pt-4">
+          <div>
+            <div class="mb-1 flex items-baseline justify-between">
+              <label
+                for="review-vocal-gain"
+                class="text-sm font-bold"
+              >Vocal volume</label>
+              <output
+                for="review-vocal-gain"
+                class="text-2xl font-bold tabular-nums"
+              >{{ formatGain(state.vocalGain) }}</output>
+            </div>
+            <input
+              id="review-vocal-gain"
+              type="range"
+              class="h-12 w-full cursor-pointer accent-accent"
+              :min="GAIN_MIN"
+              :max="GAIN_MAX"
+              step="0.05"
+              :value="state.vocalGain"
+              aria-label="Vocal volume"
+              :aria-valuetext="formatGain(state.vocalGain)"
+              @input="onVocalGainInput"
+            >
+          </div>
+
+          <div>
+            <div class="mb-1 flex items-baseline justify-between">
+              <label
+                for="review-backing-gain"
+                class="text-sm font-bold"
+              >Backing Track volume</label>
+              <output
+                for="review-backing-gain"
+                class="text-2xl font-bold tabular-nums"
+              >{{ formatGain(state.backingGain) }}</output>
+            </div>
+            <input
+              id="review-backing-gain"
+              type="range"
+              class="h-12 w-full cursor-pointer accent-accent"
+              :min="GAIN_MIN"
+              :max="GAIN_MAX"
+              step="0.05"
+              :value="state.backingGain"
+              aria-label="Backing Track volume"
+              :aria-valuetext="formatGain(state.backingGain)"
+              @input="onBackingGainInput"
+            >
+          </div>
+
+          <p class="text-xs text-text-muted">
+            The balance between the two, saved on the Take: what you hear here is what the Mix is rendered with.
+          </p>
+        </div>
+
         <p
           v-if="state.error"
           class="text-sm text-negative"
@@ -284,8 +464,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             Your voice
           </h2>
           <p class="mt-1 text-xs text-text-muted">
-            Where your recording sits against the Backing Track, and how loud it is. What you sang is stored dry
-            and stays that way.
+            Where your recording sits against the Backing Track. What you sang is stored dry and stays that way.
           </p>
         </div>
 
@@ -297,21 +476,33 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
           <div class="flex items-center gap-2">
             <input
               id="review-nudge"
+              ref="nudgeField"
               type="number"
               inputmode="numeric"
-              class="h-12 w-32 rounded-[6px] border border-border-light bg-surface-mid px-3 text-right text-2xl font-bold tabular-nums text-text outline-none focus:border-text"
+              class="h-12 w-32 rounded-[6px] border border-border-light bg-surface-mid px-3 text-right text-2xl font-bold tabular-nums text-text outline-none focus:border-text disabled:cursor-default disabled:opacity-50"
               :min="LATENCY_NUDGE_MS_MIN"
               :max="LATENCY_NUDGE_MS_MAX"
               step="1"
               :value="state.latencyNudgeMs"
+              :disabled="state.playing"
               aria-label="Latency nudge in milliseconds"
               @change="onNudgeChange"
             >
-            <span class="text-sm font-bold text-text-muted">ms</span>
+            <span
+              class="text-sm font-bold text-text-muted"
+              :class="state.playing && 'opacity-50'"
+            >ms</span>
           </div>
           <p class="mt-1 text-xs text-text-muted">
-            Moves your voice earlier or later against the Backing Track. Type a figure and press Enter while playing to
-            align by ear; anything from {{ LATENCY_NUDGE_MS_MIN }} to {{ LATENCY_NUDGE_MS_MAX }} ms.
+            Moves your voice earlier or later against the Backing Track. Pause, type a figure, then play back to judge
+            the alignment by ear; anything from {{ LATENCY_NUDGE_MS_MIN }} to {{ LATENCY_NUDGE_MS_MAX }} ms.
+          </p>
+          <p
+            v-if="state.playing"
+            class="mt-1 text-xs text-text-muted"
+            role="status"
+          >
+            Pause to change it.
           </p>
           <p
             v-if="nudgeClampNotice"
@@ -320,31 +511,6 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
           >
             {{ nudgeClampNotice }}
           </p>
-        </div>
-
-        <div>
-          <div class="mb-1 flex items-baseline justify-between">
-            <label
-              for="review-vocal-gain"
-              class="text-sm font-bold"
-            >Vocal gain</label>
-            <output
-              for="review-vocal-gain"
-              class="text-2xl font-bold tabular-nums"
-            >{{ formatGain(state.vocalGain) }}</output>
-          </div>
-          <input
-            id="review-vocal-gain"
-            type="range"
-            class="h-12 w-full cursor-pointer accent-accent"
-            :min="GAIN_MIN"
-            :max="GAIN_MAX"
-            step="0.05"
-            :value="state.vocalGain"
-            aria-label="Vocal gain"
-            :aria-valuetext="formatGain(state.vocalGain)"
-            @input="onVocalGainInput"
-          >
         </div>
       </section>
 
@@ -363,31 +529,6 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             Pitch, tempo, and Backing Source only ever shape what you sang over — never the recording itself
             (ADR 0003).
           </p>
-        </div>
-
-        <div>
-          <div class="mb-1 flex items-baseline justify-between">
-            <label
-              for="review-backing-gain"
-              class="text-sm font-bold"
-            >Backing gain</label>
-            <output
-              for="review-backing-gain"
-              class="text-2xl font-bold tabular-nums"
-            >{{ formatGain(state.backingGain) }}</output>
-          </div>
-          <input
-            id="review-backing-gain"
-            type="range"
-            class="h-12 w-full cursor-pointer accent-accent"
-            :min="GAIN_MIN"
-            :max="GAIN_MAX"
-            step="0.05"
-            :value="state.backingGain"
-            aria-label="Backing gain"
-            :aria-valuetext="formatGain(state.backingGain)"
-            @input="onBackingGainInput"
-          >
         </div>
 
         <div>

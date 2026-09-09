@@ -22,6 +22,8 @@ export interface TakeReviewState {
   loading: boolean
   playing: boolean
   elapsedMs: number
+  /** The Backing Track's whole length, which the Review screen shows the Take's clip against (ticket 15). */
+  backingDurationMs: number
   latencyNudgeMs: number
   vocalGain: number
   backingGain: number
@@ -50,6 +52,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     loading: true,
     playing: false,
     elapsedMs: 0,
+    backingDurationMs: 0,
     latencyNudgeMs: 0,
     vocalGain: 1,
     backingGain: 1,
@@ -111,6 +114,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
       engine.setVocalGain(state.value.vocalGain)
       engine.setBackingGain(state.value.backingGain)
       engine.setNudge(state.value.latencyNudgeMs)
+      state.value.backingDurationMs = engine.backingDurationMs
       state.value.loading = false
       // Queues a save of what is shown, including a per-device nudge default
       // the singer never touched, so "Keep" persists it even without an edit.
@@ -132,6 +136,17 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
       await engine.play()
       state.value.playing = true
     }
+  }
+
+  /**
+   * Moves playback within the Take's clip (ticket 15). `elapsedMs` is written
+   * here from what the engine actually applied, rather than left to the next
+   * position report, so a lane the singer has just let go of stays where they
+   * put it instead of flicking back for the frame before the report lands.
+   */
+  function seek(vocalElapsedMs: number): void {
+    if (!engine || state.value.loading || state.value.error) return
+    state.value.elapsedMs = engine.seek(vocalElapsedMs)
   }
 
   /**
@@ -206,7 +221,9 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
   function setBackingSource(source: BackingSource): void {
     const previous = state.value.backingSource
     state.value.backingSource = source
-    engine?.setBackingSource(source).catch((e) => {
+    engine?.setBackingSource(source).then(() => {
+      state.value.backingDurationMs = engine?.backingDurationMs ?? state.value.backingDurationMs
+    }).catch((e) => {
       // The reload failed (Stems deleted mid-session, a network hiccup): the
       // engine is still playing `previous`, so the selection shown has to
       // say so too, with the failure surfaced the way a failed initial load already is.
@@ -291,6 +308,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     state,
     heardPitch,
     toggle,
+    seek,
     setNudge,
     setVocalGain,
     setBackingGain,

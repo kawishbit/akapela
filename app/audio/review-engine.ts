@@ -1,6 +1,7 @@
 import { effectsReachVocal, type Adjustments } from '~~/shared/adjustments'
 import { EffectsChain } from './effects-chain'
 import { BackingTrackEngine } from './engine'
+import { takeSongPosition } from './song-time'
 import type { Take } from '~~/server/db/schema'
 import type { BackingSource } from '~~/shared/backing-source'
 
@@ -130,6 +131,15 @@ export class TakeReviewEngine {
     if (wasPlaying) await this.play()
   }
 
+  /**
+   * The Backing Track's own length, once loaded. The Review screen shows the
+   * Take's clip against it (ticket 15), which needs the whole song's scale and
+   * not just the clip's.
+   */
+  get backingDurationMs(): number {
+    return this.backing.durationMs
+  }
+
   setVocalGain(gain: number): void {
     this.vocalGain = gain
     if (this.vocalGainNode) this.vocalGainNode.gain.value = gain
@@ -143,6 +153,25 @@ export class TakeReviewEngine {
   setNudge(nudgeMs: number): void {
     this.nudgeMs = nudgeMs
     if (this.playing) this.scheduleVocal()
+  }
+
+  /**
+   * Moves playback to a position within the Take's clip, and returns where it
+   * actually landed (ticket 15). The Backing Track is the clock both sides run
+   * on, so the seek happens there — `startPositionMs + vocalElapsedMs` — and
+   * the vocal is simply rescheduled against wherever that leaves it, which is
+   * the same schedule pausing and resuming already runs. Paused stays paused;
+   * playing keeps playing, with no reload of either side.
+   *
+   * The target is clamped to the clip's own span, the way `onBackingPosition`
+   * already treats the clip's end as the end: the Backing Track runs on before
+   * and after a Take, but this screen only ever plays the Take.
+   */
+  seek(vocalElapsedMs: number): number {
+    const clamped = Math.max(0, Math.min(vocalElapsedMs, this.takeDurationMs))
+    this.backing.seek(takeSongPosition(this.startPositionMs, clamped))
+    if (this.playing) this.scheduleVocal()
+    return clamped
   }
 
   async play(): Promise<void> {
