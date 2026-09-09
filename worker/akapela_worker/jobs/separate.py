@@ -40,8 +40,16 @@ if TYPE_CHECKING:
 
     from ..runner import Handler, JobContext
 
-MODELS_DIRNAME = "models"
-"""Where model weights are cached, on the data volume so `docker compose pull` keeps them."""
+MODELS_DIRNAME = "cache/models"
+"""Where model weights are cached, on the data volume so `docker compose pull` keeps them.
+
+Under `cache/`, not the data directory root: everything under `cache/` is
+re-downloadable and safe to exclude from a backup, which is the one rule a
+backup only has to follow once every re-downloadable thing lives there."""
+
+_LEGACY_MODELS_DIRNAME = "models"
+"""Where model weights lived before the cache split. Migrated on first use so
+an existing self-hoster's cached model is not silently re-downloaded."""
 
 SEPARATION_DIRNAME = "stems.part"
 """Scratch inside the Track directory: same filesystem, and swept up with the Track."""
@@ -55,7 +63,19 @@ PROGRESS_STEMS_WRITTEN = 85
 
 
 def models_dir(data_dir: Path) -> Path:
-    return data_dir / MODELS_DIRNAME
+    """Where model weights are cached, migrating a pre-cache-split layout in place.
+
+    A one-time `rename` on first use after upgrading: cheap on the same
+    filesystem the data directory always is, and it means an existing
+    self-hoster's cached model survives the move instead of being
+    re-downloaded the next time separation runs.
+    """
+    current = data_dir / MODELS_DIRNAME
+    legacy = data_dir / _LEGACY_MODELS_DIRNAME
+    if not current.exists() and legacy.is_dir():
+        current.parent.mkdir(parents=True, exist_ok=True)
+        legacy.rename(current)
+    return current
 
 
 def separate_handler(separator: Separator) -> Handler:

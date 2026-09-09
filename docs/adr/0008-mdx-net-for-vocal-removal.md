@@ -6,7 +6,7 @@ This was also expected to avoid PyTorch, on the grounds that a CPU torch wheel a
 
 ## Consequences
 
-- Model weights are not baked into the image. The first separation Job downloads them into `<dataDir>/models/`, so the image stays as small as its dependencies allow, the cache survives `docker compose pull`, and a self-hoster who never separates pays nothing beyond the install.
+- Model weights are not baked into the image. The first separation Job downloads them into `<dataDir>/cache/models/`, so the image stays as small as its dependencies allow, the cache survives `docker compose pull`, and a self-hoster who never separates pays nothing beyond the install. `cache/` is a deliberate namespace: everything under it is re-downloadable, which is what lets a backup exclude it by one rule instead of a maintained list.
 - That download is a failure mode a self-hoster can hit offline. It surfaces as the Job's error on the Track and is retried by hand, never automatically — the same treatment a broken yt-dlp gets.
 - `audio-separator` is imported inside `MdxNetSeparator`, not at module scope, so a Worker that only ever imports and renders never loads torch or ONNX Runtime.
 - Every call into the model sits behind a `Separator` interface, so swapping it later is one file. This is the same guard `SourceFetcher` gives yt-dlp, for the same reason: it is a third-party thing that will break or be superseded.

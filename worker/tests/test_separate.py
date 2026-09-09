@@ -217,7 +217,7 @@ def test_the_model_is_fetched_into_the_data_directory_and_reused_next_time(
 
     enqueue_separate(conn, job_id="j1")
     run_the_job(conn, data_dir, separator)
-    model = data_dir / "models" / "fake-model.onnx"
+    model = data_dir / "cache" / "models" / "fake-model.onnx"
     assert model.exists()
     fetched_at = model.stat().st_mtime_ns
 
@@ -227,8 +227,29 @@ def test_the_model_is_fetched_into_the_data_directory_and_reused_next_time(
     assert get_job(conn, "j2")["state"] == "succeeded", get_job(conn, "j2")["error"]
     # The same cache both times, on the data volume rather than per-Job scratch,
     # and the second run did not fetch it again.
-    assert separator.models_dirs == [data_dir / "models", data_dir / "models"]
+    assert separator.models_dirs == [data_dir / "cache" / "models", data_dir / "cache" / "models"]
     assert model.stat().st_mtime_ns == fetched_at
+
+
+def test_a_pre_cache_split_models_directory_is_migrated_in_place(
+    conn, data_dir: Path, track_dir: Path
+):
+    """A self-hoster upgrading from before the cache/user-data split keeps their cached model."""
+    legacy = data_dir / "models"
+    legacy.mkdir(parents=True)
+    (legacy / "fake-model.onnx").write_bytes(b"already downloaded")
+    insert_track(conn)
+    enqueue_separate(conn)
+    separator = FakeSeparator()
+
+    run_the_job(conn, data_dir, separator)
+
+    assert get_job(conn, "j1")["state"] == "succeeded", get_job(conn, "j1")["error"]
+    assert not legacy.exists()
+    migrated = data_dir / "cache" / "models" / "fake-model.onnx"
+    assert migrated.read_bytes() == b"already downloaded"
+    # The fake never had to re-fetch it: the migrated file was already there.
+    assert separator.models_dirs == [data_dir / "cache" / "models"]
 
 
 def test_separation_reports_its_coarse_steps_on_the_job_row(
