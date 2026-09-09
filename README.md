@@ -1,5 +1,3 @@
-# Akapela
-
 <p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="Akapela — self-hosted karaoke: import a song, sing along to synced Lyrics, and mix down your Take">
 </p>
