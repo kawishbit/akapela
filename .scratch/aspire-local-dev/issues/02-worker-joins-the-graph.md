@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (AppHost boots the app under one command)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The AppHost declares the Python Worker as a resource, run through uv from the Worker's directory
 - [x] The data directory is modelled once in the AppHost and passed to both the app and the Worker under the environment variable each already reads, with no change to how either resolves it

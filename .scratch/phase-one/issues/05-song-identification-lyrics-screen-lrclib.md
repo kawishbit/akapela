@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Backing Track playback with live Adjustments)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Track stores a confirmed Song (artist, title, provider ids, album art URL) as nullable embedded fields, and a Lyrics row stores provider, kind (synced or plain), and lines as JSON with text and optional millisecond timestamps
 - [x] A pure title parser strips bracketed segments and standalone noise words (Karaoke, Instrumental, Lyrics, Official, HD and similar), splits on the first dash or pipe, and proposes artist and title in both orders; covered by Vitest

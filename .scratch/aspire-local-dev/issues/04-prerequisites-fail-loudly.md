@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (The Worker joins the graph and the Job loop closes)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Worker reports unhealthy at startup when `ffmpeg` or `ffprobe` is absent, with a message naming the missing tool and how to install it
 - [x] A missing Node runtime is reported the same way, noting that YouTube imports lose formats without it

@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (The Worker joins the graph and the Job loop closes)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Data directory and app port are AppHost parameters with the same defaults the repo uses today, overridable without editing the AppHost
 - [x] The Genius token is an AppHost secret parameter, stored outside the repo, surfaced in the dashboard as a secret rather than as plain text

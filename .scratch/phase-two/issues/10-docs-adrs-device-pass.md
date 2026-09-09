@@ -8,14 +8,14 @@ The manual checklist is the real work here. Separation quality cannot be asserte
 
 **Blocked by:** 09 (Take and Mix carry Backing Source)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] ADR 0008 (written with this spec) still describes what was actually built, including which model ended up in the image
 - [x] ADR 0003's phase-two amendment (written with this spec) still matches how Backing Source behaves at Mix time
 - [x] `CONTEXT.md`'s `Effects`, `Backing Source`, `Stems`, and `Adjustments` entries (written with this spec) still match the built vocabulary, with no implementation detail in any of them
 - [x] `README.md` says what separation costs a self-hoster: minutes of CPU per song, ~80 MB per Track on disk, one network fetch of the model on first use, cached in the data volume
-- [ ] Manual, on a real song with the real model: separation quality by ear on both Stems, the Backing Source toggle switching cleanly mid-session, both Effects swept while playing with no dropouts, each of the three built-in Presets, and a Mix matching what review played
-- [ ] Manual, on a phone: the grown `AdjustmentsPanel` with the Preset pill row and the collapsed Effects section, thumb-reachable and not crowding the lyrics; carry phase one's outstanding device items (tickets 04, 07, 08) if they are still open
+- [x] Manual, on a real song with the real model: separation quality by ear on both Stems, the Backing Source toggle switching cleanly mid-session, both Effects swept while playing with no dropouts, each of the three built-in Presets, and a Mix matching what review played
+- [x] Manual, on a phone: the grown `AdjustmentsPanel` with the Preset pill row and the collapsed Effects section, thumb-reachable and not crowding the lyrics; carry phase one's outstanding device items (tickets 04, 07, 08) if they are still open
 
 ## Comments
 

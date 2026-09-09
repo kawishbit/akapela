@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (The Worker joins the graph and the Job loop closes)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The app's server-side requests appear in the dashboard as traces, with API routes identifiable by path
 - [x] The Worker's Job execution appears as spans covering the Job's lifetime, correlated with the request that enqueued it

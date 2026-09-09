@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Configuration and secrets flow through the AppHost), 04 (Prerequisites fail loudly, not mysteriously), 05 (Telemetry lands in one place)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] From a clean clone, the documented setup and one start command reach a working app and Worker, walked through start to finish rather than assumed
 - [x] The full local loop is exercised once under the AppHost: import a Track, identify the Song and fetch Lyrics, adjust and sing, record a Take, review it, render a Mix, download it — every step but the microphone; see below

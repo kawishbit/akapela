@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Review a Take)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Mix table exists with Take id, MP3 and WAV paths, the exact render parameters (pitch, tempo, nudge, gains), job reference, and timestamps
 - [x] Requesting a Mix creates a render job carrying the Take's tempo and the requested pitch, nudge, and gains; tempo cannot be overridden

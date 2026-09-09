@@ -105,6 +105,20 @@ pnpm test
 
 `AGENTS.md` covers the day-to-day: configuring the AppHost, reading traces, and what the agent-facing conventions are. `CONTEXT.md` is the vocabulary — Track, Song, Take, Mix all mean something specific here, and the code uses those words. `DESIGN.md` is the visual system. `docs/adr/` is why things are the way they are.
 
+## Roadmap
+
+Nothing here is scheduled or designed yet, roughly in the order they'd get picked up:
+
+- [ ] Backup and restore from within the app, rather than stopping the stack and copying the data directory by hand
+- [ ] A desktop app. Electron over Tauri: the stack is already Node end to end (Nuxt, pnpm), and Electron can spawn the existing Python Worker as a subprocess without adding a Rust toolchain alongside it
+- [ ] Spotify import
+- [ ] Deezer import
+- [ ] SoundCloud import
+- [ ] AI-assisted Lyrics syncing, for songs where LRCLIB and Genius only have plain text
+- [ ] Auto latency calibration, in place of nudging a Take against the Backing Track by ear
+- [ ] YouTube video playback alongside the Backing Track — in tension with [ADR 0001](docs/adr/0001-audio-only-no-video.md), which calls audio-only a permanent decision rather than a deferral; that ADR would need revisiting first
+- [ ] Localisation
+
 ## Licence
 
 GPL-3.0-only. See [LICENSE](LICENSE).

@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 (Song identification and Lyrics screen via LRCLIB)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Genius provider searches and reads Song metadata through the Genius API using a token from an environment variable, and fetches lyrics text by scraping the song page; the scraper is isolated so it can be fixed alone
 - [x] When no Genius token is configured the provider reports itself unavailable and the UI hides it; LRCLIB and Manual keep working

@@ -6,7 +6,7 @@ This ticket also records the decision: Aspire orchestrates local development by 
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] A TypeScript AppHost in its own directory declares the Nuxt app as a resource, run through pnpm with hot reload intact
 - [x] One documented command starts the app and the dashboard; the dashboard lists the app as healthy with a working endpoint link, and the library page renders through it
