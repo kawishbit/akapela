@@ -37,6 +37,8 @@ import tracksIdTakesTakeIdMixesMixIdDelete from '../../server/api/tracks/[id]/ta
 import tracksIdTakesTakeIdMixesMixIdAudioGet from '../../server/api/tracks/[id]/takes/[takeId]/mixes/[mixId]/audio.get'
 import tracksIdTakesTakeIdMixesMixIdRetryPost from '../../server/api/tracks/[id]/takes/[takeId]/mixes/[mixId]/retry.post'
 import telemetryBrowserPost from '../../server/api/telemetry/browser.post'
+import backupGet from '../../server/api/backup.get'
+import backupRestorePost from '../../server/api/backup/restore.post'
 import settingsGet from '../../server/api/settings.get'
 import settingsPut from '../../server/api/settings.put'
 import presetsGet from '../../server/api/presets.get'
@@ -140,6 +142,8 @@ export async function createTestApi() {
   router.get('/api/tracks/:id/takes/:takeId/mixes/:mixId/audio', tracksIdTakesTakeIdMixesMixIdAudioGet)
   router.post('/api/tracks/:id/takes/:takeId/mixes/:mixId/retry', tracksIdTakesTakeIdMixesMixIdRetryPost)
   router.post('/api/telemetry/browser', telemetryBrowserPost)
+  router.get('/api/backup', backupGet)
+  router.post('/api/backup/restore', backupRestorePost)
   router.get('/api/settings', settingsGet)
   router.put('/api/settings', settingsPut)
   router.get('/api/presets', presetsGet)
@@ -203,6 +207,13 @@ export async function createTestApi() {
       form.append('file', new Blob([bytes]), 'take.wav')
       form.append('meta', JSON.stringify(meta))
       return fetch(`${baseUrl}/api/tracks/${trackId}/takes`, { method: 'POST', body: form })
+    },
+    /** Uploads a backup archive to restore from, optionally confirming the overwrite. */
+    uploadRestore: (bytes: Uint8Array, options: { confirm?: boolean } = {}) => {
+      const form = new FormData()
+      form.append('file', new Blob([bytes]), 'akapela-backup.tar.gz')
+      if (options.confirm) form.append('confirm', 'true')
+      return fetch(`${baseUrl}/api/backup/restore`, { method: 'POST', body: form })
     },
     /** Requests a Mix on a Take. */
     requestMix(trackId: string, takeId: string, body: unknown) {

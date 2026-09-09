@@ -38,6 +38,9 @@ importers:
       rubberband-wasm:
         specifier: ^3.3.0
         version: 3.3.0
+      tar:
+        specifier: ^7.5.22
+        version: 7.5.22
       vue:
         specifier: ^3.5.40
         version: 3.5.42(typescript@5.9.3)

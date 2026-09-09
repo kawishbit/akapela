@@ -10,7 +10,10 @@
 #
 # Data lives in the named volume `akapela-data` by default. To use a host
 # directory instead, set AKAPELA_DATA=./some/dir in .env (see .env.example).
-# Backups are your job: copy that directory while the stack is stopped.
+# Back up from inside the app (Settings > Backup) for a WAL-checkpointed
+# archive of everything that matters, excluding the re-downloadable
+# separation model. Copying the data directory by hand while the stack is
+# stopped still works too.
 
 services:
   app:

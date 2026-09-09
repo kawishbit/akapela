@@ -54,7 +54,7 @@ docker compose up -d --build
 
 Running `docker compose up -d` on its own just reuses the image you already built, so use `--build` whenever you've pulled new code. The database migrates itself on startup — there's no separate step for that.
 
-**Backups are your job.** Everything — the database, every Track's audio, every Take and Mix — lives in that one data folder. Copy it while the stack is stopped.
+**Back it up from Settings.** "Download backup" gives you a WAL-checkpointed archive of everything that isn't re-downloadable — the database, every Track's audio, every Take and Mix — leaving out the separation model, which just downloads again if it's ever missing. "Restore from backup" replaces your entire library with what's in the file and restarts the app; `docker compose` brings it straight back up. You can still copy the data folder by hand while the stack is stopped, if you'd rather.
 
 **There is no login.** Akapela has no accounts and no authentication: anyone who can reach the port can see your library and everything you've recorded. It's built to run on a machine on your own network. If you want it reachable from outside your network, put it behind something that checks who's asking — a reverse proxy with authentication, or a VPN — and let that handle TLS too.
 
@@ -114,7 +114,7 @@ A few docs are worth reading before you dig in: `AGENTS.md` covers day-to-day de
 
 Nothing here is scheduled yet — this is roughly the order they'd get tackled in:
 
-- [ ] Backup and restore from within the app
+- [x] Backup and restore from within the app
 - [ ] A desktop app (Electron)
 - [ ] Spotify import
 - [ ] Deezer import
