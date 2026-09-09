@@ -17,6 +17,11 @@ export default defineNuxtConfig({
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
         { name: 'theme-color', content: '#121212' },
       ],
+      link: [
+        { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
+        { rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon-180x180.png' },
+      ],
     },
   },
   runtimeConfig: {
@@ -42,9 +47,10 @@ export default defineNuxtConfig({
       display: 'standalone',
       start_url: '/',
       icons: [
-        { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-        { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-        { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
+        { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+        { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+        { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
     },
     workbox: {

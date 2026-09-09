@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="400" viewBox="0 0 1200 400"
+     role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">Akapela</title>
+  <desc id="hero-desc">Self-hosted karaoke: import a song, sing along to synced Lyrics scrolling with one line always bright, and mix down your Take.</desc>
+
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1ed760" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#1ed760" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="emblemClip">
+      <rect x="0" y="0" width="84" height="84" rx="20"/>
+    </clipPath>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1199" height="399" rx="27.5" fill="#121212" stroke="#2b2b2b"/>
+
+  <circle cx="106" cy="166" r="200" fill="url(#glow)"/>
+
+  <!-- Title block: category, wordmark, promise, footprint -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="64" y="100" font-size="16" font-weight="800" letter-spacing="4" fill="#1ed760">SELF-HOSTED KARAOKE</text>
+
+    <!-- Emblem: the real mark from logos/logo.svg, unmodified, resized via a nested viewBox -->
+    <g transform="translate(64 124)" clip-path="url(#emblemClip)">
+      <svg width="84" height="84" viewBox="0 0 1000 1000">
+        <g transform="matrix(0.978813,0,0,0.976404,21.186834,22.865313)">
+          <rect x="-21.645" y="-24.166" width="1021.645" height="1024.166" style="fill:rgb(135,234,92);"/>
+        </g>
+        <g transform="matrix(3.26798,0,0,3.459702,-1144.347844,-1144.339794)">
+          <path d="M566.27,524.692L585.488,538.912C577.801,550.712 565.309,554.645 556.34,554.645C542.887,554.645 532.317,546.173 529.114,536.189C515.982,549.501 498.685,554.645 481.389,554.645C440.389,554.645 420.851,525.297 420.851,490.2C420.851,485.359 421.171,479.913 422.132,474.77C428.858,429.084 463.451,395.5 511.818,395.5C522.068,395.5 538.724,396.71 549.934,398.223L571.074,398.223L552.176,525.297L552.176,526.507C552.176,529.835 554.739,531.651 556.981,531.651C561.145,531.651 563.707,529.533 566.27,524.692ZM532.317,492.621L543.848,420.31C533.599,419.705 518.224,417.889 509.576,417.889C474.342,417.889 451.92,443.607 447.116,476.585C446.475,480.821 446.155,485.057 446.155,489.293C446.155,512.59 457.366,532.256 482.67,532.256C501.888,532.256 516.943,522.574 525.591,508.959C529.114,504.723 531.356,499.277 532.317,492.621Z" style="fill:rgb(8,52,0);"/>
+        </g>
+        <g transform="matrix(1,0,-0.149329,0.846886,59.692665,52.132625)">
+          <path d="M561.674,428.213C561.674,443.847 550.925,456.539 537.685,456.539L443.442,456.539C430.202,456.539 419.453,443.847 419.453,428.213C419.453,412.579 430.202,399.887 443.442,399.887L537.685,399.887C550.925,399.887 561.674,412.579 561.674,428.213Z" style="fill:rgb(8,51,0);"/>
+        </g>
+        <g transform="matrix(1,0,-0.149329,0.846886,46.641322,126.150472)">
+          <path d="M561.674,428.213C561.674,443.847 550.925,456.539 537.685,456.539L443.442,456.539C430.202,456.539 419.453,443.847 419.453,428.213C419.453,412.579 430.202,399.887 443.442,399.887L537.685,399.887C550.925,399.887 561.674,412.579 561.674,428.213Z" style="fill:rgb(8,51,0);"/>
+        </g>
+        <g transform="matrix(1,0,-0.149329,0.846886,33.776324,199.111502)">
+          <path d="M561.674,428.213C561.674,443.847 550.925,456.539 537.685,456.539L443.442,456.539C430.202,456.539 419.453,443.847 419.453,428.213C419.453,412.579 430.202,399.887 443.442,399.887L537.685,399.887C550.925,399.887 561.674,412.579 561.674,428.213Z" style="fill:rgb(8,51,0);"/>
+        </g>
+      </svg>
+    </g>
+
+    <text x="164" y="186" font-size="68" font-weight="800" fill="#ffffff">kapela</text>
+
+    <text x="64" y="250" font-size="25" font-weight="600" fill="#d9d9d9">Import a song, sing to synced Lyrics,</text>
+    <text x="64" y="284" font-size="25" font-weight="600" fill="#d9d9d9">and mix down your Take.</text>
+
+    <text x="64" y="340" font-size="15" font-weight="600" fill="#8f8f8f">Docker Compose &#183; everything stays on your machine</text>
+  </g>
+
+  <!-- Proof: a compact, faithful rendering of the Sing screen -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <rect x="676" y="56" width="460" height="300" rx="20" fill="#181818" stroke="#2a2a2a"/>
+
+    <rect x="1006" y="76" width="116" height="22" rx="11" fill="none" stroke="#1ed760"/>
+    <text x="1064" y="91" font-size="10" font-weight="800" letter-spacing="1.5" fill="#1ed760" text-anchor="middle">SYNCED LYRICS</text>
+
+    <rect x="704" y="84" width="56" height="56" rx="10" fill="#272727"/>
+    <text x="772" y="104" font-size="20" font-weight="800" fill="#ffffff">Midnight Drive</text>
+    <text x="772" y="126" font-size="13" font-weight="600" fill="#8f8f8f">Nova &#183; +2 semitones &#183; 96% tempo</text>
+
+    <text x="704" y="178" font-size="20" font-weight="800" fill="rgba(255,255,255,0.28)">there&#8217;s a road no map can find</text>
+    <text x="704" y="216" font-size="25" font-weight="800" fill="#ffffff">we ride into the night</text>
+    <text x="704" y="250" font-size="20" font-weight="800" fill="rgba(255,255,255,0.28)">and the city fades to light</text>
+
+    <text x="704" y="274" font-size="12" font-weight="700" fill="#8f8f8f">1:18</text>
+    <text x="1112" y="274" font-size="12" font-weight="700" fill="#8f8f8f" text-anchor="end">-2:47</text>
+    <rect x="704" y="284" width="408" height="6" rx="3" fill="#2a2a2a"/>
+    <rect x="704" y="284" width="150" height="6" rx="3" fill="#1ed760"/>
+
+    <circle cx="1112" cy="316" r="22" fill="#1ed760"/>
+    <path d="M1105,307 L1105,325 L1121,316 Z" fill="#121212"/>
+  </g>
+</svg>

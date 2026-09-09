@@ -14,7 +14,8 @@
     "typecheck": "nuxt typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "icons:generate": "pwa-assets-generator"
   },
   "dependencies": {
     "@vite-pwa/nuxt": "^1.1.1",
@@ -39,6 +40,7 @@
     "@opentelemetry/sdk-trace-node": "^2.11.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^9.6.0",
+    "@vite-pwa/assets-generator": "^1.0.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.0.0",
     "tailwindcss": "^4.3.3",
@@ -49,6 +51,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "sharp",
       "unrs-resolver"
     ]
   }

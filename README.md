@@ -1,5 +1,9 @@
 # Akapela
 
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Akapela — self-hosted karaoke: import a song, sing along to synced Lyrics, and mix down your Take">
+</p>
+
 Self-hosted karaoke. Import a song from YouTube or a file, get a Backing Track with synced Lyrics, adjust pitch and tempo, sing, and walk away with a mixed recording.
 
 Everything stays on your machine: the audio, the recordings, and the database. Nothing is uploaded anywhere, and the only things Akapela reaches out to are the Lyrics providers you ask it to.
