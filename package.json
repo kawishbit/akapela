@@ -23,7 +23,10 @@
     "drizzle-orm": "^0.45.2",
     "h3": "^1.15.11",
     "lucide-vue-next": "^1.0.0",
+    "ndarray": "^1.1.1",
+    "ndarray-fft": "^1.0.3",
     "nuxt": "^4.5.2",
+    "onnxruntime-node": "^1.29.0",
     "rubberband-wasm": "^3.3.0",
     "vue": "^3.5.40",
     "vue-router": "^5.3.1"
@@ -51,6 +54,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "onnxruntime-node",
       "sharp",
       "unrs-resolver"
     ]
