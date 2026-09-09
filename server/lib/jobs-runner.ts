@@ -4,6 +4,7 @@ import { importHandler } from './jobs/import-track'
 import { runRender } from './jobs/render'
 import { MdxNetSeparator, separateHandler } from './jobs/separate'
 import { YtDlpFetcher } from './sources'
+import type { Telemetry } from './telemetry'
 
 /**
  * Claims queued Jobs one at a time and runs them to a terminal state, in
@@ -72,19 +73,31 @@ function toJob(row: JobRow): Job {
   }
 }
 
+/** Answers every call and does nothing — what a Runner built without telemetry uses, which is every test but a handful, and every run outside the AppHost. */
+const NO_TELEMETRY: Telemetry = {
+  enabled: false,
+  beginRequest: () => null,
+  beginJob: () => null,
+  recordBrowserLogs: () => {},
+  flush: async () => {},
+  shutdown: async () => {},
+}
+
 export class JobsRunner {
   private readonly sqlite: Database.Database
   private readonly dataDir: string
   private readonly handlers: Partial<Record<JobType, Handler>>
+  private readonly telemetry: Telemetry
 
   constructor(
     sqlite: Database.Database,
     dataDir: string,
-    options: { handlers?: Partial<Record<JobType, Handler>> } = {},
+    options: { handlers?: Partial<Record<JobType, Handler>>, telemetry?: Telemetry } = {},
   ) {
     this.sqlite = sqlite
     this.dataDir = dataDir
     this.handlers = options.handlers ?? DEFAULT_HANDLERS
+    this.telemetry = options.telemetry ?? NO_TELEMETRY
   }
 
   /** Requeues any Job left `running` by a previous process that died. Returns how many. */
@@ -127,6 +140,10 @@ export class JobsRunner {
       progress: percent => this.setProgress(job.id, percent),
     }
 
+    // The span wraps the terminal UPDATE as well as the handler, so what the
+    // Dashboard shows is the Job's lifetime rather than the handler's alone —
+    // finished only once the row actually says so.
+    const span = this.telemetry.beginJob(job, job.traceParent)
     try {
       const handler = this.handlers[job.type]
       if (!handler) throw new Error(`no handler for job type '${job.type}'`)
@@ -136,10 +153,14 @@ export class JobsRunner {
         .run(Date.now(), job.id)
     }
     catch (error) {
+      span?.failed(error)
       const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
       this.sqlite
         .prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ?`)
         .run(message, Date.now(), job.id)
+    }
+    finally {
+      span?.finish()
     }
     return true
   }

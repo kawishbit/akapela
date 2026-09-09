@@ -63,7 +63,7 @@ describe('request spans', () => {
       .toBe('/api/tracks/2f8a9c34-1b6d-4e51-9a70-5c3e8d1f2b44')
   })
 
-  test('the request hands out a traceparent, which is what reaches the worker', async () => {
+  test('the request hands out a traceparent, which is what a Job it enqueues carries', async () => {
     await started()
     const request = telemetry!.beginRequest('POST', '/api/jobs')!
     expect(request.traceParent).toMatch(TRACEPARENT)
@@ -97,6 +97,64 @@ describe('request spans', () => {
     await telemetry!.flush()
 
     expect(spans.getFinishedSpans()[0]?.status.code).toBe(0)
+  })
+})
+
+describe('job spans', () => {
+  const JOB = { id: 'j1', type: 'import', targetId: 't1' }
+
+  test('a Job is a span named for its type, carrying its id and target', async () => {
+    const { spans } = await started()
+    telemetry!.beginJob(JOB, null)!.finish()
+    await telemetry!.flush()
+
+    const [span] = spans.getFinishedSpans()
+    expect(span?.name).toBe('job import')
+    expect(span?.attributes['akapela.job.id']).toBe('j1')
+    expect(span?.attributes['akapela.job.type']).toBe('import')
+    expect(span?.attributes['akapela.job.target_id']).toBe('t1')
+  })
+
+  test('omits the target attribute for a Job with none', async () => {
+    const { spans } = await started()
+    telemetry!.beginJob({ id: 'j1', type: 'noop', targetId: null }, null)!.finish()
+    await telemetry!.flush()
+
+    expect('akapela.job.target_id' in spans.getFinishedSpans()[0]!.attributes).toBe(false)
+  })
+
+  test('joins the trace named by its traceparent rather than starting a lonely one', async () => {
+    const { spans } = await started()
+    const request = telemetry!.beginRequest('POST', '/api/tracks')!
+    const { traceParent } = request
+    request.finish(201)
+
+    telemetry!.beginJob(JOB, traceParent)!.finish()
+    await telemetry!.flush()
+
+    const [requestSpan, jobSpan] = spans.getFinishedSpans()
+    expect(jobSpan?.spanContext().traceId).toBe(requestSpan?.spanContext().traceId)
+    expect(jobSpan?.parentSpanContext?.spanId).toBe(requestSpan?.spanContext().spanId)
+  })
+
+  test('still opens a span, just not a child of anything, when there is no traceparent', async () => {
+    const { spans } = await started()
+    telemetry!.beginJob(JOB, null)!.finish()
+    await telemetry!.flush()
+
+    expect(spans.getFinishedSpans()[0]?.parentSpanContext).toBeUndefined()
+  })
+
+  test('a failed Job is an error span carrying what went wrong', async () => {
+    const { spans } = await started()
+    const span = telemetry!.beginJob(JOB, null)!
+    span.failed(new Error('yt-dlp exploded'))
+    span.finish()
+    await telemetry!.flush()
+
+    const [finished] = spans.getFinishedSpans()
+    expect(finished?.status.code).toBe(2)
+    expect(finished?.events.some(event => event.name === 'exception')).toBe(true)
   })
 })
 

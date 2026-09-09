@@ -1,6 +1,48 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { JobsRunner, type Handler } from '../../server/lib/jobs-runner'
+import type { Job } from '../../server/db/schema'
+import type { JobSpan, Telemetry } from '../../server/lib/telemetry'
 import { createJobTestDb, type JobTestDb } from './job-test-db'
+
+const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+
+interface RecordedSpan {
+  job: Job
+  traceParent: string | null
+  failedWith: unknown
+  stateWhenClosed: string | null
+}
+
+/** Stands in for the Dashboard: remembers every span the runner asked for. */
+class RecordingTelemetry implements Telemetry {
+  enabled = true
+  spans: RecordedSpan[] = []
+
+  constructor(private readonly t: JobTestDb) {}
+
+  beginRequest(): null {
+    return null
+  }
+
+  beginJob(job: { id: string, type: string, targetId: string | null }, traceParent: string | null): JobSpan {
+    const record: RecordedSpan = { job: job as Job, traceParent, failedWith: null, stateWhenClosed: null }
+    this.spans.push(record)
+    return {
+      failed: (error: unknown) => {
+        record.failedWith = error
+      },
+      finish: () => {
+        // What the job row says at the moment the span ends, which is how a
+        // test sees whether the span really covered the Job to its terminal state.
+        record.stateWhenClosed = this.t.getJob(job.id).state as string
+      },
+    }
+  }
+
+  recordBrowserLogs(): void {}
+  async flush(): Promise<void> {}
+  async shutdown(): Promise<void> {}
+}
 
 let db: JobTestDb | undefined
 
@@ -130,5 +172,77 @@ describe('JobsRunner', () => {
 
     expect(t.getJob('j1').state).toBe('succeeded')
     expect(t.getJob('j2').state).toBe('succeeded')
+  })
+
+  it('runs a job inside a span covering its lifetime', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const telemetry = new RecordingTelemetry(t)
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir, { telemetry }).runOnce()
+
+    const [span] = telemetry.spans
+    expect(span?.job.id).toBe('j1')
+    expect(span?.job.type).toBe('noop')
+  })
+
+  it('carries the trace of the request that enqueued the job on the span', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000, traceParent: TRACEPARENT })
+    const telemetry = new RecordingTelemetry(t)
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir, { telemetry }).runOnce()
+
+    expect(telemetry.spans[0]?.traceParent).toBe(TRACEPARENT)
+  })
+
+  it('still opens a span for a job enqueued without a trace', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const telemetry = new RecordingTelemetry(t)
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir, { telemetry }).runOnce()
+
+    expect(telemetry.spans[0]?.traceParent).toBeNull()
+  })
+
+  it('reaches the span, as well as the job row, on a handler failure', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const telemetry = new RecordingTelemetry(t)
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers: { noop: failingHandler }, telemetry }).runOnce()
+
+    expect(telemetry.spans[0]?.failedWith).toBeInstanceOf(Error)
+    expect(t.getJob('j1').state).toBe('failed')
+  })
+
+  it('opens no span on an empty queue', async () => {
+    const t = setup()
+    const telemetry = new RecordingTelemetry(t)
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir, { telemetry }).runOnce()
+
+    expect(telemetry.spans).toEqual([])
+  })
+
+  it('is still open when the job reaches its terminal state', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const telemetry = new RecordingTelemetry(t)
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir, { telemetry }).runOnce()
+
+    expect(telemetry.spans[0]?.stateWhenClosed).toBe('succeeded')
+  })
+
+  it('is written to failed before its span closes too', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const telemetry = new RecordingTelemetry(t)
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers: { noop: failingHandler }, telemetry }).runOnce()
+
+    expect(telemetry.spans[0]?.stateWhenClosed).toBe('failed')
   })
 })

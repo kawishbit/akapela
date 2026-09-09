@@ -48,11 +48,27 @@ export interface RequestTrace {
   finish(status: number, error?: unknown): void
 }
 
+/** One Job being run. Handed out by `beginJob`, closed exactly once. */
+export interface JobSpan {
+  /** Records what a handler threw. The runner catches it itself, so without this the span would close green on a Job that failed. */
+  failed(error: unknown): void
+  /** Ends the span. */
+  finish(): void
+}
+
 export interface Telemetry {
   /** True only when a collector was configured. */
   readonly enabled: boolean
   /** Opens a span for one request, or null when telemetry is off. */
   beginRequest(method: string, path: string): RequestTrace | null
+  /**
+   * Opens a span covering one Job from claim to terminal state, or null when
+   * telemetry is off. `traceParent` is what the app stamped on the Job row
+   * when it enqueued it (`enqueueJob`/`request-trace.ts`); when present the
+   * span joins that request's trace instead of starting a lonely one of its
+   * own. Absent or malformed, the Job still gets a span, just not a parent.
+   */
+  beginJob(job: { id: string, type: string, targetId: string | null }, traceParent: string | null): JobSpan | null
   /** Records what the browser's console said. Already validated; see `browser-logs`. */
   recordBrowserLogs(entries: BrowserLogEntry[]): void
   /** Sends whatever is batched but not yet exported. */
@@ -81,10 +97,14 @@ function load<T>(specifier: string): Promise<T> {
 const DISABLED: Telemetry = {
   enabled: false,
   beginRequest: () => null,
+  beginJob: () => null,
   recordBrowserLogs: () => {},
   flush: async () => {},
   shutdown: async () => {},
 }
+
+/** A W3C `traceparent` (`00-<32 hex trace id>-<16 hex span id>-<2 hex flags>`) parsed back into a parent `SpanContext`. */
+const TRACEPARENT = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/
 
 /**
  * Starts telemetry, or returns the do-nothing handle when no collector is
@@ -94,7 +114,7 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
   const env = options.env ?? process.env
   if (!env.OTEL_EXPORTER_OTLP_ENDPOINT) return DISABLED
 
-  const [{ SpanKind, SpanStatusCode }, { SeverityNumber }, { resourceFromAttributes }, trace, logs]
+  const [{ SpanKind, SpanStatusCode, trace: traceApi, ROOT_CONTEXT }, { SeverityNumber }, { resourceFromAttributes }, trace, logs]
     = await Promise.all([
       load<typeof import('@opentelemetry/api')>('@opentelemetry/api'),
       load<typeof import('@opentelemetry/api-logs')>('@opentelemetry/api-logs'),
@@ -158,6 +178,35 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
           if (status >= 500 || error !== undefined) {
             span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage(error) })
           }
+          span.end()
+        },
+      }
+    },
+
+    beginJob(job, traceParent) {
+      const match = traceParent ? TRACEPARENT.exec(traceParent) : null
+      const parentContext = match
+        ? traceApi.setSpanContext(ROOT_CONTEXT, {
+            traceId: match[1]!,
+            spanId: match[2]!,
+            traceFlags: Number.parseInt(match[3]!, 16),
+            isRemote: true,
+          })
+        : undefined
+      const span = tracer.startSpan(`job ${job.type}`, {
+        kind: SpanKind.CONSUMER,
+        attributes: {
+          'akapela.job.id': job.id,
+          'akapela.job.type': job.type,
+          ...(job.targetId === null ? {} : { 'akapela.job.target_id': job.targetId }),
+        },
+      }, parentContext)
+      return {
+        failed(error) {
+          span.recordException(error as Error)
+          span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage(error) })
+        },
+        finish() {
           span.end()
         },
       }
