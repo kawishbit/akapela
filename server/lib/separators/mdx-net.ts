@@ -24,6 +24,8 @@ export interface MdxNetConfig {
   dimF: number
   segmentSize: number
   overlap: number
+  /** Only used computing the Vocals Stem — a scalar correction on the Instrumental subtracted from the mix. */
+  compensate: number
 }
 
 export const UVR_MDX_NET_INST_HQ_3_CONFIG: MdxNetConfig = {
@@ -32,6 +34,7 @@ export const UVR_MDX_NET_INST_HQ_3_CONFIG: MdxNetConfig = {
   dimF: 3072,
   segmentSize: 256,
   overlap: 0.25,
+  compensate: 1.022,
 }
 
 /** `numpy.hanning`: the symmetric convention (divides by `length - 1`), distinct from `torch.hann_window`'s periodic one the STFT class uses internally. */
@@ -181,16 +184,47 @@ export class MdxNetModel {
    * A final normalize matches `write_audio`'s own pre-write pass.
    */
   async separateInstrumental(mix: [Float64Array, Float64Array]): Promise<[Float64Array, Float64Array]> {
+    return (await this.separate(mix)).instrumental
+  }
+
+  /**
+   * Both Stems. The Vocals Stem is the model's secondary output — for this
+   * model, everything the Instrumental didn't account for — computed as a
+   * time-domain subtraction against the (peak-normalized, not rescaled) mix,
+   * matching `MDXSeparator.separate`'s `invert_using_spec=False` branch,
+   * which is what this model runs under (confirmed off the real model's
+   * resolved config). The `is_match_mix=True` demix pass Python's code also
+   * runs before that branch is real computation whose result only feeds the
+   * `invert_using_spec=True` branch — skipped here since it changes nothing
+   * this model's output depends on.
+   */
+  async separate(mix: [Float64Array, Float64Array]): Promise<{
+    instrumental: [Float64Array, Float64Array]
+    vocals: [Float64Array, Float64Array]
+  }> {
     const peak = peakOf(mix)
     const normalizedMix: [Float64Array, Float64Array] = [mix[0].slice(), mix[1].slice()]
     normalizePeak(normalizedMix, 0.9)
 
     const demixed = await this.demixPrimary(normalizedMix)
-    const scaled: [Float64Array, Float64Array] = [
+    const instrumental: [Float64Array, Float64Array] = [
       demixed[0].map(v => v * peak),
       demixed[1].map(v => v * peak),
     ]
-    normalizePeak(scaled, 0.9)
-    return scaled
+    normalizePeak(instrumental, 0.9)
+
+    const { compensate } = this.config
+    const vocals: [Float64Array, Float64Array] = [
+      new Float64Array(normalizedMix[0].length),
+      new Float64Array(normalizedMix[1].length),
+    ]
+    for (let channel = 0; channel < 2; channel++) {
+      for (let n = 0; n < vocals[channel]!.length; n++) {
+        vocals[channel]![n] = -instrumental[channel]![n]! * compensate + normalizedMix[channel]![n]!
+      }
+    }
+    normalizePeak(vocals, 0.9)
+
+    return { instrumental, vocals }
   }
 }

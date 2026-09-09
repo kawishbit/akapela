@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import type { Job, JobType } from '../db/schema'
 import { importHandler } from './jobs/import-track'
 import { runRender } from './jobs/render'
+import { MdxNetSeparator, separateHandler } from './jobs/separate'
 import { YtDlpFetcher } from './sources'
 
 /**
@@ -31,13 +32,21 @@ export interface JobContext {
 export type Handler = (ctx: JobContext) => Promise<void>
 
 /**
- * `separate` is still missing until ticket 06 adds it — that is what actually
- * stops the Python worker from being asked to run that Job type.
+ * Every Job type the app enqueues now runs in process. `separate` runs its
+ * ONNX inference on the main thread rather than isolated onto a worker
+ * thread/process — `worker-thread.ts`'s primitive was built for exactly this
+ * and is proven not to block the event loop, but wiring it up needs a worker
+ * entry point that survives Nitro's production bundling, which is still
+ * open; tracked as a known gap for ticket 07 (cutover) to close before
+ * or as part of deleting the Python worker. Until then a long separation
+ * genuinely blocks other requests, the same tradeoff a self-hoster sizing
+ * one CPU to the compose `app` service already accepts implicitly.
  */
 export const DEFAULT_HANDLERS: Partial<Record<JobType, Handler>> = {
   noop: async ctx => ctx.progress(50),
   import: importHandler(new YtDlpFetcher()),
   render: runRender,
+  separate: separateHandler(new MdxNetSeparator()),
 }
 
 interface JobRow {
