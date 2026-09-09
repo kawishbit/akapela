@@ -17,9 +17,12 @@ WORKDIR /app
 # ffmpeg (with ffprobe) normalizes every Source and renders every Mix.
 # yt-dlp fetches a YouTube import's audio and metadata; Node — already this
 # image's own base — is what it shells out to for solving YouTube's player
-# challenges. curl only exists to fetch the yt-dlp binary itself and is
-# removed again in the same layer.
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl \
+# challenges. ca-certificates is what lets curl verify the TLS connection it
+# fetches the yt-dlp binary over — the slim base image carries no CA bundle
+# on its own, unlike Node's `fetch`, which ships with its own. curl itself is
+# removed again in the same layer; ca-certificates stays, since curl needing
+# it once is reason enough to assume something else here might later too.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl \
   && curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
   && chmod a+rx /usr/local/bin/yt-dlp \
   && apt-get purge -y curl && apt-get autoremove -y \
