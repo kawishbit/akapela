@@ -1,5 +1,8 @@
 import * as ort from 'onnxruntime-node'
-import { Stft, type Spectrogram } from './stft'
+// Explicit extension: this module also runs as a standalone `node` subprocess
+// (`separate-cli.ts`, for CPU isolation), which needs it — plain Node's ESM
+// resolver, unlike Nitro/Vite's bundler, requires one for a relative import.
+import { Stft, type Spectrogram } from './stft.ts'
 
 /**
  * The MDX-Net inference pipeline: chunking, the ONNX model call, and

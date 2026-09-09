@@ -39,16 +39,40 @@ requested Separation, polled to `ready` in ~10s, confirmed both
 `instrumental.wav` and `vocals.wav` on disk, `hasStems: true`,
 `backingSource` flipped to `instrumental`. No Python process running.
 
-## Known gap carried to ticket 07
+## CPU isolation: resolved, via child_process rather than worker_threads
 
-The ONNX inference runs on the main thread, not isolated via
-`worker-thread.ts`'s primitive (built in ticket 02, proven not to block the
-event loop) or a subprocess. A real separation — minutes, not seconds, per
-ADR 0008 — will block other requests for its duration; the Python worker
-never had this problem because it was already a separate OS process.
-`worker-thread.ts` turned out to need a worker entry point that survives
-Nitro's production bundling, which wasn't resolved in the time available;
-`child_process` (matching how ffmpeg/yt-dlp already run) is the more likely
-answer, sidestepping bundler-path concerns entirely by spawning a real Node
-process the same way those already do. This needs a decision and a fix
-before or as part of ticket 07 — noted there.
+Originally shipped with the ONNX inference on the main thread (a real
+separation — minutes, not seconds, per ADR 0008 — would have blocked every
+other request for its duration). Fixed in the same ticket rather than
+deferred further: `MdxNetSeparator.separate` now spawns
+`server/lib/separators/separate-cli.ts` as its own `node` subprocess — the
+same shape ffmpeg and yt-dlp already are — instead of running
+`MdxNetModel` in process. `worker-thread.ts`'s primitive (ticket 02) was
+tried first and abandoned: `import.meta.url`, which it would need to locate
+a worker entry file, is rewritten by Nitro into its own `.nuxt` virtual
+module namespace even under `pnpm dev` — confirmed the hard way (it resolved
+to a `.nuxt/separators/separate-cli.ts` that doesn't exist) rather than
+assumed. `separate-cli.ts`'s path is instead resolved against
+`process.cwd()`, the same convention `use-akapela.ts` already uses for
+`dataDir`/`migrationsDir`.
+
+`worker-thread.ts` and its test are now dead code (nothing else in this
+effort needs CPU isolation) and should be deleted in ticket 07's cleanup
+rather than kept as an unused abstraction.
+
+**Verified for real**, not just by absence of errors: a live dev server, a
+real 5s clip, the real model — separation completed correctly (Stems on
+disk, Track ready) while ten concurrent `/api/settings` requests during the
+run stayed at 100-130ms (briefly 200-600ms under CPU contention, never the
+multi-second stall an in-process run produced before this fix).
+
+**Remaining piece, real and specific, carried to ticket 07**: the compose
+image's Dockerfile copies only `.output` and `migrations` into the final
+stage, not `server/` — so `separate-cli.ts` won't exist on disk there yet.
+Ticket 07 needs to either copy `server/lib/separators/` (and its
+`app/audio/wav.ts` dependency) into the image, or bundle `separate-cli.ts`
+as its own build artifact via the same `pnpm build` step. `pnpm build` and a
+direct `node .output/server/index.mjs` smoke test (import, render with
+reverb, and separate all verified working against the actual built output)
+were run in this session and confirm the rest of the build is otherwise
+sound — this is the one known loose end, not a guess.

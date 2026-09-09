@@ -25,22 +25,17 @@ export interface JobContext {
 }
 
 /**
- * One Job type's work. Async so a handler can `await` a spawned ffmpeg/yt-dlp
- * process, or a CPU-bound step run off the main thread (`worker-thread.ts`),
- * without blocking the HTTP server either way.
+ * One Job type's work. Async so a handler can `await` a spawned subprocess —
+ * ffmpeg, yt-dlp, or (for `separate`) `separate-cli.ts` running the ONNX
+ * inference in its own `node` process — without blocking the HTTP server.
  */
 export type Handler = (ctx: JobContext) => Promise<void>
 
 /**
- * Every Job type the app enqueues now runs in process. `separate` runs its
- * ONNX inference on the main thread rather than isolated onto a worker
- * thread/process — `worker-thread.ts`'s primitive was built for exactly this
- * and is proven not to block the event loop, but wiring it up needs a worker
- * entry point that survives Nitro's production bundling, which is still
- * open; tracked as a known gap for ticket 07 (cutover) to close before
- * or as part of deleting the Python worker. Until then a long separation
- * genuinely blocks other requests, the same tradeoff a self-hoster sizing
- * one CPU to the compose `app` service already accepts implicitly.
+ * Every Job type the app enqueues now runs in process, claimed and tracked
+ * here; genuinely CPU-heavy work (the separate Job's ONNX inference) still
+ * runs in its own subprocess rather than on this thread — see
+ * `jobs/separate.ts`.
  */
 export const DEFAULT_HANDLERS: Partial<Record<JobType, Handler>> = {
   noop: async ctx => ctx.progress(50),

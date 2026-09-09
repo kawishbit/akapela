@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { spawn } from 'node:child_process'
 import type Database from 'better-sqlite3'
 import { decodeWav, encodeWav } from '../../../app/audio/wav'
 import { fetchModel } from '../separators/download-model'
-import { MdxNetModel } from '../separators/mdx-net'
 import type { Handler } from '../jobs-runner'
 
 /**
@@ -28,6 +29,22 @@ export interface Separator {
   separate: (backingPath: string, modelsDir: string) => Promise<Stems>
 }
 
+/**
+ * `separate-cli.ts`, run as its own `node` subprocess — CPU isolation for
+ * the ONNX inference, the same shape as every other heavy external
+ * dependency this app spawns (ffmpeg, yt-dlp) rather than links against.
+ *
+ * Resolved against `process.cwd()`, the same convention `use-akapela.ts`
+ * already uses for `dataDir`/`migrationsDir` — not `import.meta.url`, which
+ * Nitro rewrites into its own `.nuxt` virtual module namespace even under
+ * `pnpm dev`, not a real filesystem path (confirmed the hard way: it
+ * resolved to a `.nuxt/separators/separate-cli.ts` that doesn't exist).
+ * `process.cwd()` is the repo root under `pnpm dev`/`aspire run` and `/app`
+ * in the compose image, where this file needs to actually be copied
+ * (ticket 07's Dockerfile update) for this to keep working there.
+ */
+const SEPARATE_CLI_PATH = resolve(process.cwd(), 'server/lib/separators/separate-cli.ts')
+
 export class MdxNetSeparator implements Separator {
   private modelPath: string | undefined
 
@@ -37,14 +54,41 @@ export class MdxNetSeparator implements Separator {
 
   async separate(backingPath: string, modelsDir: string): Promise<Stems> {
     const modelPath = this.modelPath ?? await fetchModel(modelsDir)
-    const { channels, sampleRate } = decodeWav(await readFile(backingPath))
-    const left = Float64Array.from(channels[0]!)
-    const right = Float64Array.from(channels[1] ?? channels[0]!)
-
-    const model = new MdxNetModel(modelPath)
-    const { instrumental, vocals } = await model.separate([left, right])
-    return { instrumental, vocals, sampleRate }
+    const scratchDir = await mkdtemp(join(tmpdir(), 'akapela-separate-'))
+    const instrumentalPath = join(scratchDir, 'instrumental.wav')
+    const vocalsPath = join(scratchDir, 'vocals.wav')
+    try {
+      await runSeparateCli(modelPath, backingPath, instrumentalPath, vocalsPath)
+      const instrumentalWav = decodeWav(await readFile(instrumentalPath))
+      const vocalsWav = decodeWav(await readFile(vocalsPath))
+      return {
+        instrumental: [Float64Array.from(instrumentalWav.channels[0]!), Float64Array.from(instrumentalWav.channels[1]!)],
+        vocals: [Float64Array.from(vocalsWav.channels[0]!), Float64Array.from(vocalsWav.channels[1]!)],
+        sampleRate: instrumentalWav.sampleRate,
+      }
+    }
+    finally {
+      await rm(scratchDir, { recursive: true, force: true })
+    }
   }
+}
+
+function runSeparateCli(
+  modelPath: string,
+  backingPath: string,
+  instrumentalOutPath: string,
+  vocalsOutPath: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [SEPARATE_CLI_PATH, modelPath, backingPath, instrumentalOutPath, vocalsOutPath])
+    let stderr = ''
+    child.stderr.on('data', d => (stderr += d))
+    child.on('error', error => reject(new Error(`could not start the separation subprocess: ${error.message}`)))
+    child.on('close', (code) => {
+      if (code === 0) resolve()
+      else reject(new Error(stderr.trim() || `separation subprocess exited with code ${code}`))
+    })
+  })
 }
 
 /**
