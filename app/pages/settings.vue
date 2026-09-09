@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ArrowLeft, Headphones, Settings2 } from 'lucide-vue-next'
+import { ArrowLeft, Headphones, Monitor, Moon, Settings2, Sun } from 'lucide-vue-next'
 import { LYRICS_PROVIDER_LABELS, type LyricsProviderName } from '~~/shared/lyrics'
+import { THEME_PREFERENCES, THEME_PREFERENCE_LABELS, type ThemePreference } from '~/utils/theme'
 
 const {
   lyricsProviders,
@@ -13,6 +14,14 @@ const {
   setMicProcessingDefault,
   setMonitoringDefault,
 } = useSettings()
+
+const { preference: themePreference, setPreference: setThemePreference } = useTheme()
+
+const THEME_PREFERENCE_ICONS: Record<ThemePreference, typeof Sun> = {
+  light: Sun,
+  dark: Moon,
+  system: Monitor,
+}
 
 function pickDefaultLyricsProvider(provider: LyricsProviderName) {
   if (provider === defaultLyricsProvider.value) return
@@ -37,6 +46,38 @@ useHead({ title: 'Settings · Akapela' })
     </h1>
 
     <div class="flex flex-col gap-4">
+      <section class="rounded-[8px] bg-surface p-4 sm:p-5">
+        <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+          Appearance
+        </h2>
+        <p class="mt-1 text-sm text-text-muted">
+          How Akapela looks on this device. "System" follows whatever your OS or browser is set to.
+        </p>
+        <div
+          class="mt-3 flex flex-wrap items-center gap-1 rounded-pill bg-surface-mid p-1"
+          role="group"
+          aria-label="Appearance"
+        >
+          <button
+            v-for="option in THEME_PREFERENCES"
+            :key="option"
+            type="button"
+            class="inline-flex h-11 items-center gap-1.5 rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition"
+            :class="option === themePreference
+              ? 'bg-text text-ground'
+              : 'text-text-muted hover:text-text'"
+            :aria-pressed="option === themePreference"
+            @click="setThemePreference(option)"
+          >
+            <component
+              :is="THEME_PREFERENCE_ICONS[option]"
+              class="size-3.5"
+            />
+            {{ THEME_PREFERENCE_LABELS[option] }}
+          </button>
+        </div>
+      </section>
+
       <section class="rounded-[8px] bg-surface p-4 sm:p-5">
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
           Default Lyrics Provider
@@ -79,7 +120,7 @@ useHead({ title: 'Settings · Akapela' })
           <button
             type="button"
             class="inline-flex h-12 items-center gap-1.5 rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition disabled:opacity-60"
-            :class="micProcessingDefault ? 'bg-accent text-ground hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
+            :class="micProcessingDefault ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
             :aria-pressed="micProcessingDefault"
             :disabled="saving"
             @click="setMicProcessingDefault(!micProcessingDefault)"
@@ -91,7 +132,7 @@ useHead({ title: 'Settings · Akapela' })
           <button
             type="button"
             class="inline-flex h-12 items-center gap-1.5 rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition disabled:opacity-60"
-            :class="monitoringDefault ? 'bg-accent text-ground hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
+            :class="monitoringDefault ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
             :aria-pressed="monitoringDefault"
             :disabled="saving"
             @click="setMonitoringDefault(!monitoringDefault)"

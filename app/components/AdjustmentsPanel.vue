@@ -174,7 +174,7 @@ function onLowpassInput(event: Event) {
           >
           <button
             type="submit"
-            class="flex h-10 items-center rounded-pill bg-accent px-3 text-xs font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60"
+            class="flex h-10 items-center rounded-pill bg-accent px-3 text-xs font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110 disabled:opacity-60"
             :disabled="presets.saving.value || saveName.trim().length === 0"
           >
             <Loader2
@@ -312,7 +312,7 @@ function onLowpassInput(event: Event) {
       <button
         type="button"
         class="inline-flex h-12 items-center justify-center gap-2 self-start rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition"
-        :class="adjustments.linked ? 'bg-accent text-ground hover:brightness-110' : 'bg-surface-mid text-text hover:bg-card'"
+        :class="adjustments.linked ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text hover:bg-card'"
         :aria-pressed="adjustments.linked"
         @click="emit('change', { linked: !adjustments.linked })"
       >

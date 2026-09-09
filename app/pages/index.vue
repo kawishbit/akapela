@@ -110,7 +110,7 @@ async function onRetry(track: TrackWithJob) {
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60"
+          class="inline-flex items-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110 disabled:opacity-60"
           :disabled="uploading"
           @click="pickFiles"
         >
@@ -167,7 +167,7 @@ async function onRetry(track: TrackWithJob) {
         <div class="flex gap-2">
           <button
             type="submit"
-            class="inline-flex flex-1 items-center justify-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60 sm:flex-none"
+            class="inline-flex flex-1 items-center justify-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110 disabled:opacity-60 sm:flex-none"
             :disabled="importingUrl || !url"
           >
             <Loader2
@@ -282,7 +282,7 @@ async function onRetry(track: TrackWithJob) {
           </button>
           <button
             type="button"
-            class="inline-flex items-center gap-2 rounded-pill bg-accent px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110"
+            class="inline-flex items-center gap-2 rounded-pill bg-accent px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110"
             @click="pickFiles"
           >
             <Plus class="size-4" />

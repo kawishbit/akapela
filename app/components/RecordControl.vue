@@ -76,7 +76,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
           <button
             type="button"
             class="inline-flex h-10 items-center gap-1.5 rounded-pill px-4 text-xs font-bold uppercase tracking-[1.4px] transition"
-            :class="state.processingEnabled ? 'bg-accent text-ground hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
+            :class="state.processingEnabled ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
             :aria-pressed="state.processingEnabled"
             @click="recorder.setProcessing(!state.processingEnabled)"
           >
@@ -87,7 +87,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
           <button
             type="button"
             class="inline-flex h-10 items-center gap-1.5 rounded-pill px-4 text-xs font-bold uppercase tracking-[1.4px] transition"
-            :class="state.monitoring ? 'bg-accent text-ground hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
+            :class="state.monitoring ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
             :aria-pressed="state.monitoring"
             @click="state.monitoring = !state.monitoring"
           >
@@ -98,7 +98,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
 
         <button
           type="button"
-          class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-ground shadow-[var(--shadow-medium)] transition hover:brightness-110"
+          class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink shadow-[var(--shadow-medium)] transition hover:brightness-110"
           aria-label="Record a Take"
           @click="recorder.startRecording()"
         >
@@ -151,7 +151,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
         </div>
         <button
           type="button"
-          class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-ground shadow-[var(--shadow-medium)] transition hover:brightness-110"
+          class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink shadow-[var(--shadow-medium)] transition hover:brightness-110"
           aria-label="Stop recording"
           @click="recorder.stopRecording()"
         >

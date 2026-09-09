@@ -227,7 +227,7 @@ async function saveTyped() {
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="submit"
-          class="inline-flex h-11 items-center gap-2 rounded-pill bg-accent px-6 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60"
+          class="inline-flex h-11 items-center gap-2 rounded-pill bg-accent px-6 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110 disabled:opacity-60"
           :disabled="busy || !draft.trim()"
         >
           <Loader2

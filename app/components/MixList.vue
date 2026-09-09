@@ -74,7 +74,7 @@ async function confirmDelete() {
       <li
         v-for="mix in mixes"
         :key="mix.id"
-        class="rounded-[6px] bg-surface-mid p-3"
+        class="rounded-[6px] bg-card p-3"
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="min-w-0">
@@ -104,33 +104,34 @@ async function confirmDelete() {
           </button>
         </div>
 
-        <template v-if="mix.mp3Path">
-          <audio
-            class="mt-3 h-9 w-full"
-            controls
-            preload="none"
-            :src="audioUrl(mix)"
-          />
-          <div class="mt-2 flex flex-wrap items-center gap-4 text-xs font-bold uppercase tracking-[1.4px] text-accent">
+        <AudioPlayer
+          v-if="mix.mp3Path"
+          class="mt-3"
+          :src="audioUrl(mix)"
+          :aria-label="`Playback for the Mix from ${formatDate(mix.createdAt)}`"
+        >
+          <template #actions>
             <a
               :href="audioUrl(mix)"
               download
-              class="inline-flex items-center gap-1 hover:brightness-110"
+              class="inline-flex h-8 shrink-0 items-center gap-1 rounded-pill bg-surface px-2.5 text-[10px] font-bold uppercase tracking-wide text-text-muted transition hover:bg-card hover:text-text"
+              aria-label="Download the MP3"
             >
-              <Download class="size-3.5" />
+              <Download class="size-3" />
               MP3
             </a>
             <a
               v-if="mix.wavPath"
               :href="audioUrl(mix, 'wav')"
               download
-              class="inline-flex items-center gap-1 hover:brightness-110"
+              class="inline-flex h-8 shrink-0 items-center gap-1 rounded-pill bg-surface px-2.5 text-[10px] font-bold uppercase tracking-wide text-text-muted transition hover:bg-card hover:text-text"
+              aria-label="Download the WAV"
             >
-              <Download class="size-3.5" />
+              <Download class="size-3" />
               WAV
             </a>
-          </div>
-        </template>
+          </template>
+        </AudioPlayer>
 
         <div
           v-else

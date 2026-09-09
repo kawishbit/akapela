@@ -12,7 +12,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Akapela',
-      htmlAttrs: { lang: 'en', class: 'dark' },
+      htmlAttrs: { lang: 'en' },
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
         { name: 'theme-color', content: '#121212' },
@@ -21,6 +21,17 @@ export default defineNuxtConfig({
         { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
         { rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' },
         { rel: 'apple-touch-icon', href: '/apple-touch-icon-180x180.png' },
+      ],
+      script: [
+        {
+          // Runs before first paint so a device set to Light, or a singer
+          // who already chose it, never flashes Dark first. `useTheme`
+          // (`app/composables/useTheme.ts`) takes over from here once Vue
+          // mounts; the storage key and the fallback to `prefers-color-scheme`
+          // mirror `app/utils/theme.ts` exactly, but this has to stand alone
+          // since it runs outside any bundle.
+          innerHTML: `(function(){try{var t=localStorage.getItem('akapela:theme');var theme=(t==='light'||t==='dark')?t:(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',theme)}catch(e){}})()`,
+        },
       ],
     },
   },

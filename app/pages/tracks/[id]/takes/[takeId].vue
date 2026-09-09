@@ -297,7 +297,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
         <div class="flex justify-center">
           <button
             type="button"
-            class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-ground shadow-[var(--shadow-medium)] transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
+            class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink shadow-[var(--shadow-medium)] transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
             :disabled="state.loading || state.error !== null"
             :aria-label="state.playing ? 'Pause' : 'Play the Take over the Backing Track'"
             @click="review.toggle()"
@@ -761,7 +761,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
       <div class="flex items-center gap-3">
         <button
           type="button"
-          class="inline-flex h-14 flex-1 items-center justify-center rounded-pill bg-accent px-6 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110"
+          class="inline-flex h-14 flex-1 items-center justify-center rounded-pill bg-accent px-6 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110"
           @click="keep"
         >
           Keep Take

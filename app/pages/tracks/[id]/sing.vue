@@ -246,7 +246,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
         <span class="w-12 text-xs tabular-nums text-text-muted">-{{ formatDuration(Math.max(0, durationMs - shownMs)) }}</span>
         <button
           type="button"
-          class="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent text-ground transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
+          class="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
           :disabled="!isCurrent || playerState.error !== null"
           :aria-label="playerState.playing ? 'Pause' : 'Play'"
           @click="player.toggle()"

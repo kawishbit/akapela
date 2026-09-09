@@ -141,7 +141,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
             <button
               v-if="track.importState === 'ready'"
               type="button"
-              class="inline-flex h-14 items-center gap-3 rounded-pill bg-accent pl-5 pr-7 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-110 disabled:opacity-60"
+              class="inline-flex h-14 items-center gap-3 rounded-pill bg-accent pl-5 pr-7 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110 disabled:opacity-60"
               :disabled="isCurrent && (playerState.loading || playerState.error !== null)"
               @click="isCurrent ? player.toggle() : player.open(track).then(() => player.play())"
             >

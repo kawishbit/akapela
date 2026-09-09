@@ -74,15 +74,17 @@ async function render(take: TrackDetail['takes'][number]) {
 
     <ul
       v-else
-      class="mt-3 flex flex-col divide-y divide-border/30"
+      class="mt-3 flex flex-col gap-3"
     >
       <li
         v-for="take in track.takes"
         :key="take.id"
-        class="py-3 first:pt-0 last:pb-0"
+        class="rounded-[6px] bg-surface-mid p-3"
       >
         <div class="flex items-center gap-3">
-          <Mic2 class="size-4 shrink-0 text-text-muted" />
+          <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface text-text-muted">
+            <Mic2 class="size-4" />
+          </span>
           <NuxtLink
             :to="`/tracks/${track.id}/takes/${take.id}`"
             class="min-w-0 flex-1 rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-text"
@@ -96,7 +98,7 @@ async function render(take: TrackDetail['takes'][number]) {
           </NuxtLink>
           <button
             type="button"
-            class="flex h-10 shrink-0 items-center gap-1.5 rounded-pill bg-surface-mid px-3 text-xs font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card disabled:opacity-60"
+            class="flex h-9 shrink-0 items-center gap-1.5 rounded-pill bg-surface px-3 text-xs font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card disabled:opacity-60"
             :disabled="renderingId === take.id"
             :aria-label="`Render a Mix from the Take from ${formatDate(take.createdAt)}`"
             @click="render(take)"
@@ -113,7 +115,7 @@ async function render(take: TrackDetail['takes'][number]) {
           </button>
           <button
             type="button"
-            class="flex size-10 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:text-negative disabled:opacity-60"
+            class="flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:text-negative disabled:opacity-60"
             :disabled="deletingId === take.id"
             :aria-label="`Delete the Take from ${formatDate(take.createdAt)}`"
             @click="pendingDeleteId = take.id"
@@ -131,7 +133,7 @@ async function render(take: TrackDetail['takes'][number]) {
 
         <MixList
           v-if="mixesFor(take.id).length > 0"
-          class="ml-7 mt-3"
+          class="mt-3 border-t border-border/30 pt-3"
           :track-id="track.id"
           :take="take"
           :mixes="mixesFor(take.id)"
