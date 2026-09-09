@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import type { Job, JobType } from '../db/schema'
 import { importHandler } from './jobs/import-track'
+import { runRender } from './jobs/render'
 import { YtDlpFetcher } from './sources'
 
 /**
@@ -30,13 +31,13 @@ export interface JobContext {
 export type Handler = (ctx: JobContext) => Promise<void>
 
 /**
- * `render` and `separate` are still missing until the tickets that follow add
- * them here — each addition is what actually stops the Python worker from
- * being asked to run that Job type.
+ * `separate` is still missing until ticket 06 adds it — that is what actually
+ * stops the Python worker from being asked to run that Job type.
  */
 export const DEFAULT_HANDLERS: Partial<Record<JobType, Handler>> = {
   noop: async ctx => ctx.progress(50),
   import: importHandler(new YtDlpFetcher()),
+  render: runRender,
 }
 
 interface JobRow {

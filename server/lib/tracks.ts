@@ -37,7 +37,7 @@ import { listTakes } from './takes'
  * Vocals Stem a separation also writes is kept but nothing plays it, so it is
  * not a Backing Source and is not here.
  */
-const BACKING_SOURCE_FILES: Record<BackingSource, string> = {
+export const BACKING_SOURCE_FILES: Record<BackingSource, string> = {
   original: 'backing.wav',
   instrumental: 'instrumental.wav',
 }
