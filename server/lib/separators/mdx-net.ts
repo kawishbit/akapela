@@ -9,18 +9,28 @@ import { Stft, type Spectrogram } from './stft.ts'
  * The MDX-Net inference pipeline: chunking, the ONNX model call, and
  * overlap-add reconstruction. Ported from `mdx_separator.py`'s `demix` and
  * `run_model` (ticket 05, `.scratch/worker-to-typescript/`) for the model's
- * primary output only — for UVR-MDX-NET-Inst_HQ_3 that is the Instrumental
+ * primary output only — for UVR-MDX-NET-Inst_Main that is the Instrumental
  * Stem, which is the only one this ticket validates. The Vocals Stem (the
  * model's secondary output, a time-domain subtraction against the primary)
  * is ticket 06's concern once this is trusted.
  *
- * Config values below were read directly off the real, downloaded model —
- * not guessed: its ONNX graph declares input/output shape
- * `[batch, 4, 3072, 256]`, and `Separator`'s resolved `model_data` for it is
- * `{ n_fft: 6144, dim_f: 3072, dim_t: 256 (2**8), hop_length: 1024,
- * overlap: 0.25, compensate: 1.022 }` (`compensate` only matters for the
- * Vocals side). Captured via a real `fetch_model` + `separate()` run against
- * the live Python path, whose fingerprint this port is checked against.
+ * Config values below are not guessed: `dimF`/`segmentSize` were read off
+ * the real, downloaded model's own ONNX graph, which declares input/output
+ * shape `[batch, 4, 2048, 256]`; `nFft` and `compensate` come from
+ * `audio-separator`'s hash-keyed `mdx_model_data` registry entry for this
+ * exact file (`1c56ec0224f1d559c42fd6fd2a67b154`, the partial-MD5 of its
+ * last 10MB — `calculate-model-hashes.py`'s own scheme); `hopLength`,
+ * `segmentSize`, and `overlap` are `Separator`'s library-wide MDX defaults
+ * (`separator.py`'s `mdx_params`), the same ones `Inst_HQ_3` used, since
+ * they're not per-model entries in that registry at all.
+ *
+ * `Inst_Main` was chosen over `Inst_HQ_3` (ADR 0008's original pick) to cut
+ * CPU cost: its `[4, 2048, 256]` tensor is two-thirds the size of
+ * `Inst_HQ_3`'s `[4, 3072, 256]`, and its `nFft` (5120 vs 6144) is smaller
+ * too. The trade: `dimF: 2048` band-limits the reconstructed spectrum to
+ * `2048 * (44100 / 5120) ≈ 17.6 kHz`, versus `Inst_HQ_3`'s full 22.05 kHz
+ * Nyquist — content above that lands in the Vocals Stem's mix-minus-
+ * instrumental subtraction instead of being separated cleanly.
  */
 export interface MdxNetConfig {
   nFft: number
@@ -32,13 +42,13 @@ export interface MdxNetConfig {
   compensate: number
 }
 
-export const UVR_MDX_NET_INST_HQ_3_CONFIG: MdxNetConfig = {
-  nFft: 6144,
+export const UVR_MDX_NET_INST_MAIN_CONFIG: MdxNetConfig = {
+  nFft: 5120,
   hopLength: 1024,
-  dimF: 3072,
+  dimF: 2048,
   segmentSize: 256,
   overlap: 0.25,
-  compensate: 1.022,
+  compensate: 1.025,
 }
 
 /** `numpy.hanning`: the symmetric convention (divides by `length - 1`), distinct from `torch.hann_window`'s periodic one the STFT class uses internally. */
@@ -86,7 +96,7 @@ export class MdxNetModel {
    * without the real 66MB model. Production code never passes it — the real
    * session loads lazily from `modelPath` on first use.
    */
-  constructor(modelPath: string, config: MdxNetConfig = UVR_MDX_NET_INST_HQ_3_CONFIG, session?: ModelSession) {
+  constructor(modelPath: string, config: MdxNetConfig = UVR_MDX_NET_INST_MAIN_CONFIG, session?: ModelSession) {
     this.modelPath = modelPath
     this.config = config
     this.session = session

@@ -12,16 +12,16 @@ import { join } from 'node:path'
  * downloads from (`Separator.download_model_files`'s
  * `public_model_repo_url_prefix`), hardcoded to this one model rather than
  * reproducing that library's general model-catalog machinery — Akapela only
- * ever asks for one model (ADR 0008).
+ * ever asks for one model (ADR 0008, amended to `Inst_Main` for CPU cost).
  */
-export const MODEL_FILENAME = 'UVR-MDX-NET-Inst_HQ_3.onnx'
+export const MODEL_FILENAME = 'UVR-MDX-NET-Inst_Main.onnx'
 
 const MODEL_URL
   = `https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/${MODEL_FILENAME}`
 
 export class ModelDownloadError extends Error {}
 
-/** Puts the model at `<modelsDir>/UVR-MDX-NET-Inst_HQ_3.onnx`, or does nothing if it is already there. */
+/** Puts the model at `<modelsDir>/UVR-MDX-NET-Inst_Main.onnx`, or does nothing if it is already there. */
 export async function fetchModel(modelsDir: string): Promise<string> {
   const dest = join(modelsDir, MODEL_FILENAME)
   if (existsSync(dest)) return dest

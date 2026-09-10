@@ -7,7 +7,7 @@
 // computing the non-power-of-two (Bluestein) twiddle/chirp tables once for
 // the whole batch instead of once per signal. That reuse is the entire
 // point of reaching past the package's main entry point: `n_fft` here is
-// 6144, not a power of two, and Bluestein's setup — an O(n log n) FFT of
+// 5120, not a power of two, and Bluestein's setup — an O(n log n) FFT of
 // its own, run to build the chirp tables — dominated real runtime when
 // `forward`/`inverse` called the public API once per STFT frame (hundreds of
 // `fft()` calls per model chunk, each rebuilding those tables from scratch).
@@ -21,7 +21,7 @@ import fftm from 'ndarray-fft/lib/fft-matrix.js'
  * `worker/akapela_worker/uvr_lib_v5/stft.py`'s `STFT` class does, ported to TS
  * for ticket 05 (`.scratch/worker-to-typescript/`).
  *
- * `n_fft` for the model this backs (UVR-MDX-NET-Inst_HQ_3) is 6144 — not a
+ * `n_fft` for the model this backs (UVR-MDX-NET-Inst_Main) is 5120 — not a
  * power of two, which rules out most JS FFT libraries. `ndarray-fft` computes
  * it via Bluestein's algorithm; verified against a known sine input (exact
  * peak bin, exact magnitude) and a forward+inverse round trip (~1e-10 error)

@@ -38,10 +38,14 @@ WORKDIR /app
 # library dependency tree — every codec library it links against — which on
 # its own is ~460MB, nearly a quarter of this whole image, for two binaries
 # that between them only ever ask for `pcm_s16le` (built into ffmpeg's core,
-# no library needed) and `libmp3lame` (server/lib/audio.ts is the only
-# caller of either). The "lgpl" build variant carries that and every decoder
-# this app needs (all native to ffmpeg itself) without the GPL-only encoders
-# neither `-c:a` here nor anywhere else in this codebase ever requests.
+# no library needed), `libmp3lame` (server/lib/audio.ts is the only caller of
+# either), and the `rubberband` filter `renderMix` builds into every Mix's
+# `-filter_complex` — which is exactly why this is the "gpl" build variant,
+# not "lgpl": BtbN's own build scripts (`scripts.d/50-rubberband.sh`) strip
+# librubberband out of every `lgpl*` variant, GPL being what it is, and ADR
+# 0004 already commits this whole project to GPL-3.0 because of Rubber Band,
+# so there's no license upside to the "lgpl" build costing this app its one
+# actual pitch/tempo engine.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xz-utils \
   && ffmpeg_arch="$(dpkg --print-architecture)" \
   && case "$ffmpeg_arch" in \
@@ -49,11 +53,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     arm64) ffmpeg_arch=linuxarm64 ;; \
     *) echo "unsupported architecture for the ffmpeg static build: $ffmpeg_arch" >&2; exit 1 ;; \
   esac \
-  && curl -fL "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-${ffmpeg_arch}-lgpl.tar.xz" -o /tmp/ffmpeg.tar.xz \
-  && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp "ffmpeg-master-latest-${ffmpeg_arch}-lgpl/bin/ffmpeg" "ffmpeg-master-latest-${ffmpeg_arch}-lgpl/bin/ffprobe" \
-  && install -m a=rx "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-lgpl/bin/ffmpeg" /usr/local/bin/ffmpeg \
-  && install -m a=rx "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-lgpl/bin/ffprobe" /usr/local/bin/ffprobe \
-  && rm -rf /tmp/ffmpeg.tar.xz "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-lgpl" \
+  && curl -fL "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-${ffmpeg_arch}-gpl.tar.xz" -o /tmp/ffmpeg.tar.xz \
+  && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp "ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffmpeg" "ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffprobe" \
+  && install -m a=rx "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffmpeg" /usr/local/bin/ffmpeg \
+  && install -m a=rx "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffprobe" /usr/local/bin/ffprobe \
+  && rm -rf /tmp/ffmpeg.tar.xz "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-gpl" \
   && curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
   && chmod a+rx /usr/local/bin/yt-dlp \
   && apt-get purge -y curl xz-utils && apt-get autoremove -y \
