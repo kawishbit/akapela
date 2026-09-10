@@ -16,10 +16,10 @@ Everything stays on your machine — the audio, your recordings, and the databas
 - **Download** the Mix as MP3, or as WAV if you want the lossless version.
 
 <p align="center">
-  <img src="./assets/readme/demo.gif" width="100%" alt="Akapela demo: browsing the library, a Track's Song, Lyrics, and Stems, applying the Nightcore preset, and reviewing and playing back a rendered Mix">
+  <img src="./assets/readme/demo.gif" width="100%" alt="Akapela demo: importing a Track from YouTube, separating its vocals into Stems, singing to synced Lyrics and recording a Take, then reviewing it and rendering a Mix">
 </p>
 
-_A quick tour of the library, a Track's Lyrics and Stems, the Adjustments presets, and reviewing a Mix. Recorded without a live microphone, so singing and recording a Take aren't shown._
+_The whole loop, start to finish: an empty library, a Track imported from YouTube, its vocals separated into Stems, singing to synced Lyrics and recording a Take, then Review — pitch, Backing Source, and the Effects — and a rendered Mix played back._
 
 ## Running it
 
