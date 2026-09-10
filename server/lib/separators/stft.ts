@@ -1,7 +1,18 @@
-// @ts-expect-error - ndarray-fft ships no types
-import fft from 'ndarray-fft'
-// @ts-expect-error - ndarray ships no types
-import ndarray from 'ndarray'
+// `ndarray-fft`'s public export (`ndfft`) treats an N-d ndarray as an N-d
+// FFT — transforming every axis — so it can't batch "many independent 1-D
+// signals" the way this module needs to. Its row-batched engine can:
+// `lib/fft-matrix.js` (undocumented, but stable — this package hasn't
+// published since 1.0.3, and is pinned exactly in the lockfile) transforms
+// `nrows` independent length-`ncols` signals packed into one flat buffer,
+// computing the non-power-of-two (Bluestein) twiddle/chirp tables once for
+// the whole batch instead of once per signal. That reuse is the entire
+// point of reaching past the package's main entry point: `n_fft` here is
+// 6144, not a power of two, and Bluestein's setup — an O(n log n) FFT of
+// its own, run to build the chirp tables — dominated real runtime when
+// `forward`/`inverse` called the public API once per STFT frame (hundreds of
+// `fft()` calls per model chunk, each rebuilding those tables from scratch).
+// @ts-expect-error - ndarray-fft ships no types, and this subpath isn't in its "main"
+import fftm from 'ndarray-fft/lib/fft-matrix.js'
 
 /**
  * Short-Time Fourier Transform and its inverse, matching `torch.stft`/
@@ -59,28 +70,58 @@ export class Stft {
     this.window = hannWindowPeriodic(nFft)
   }
 
+  /**
+   * `real`/`imag` are `nrows` independent length-`nFft` signals, packed
+   * row-major and transformed in place along that row axis — `nrows` frames
+   * from a single channel, or frames from both channels stacked together,
+   * transformed as one batch so `fftm` (see the import above) builds its
+   * Bluestein tables once for the whole call rather than once per row.
+   */
+  private transformRows(dir: 1 | -1, real: Float64Array, imag: Float64Array, nrows: number): void {
+    const ncols = this.nFft
+    const rowLen = nrows * ncols
+    // `fftm` (unlike the ndarray-fft entry point) works on a flat buffer with
+    // integer offsets, real and imaginary parts included, sized for its own
+    // Bluestein scratch space (`scratchMemory` is 0 when `ncols` is a power
+    // of two, as the small STFT config the unit tests use is).
+    const buffer = new Float64Array(2 * rowLen + fftm.scratchMemory(ncols))
+    buffer.set(real, 0)
+    buffer.set(imag, rowLen)
+    fftm(dir, nrows, ncols, buffer, 0, rowLen, 2 * rowLen)
+    real.set(buffer.subarray(0, rowLen))
+    imag.set(buffer.subarray(rowLen, 2 * rowLen))
+  }
+
   /** `channels` is `[left, right]`, each the same length (one demix chunk). */
   forward(channels: [Float64Array, Float64Array]): Spectrogram {
     const padded = channels.map(c => reflectPad(c, this.nFft / 2, this.nFft / 2))
     const nFrames = 1 + Math.floor((padded[0]!.length - this.nFft) / this.hopLength)
     const data = new Float64Array(4 * this.dimF * nFrames)
 
-    const re = new Float64Array(this.nFft)
-    const im = new Float64Array(this.nFft)
+    // Rows 0..nFrames-1 are the left channel's frames, nFrames..2*nFrames-1
+    // the right channel's — one batch covers both channels' whole STFT.
+    const totalRows = 2 * nFrames
+    const real = new Float64Array(totalRows * this.nFft)
+    const imag = new Float64Array(totalRows * this.nFft)
     for (let ch = 0; ch < 2; ch++) {
       const signal = padded[ch]!
       for (let t = 0; t < nFrames; t++) {
         const start = t * this.hopLength
-        for (let n = 0; n < this.nFft; n++) {
-          re[n] = signal[start + n]! * this.window[n]!
-          im[n] = 0
-        }
-        fft(1, ndarray(re, [this.nFft]), ndarray(im, [this.nFft]))
-        const reChannel = ch * 2
-        const imChannel = ch * 2 + 1
+        const rowBase = (ch * nFrames + t) * this.nFft
+        for (let n = 0; n < this.nFft; n++) real[rowBase + n] = signal[start + n]! * this.window[n]!
+      }
+    }
+
+    this.transformRows(1, real, imag, totalRows)
+
+    for (let ch = 0; ch < 2; ch++) {
+      const reChannel = ch * 2
+      const imChannel = ch * 2 + 1
+      for (let t = 0; t < nFrames; t++) {
+        const rowBase = (ch * nFrames + t) * this.nFft
         for (let f = 0; f < this.dimF; f++) {
-          data[reChannel * this.dimF * nFrames + f * nFrames + t] = re[f]!
-          data[imChannel * this.dimF * nFrames + f * nFrames + t] = im[f]!
+          data[reChannel * this.dimF * nFrames + f * nFrames + t] = real[rowBase + f]!
+          data[imChannel * this.dimF * nFrames + f * nFrames + t] = imag[rowBase + f]!
         }
       }
     }
@@ -95,18 +136,19 @@ export class Stft {
     const result: [Float64Array, Float64Array] = [new Float64Array(paddedLength), new Float64Array(paddedLength)]
     const windowSum = new Float64Array(paddedLength)
 
-    const fullRe = new Float64Array(this.nFft)
-    const fullIm = new Float64Array(this.nFft)
-
+    // Same row-batching as `forward`: both channels' frames, conjugate-
+    // symmetrically extended to the full spectrum, transformed in one call.
+    const totalRows = 2 * nFrames
+    const real = new Float64Array(totalRows * this.nFft)
+    const imag = new Float64Array(totalRows * this.nFft)
     for (let ch = 0; ch < 2; ch++) {
       const reChannel = ch * 2
       const imChannel = ch * 2 + 1
       for (let t = 0; t < nFrames; t++) {
-        fullRe.fill(0)
-        fullIm.fill(0)
+        const rowBase = (ch * nFrames + t) * this.nFft
         for (let f = 0; f < dimF; f++) {
-          fullRe[f] = data[reChannel * dimF * nFrames + f * nFrames + t]!
-          fullIm[f] = data[imChannel * dimF * nFrames + f * nFrames + t]!
+          real[rowBase + f] = data[reChannel * dimF * nFrames + f * nFrames + t]!
+          imag[rowBase + f] = data[imChannel * dimF * nFrames + f * nFrames + t]!
         }
         // dimF stops one bin short of the full one-sided spectrum (the
         // Nyquist bin was dropped on the way in); left at zero here, matching
@@ -114,16 +156,21 @@ export class Stft {
         // Conjugate-symmetric extension to the full n_fft spectrum, which is
         // what makes the complex IFFT below come out real-valued.
         for (let f = 1; f < this.nFft / 2; f++) {
-          fullRe[this.nFft - f] = fullRe[f]!
-          fullIm[this.nFft - f] = -fullIm[f]!
+          real[rowBase + this.nFft - f] = real[rowBase + f]!
+          imag[rowBase + this.nFft - f] = -imag[rowBase + f]!
         }
+      }
+    }
 
-        fft(-1, ndarray(fullRe, [this.nFft]), ndarray(fullIm, [this.nFft]))
+    this.transformRows(-1, real, imag, totalRows)
 
+    for (let ch = 0; ch < 2; ch++) {
+      const out = result[ch]!
+      for (let t = 0; t < nFrames; t++) {
+        const rowBase = (ch * nFrames + t) * this.nFft
         const start = t * this.hopLength
-        const out = result[ch]!
         for (let n = 0; n < this.nFft; n++) {
-          const windowed = fullRe[n]! * this.window[n]!
+          const windowed = real[rowBase + n]! * this.window[n]!
           out[start + n] = out[start + n]! + windowed
           if (ch === 0) windowSum[start + n] = windowSum[start + n]! + this.window[n]! * this.window[n]!
         }

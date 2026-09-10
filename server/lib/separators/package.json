@@ -1,0 +1,16 @@
+{
+  "name": "akapela-separate-cli",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "ndarray": "^1.1.1",
+    "ndarray-fft": "^1.0.3",
+    "onnxruntime-node": "^1.29.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "onnxruntime-node"
+    ]
+  }
+}

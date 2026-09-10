@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os'
 import * as ort from 'onnxruntime-node'
 // Explicit extension: this module also runs as a standalone `node` subprocess
 // (`separate-cli.ts`, for CPU isolation), which needs it — plain Node's ESM
@@ -93,7 +94,21 @@ export class MdxNetModel {
   }
 
   private async session_(): Promise<ModelSession> {
-    this.session ??= await ort.InferenceSession.create(this.modelPath)
+    // Left to itself, onnxruntime sizes its intra-op thread pool off the
+    // *host's* core count (`std::thread::hardware_concurrency()`), which
+    // has no idea about a container's cgroup CPU quota — this app's own
+    // `docker compose up` ships with `deploy.resources.limits.cpus: "2"`.
+    // On a host with many more cores than that quota, the session spins up
+    // a thread for each of them anyway, and they all contend for the 2 CPUs
+    // the container actually gets: the resulting scheduling overhead is
+    // severe enough to turn a several-minute separation into tens of
+    // minutes. `os.availableParallelism()` is cgroup-aware (Node/libuv read
+    // it from `cpu.max` under cgroup v2) and reflects what's actually
+    // available, unlike `os.cpus().length`.
+    this.session ??= await ort.InferenceSession.create(this.modelPath, {
+      executionProviders: ['cpu'],
+      intraOpNumThreads: Math.max(1, availableParallelism()),
+    })
     return this.session
   }
 
