@@ -16,7 +16,7 @@ Everything stays on your machine — the audio, your recordings, and the databas
 - **Download** the Mix as MP3, or as WAV if you want the lossless version.
 
 <p align="center">
-  <img src="./assets/readme/demo.mp4" width="100%" alt="Akapela demo: browsing the library, a Track's Song, Lyrics, and Stems, applying the Nightcore preset, and reviewing and playing back a rendered Mix">
+  <img src="./assets/readme/demo.gif" width="100%" alt="Akapela demo: browsing the library, a Track's Song, Lyrics, and Stems, applying the Nightcore preset, and reviewing and playing back a rendered Mix">
 </p>
 
 _A quick tour of the library, a Track's Lyrics and Stems, the Adjustments presets, and reviewing a Mix. Recorded without a live microphone, so singing and recording a Take aren't shown._
