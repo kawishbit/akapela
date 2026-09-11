@@ -12,6 +12,8 @@ export function useDesktop() {
   const bridge = shallowRef<AkapelaDesktopBridge | null>(null)
   const libraryDir = ref<string | null>(null)
   const update = ref<DesktopUpdate | null>(null)
+  const maximized = ref(false)
+  let unsubscribeMaximized: (() => void) | undefined
 
   onMounted(async () => {
     // Server-rendered first, so this can only be answered in the browser.
@@ -20,7 +22,15 @@ export function useDesktop() {
     bridge.value = found
     libraryDir.value = await found.libraryDir().catch(() => null)
     update.value = await found.update().catch(() => null)
+    maximized.value = await found.isWindowMaximized().catch(() => false)
+    unsubscribeMaximized = found.onWindowMaximizedChange((value) => { maximized.value = value })
   })
+
+  // Registered here rather than inside the `onMounted` callback above, so it
+  // still fires even though that callback returns before the `await`s above
+  // it settle — a hook is only ever picked up during the synchronous part of
+  // setup.
+  onUnmounted(() => unsubscribeMaximized?.())
 
   /**
    * Opens the native folder picker. Resolves to what happened, so the page can
@@ -37,11 +47,16 @@ export function useDesktop() {
 
   return {
     isDesktop: computed(() => bridge.value !== null),
+    platform: computed(() => bridge.value?.platform ?? null),
     version: computed(() => bridge.value?.version ?? null),
     libraryDir,
     update,
+    maximized,
     chooseLibraryDir,
     revealLibraryDir: () => bridge.value?.revealLibraryDir(),
     openExternal: (url: string) => bridge.value?.openExternal(url),
+    minimizeWindow: () => bridge.value?.minimizeWindow(),
+    toggleMaximizeWindow: () => bridge.value?.toggleMaximizeWindow(),
+    closeWindow: () => bridge.value?.closeWindow(),
   }
 }

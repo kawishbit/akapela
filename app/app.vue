@@ -18,6 +18,7 @@ useHead(() => ({
 
 <template>
   <div class="min-h-dvh bg-ground text-text">
+    <TitleBar />
     <NuxtPage />
     <PlayerBar v-if="showPlayerBar" />
   </div>

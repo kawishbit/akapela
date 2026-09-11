@@ -5,6 +5,9 @@ import { UNSUPPORTED_UPLOAD_MESSAGE, UPLOAD_ACCEPT, UPLOAD_EXTENSIONS_SENTENCE, 
 import { INVALID_YOUTUBE_URL_MESSAGE, youtubeVideoId } from '~~/shared/youtube'
 
 const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry } = useLibrary()
+// The Desktop App's title bar carries this link itself (`TitleBar.vue`); a
+// browser has no title bar, so this is its only way to Settings.
+const { isDesktop } = useDesktop()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const pendingDelete = ref<TrackWithJob | null>(null)
@@ -153,6 +156,7 @@ async function onRetry(track: TrackWithJob) {
       </h1>
       <div class="flex flex-wrap items-center gap-2">
         <NuxtLink
+          v-if="!isDesktop"
           to="/settings"
           class="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
           aria-label="Settings"

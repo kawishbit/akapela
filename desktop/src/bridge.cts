@@ -38,6 +38,17 @@ export interface AkapelaBridge {
   /** The newer release if the startup check found one, else null. */
   update: () => Promise<DesktopUpdate | null>
   openExternal: (url: string) => Promise<void>
+  /**
+   * The window has no native chrome of its own (`titlebar.ts`), so
+   * `TitleBar.vue` draws it and these are the controls that chrome would
+   * otherwise have carried.
+   */
+  isWindowMaximized: () => Promise<boolean>
+  minimizeWindow: () => Promise<void>
+  toggleMaximizeWindow: () => Promise<void>
+  closeWindow: () => Promise<void>
+  /** Keeps the maximize/restore icon in step with a maximize the singer triggered another way — a double-click on the drag strip, a Windows snap. Returns the unsubscribe. */
+  onWindowMaximizedChange: (listener: (maximized: boolean) => void) => () => void
 }
 
 export const BRIDGE_CHANNELS = {
@@ -46,4 +57,9 @@ export const BRIDGE_CHANNELS = {
   revealLibraryDir: 'akapela:reveal-library-dir',
   update: 'akapela:update',
   openExternal: 'akapela:open-external',
+  isWindowMaximized: 'akapela:window-is-maximized',
+  minimizeWindow: 'akapela:window-minimize',
+  toggleMaximizeWindow: 'akapela:window-toggle-maximize',
+  closeWindow: 'akapela:window-close',
+  windowMaximizedChanged: 'akapela:window-maximized-changed',
 } as const

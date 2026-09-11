@@ -11,6 +11,7 @@ import { buildMenu } from './menu.js'
 import { choosePort } from './port.js'
 import { AkapelaServer, serverAnswersAt, ServerStartError } from './server.js'
 import { errorPage, loadingPage } from './splash.js'
+import { titleBarWindowOptions } from './titlebar.js'
 import { checkForUpdate } from './update-check.js'
 
 /**
@@ -81,6 +82,10 @@ function serverEnvironment(): NodeJS.ProcessEnv {
   return {
     NUXT_DATA_DIR: library,
     NUXT_MIGRATIONS_DIR: layout.migrationsDir,
+    // The Mix render hands ffmpeg the reverb impulse response as a file path,
+    // and the server would otherwise resolve it against a cwd it inherited
+    // from Electron rather than its own root — so a Mix with any reverb fails.
+    AKAPELA_PUBLIC_DIR: overrideIfPresent(layout.publicDir),
     AKAPELA_FFMPEG: overrideIfPresent(layout.ffmpeg),
     AKAPELA_FFPROBE: overrideIfPresent(layout.ffprobe),
     AKAPELA_SEPARATE_CLI: overrideIfPresent(layout.separateCli),
@@ -113,6 +118,7 @@ async function createWindow(origin: string): Promise<BrowserWindow> {
     minHeight: MIN_WINDOW_SIZE.height,
     backgroundColor: '#121212',
     title: 'Akapela',
+    ...titleBarWindowOptions(process.platform),
     webPreferences: {
       preload: join(here, 'preload.cjs'),
       contextIsolation: true,
@@ -134,6 +140,13 @@ async function createWindow(origin: string): Promise<BrowserWindow> {
   created.on('resized', remember)
   created.on('moved', remember)
   created.on('close', remember)
+
+  // The window draws its own maximize/restore icon (`TitleBar.vue`), so it
+  // has to hear about a maximize the singer triggered another way — a
+  // double-click on the drag strip, a Windows snap — not only one it asked
+  // the shell for through the bridge.
+  created.on('maximize', () => created.webContents.send(BRIDGE_CHANNELS.windowMaximizedChanged, true))
+  created.on('unmaximize', () => created.webContents.send(BRIDGE_CHANNELS.windowMaximizedChanged, false))
 
   // The operating system has already asked about the microphone — on macOS it
   // gates that on the entitlement in the Info.plist — so a second prompt has
@@ -264,6 +277,14 @@ function registerBridge(): void {
     // Reachable from the page, so only ever a link — never a local path.
     if (typeof url === 'string' && /^https?:\/\//.test(url)) await shell.openExternal(url)
   })
+  ipcMain.handle(BRIDGE_CHANNELS.isWindowMaximized, () => mainWindow?.isMaximized() ?? false)
+  ipcMain.handle(BRIDGE_CHANNELS.minimizeWindow, () => mainWindow?.minimize())
+  ipcMain.handle(BRIDGE_CHANNELS.toggleMaximizeWindow, () => {
+    if (!mainWindow) return
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
+    else mainWindow.maximize()
+  })
+  ipcMain.handle(BRIDGE_CHANNELS.closeWindow, () => mainWindow?.close())
 }
 
 app.on('second-instance', () => {

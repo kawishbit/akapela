@@ -40,6 +40,11 @@ declare global {
     revealLibraryDir: () => Promise<void>
     update: () => Promise<DesktopUpdate | null>
     openExternal: (url: string) => Promise<void>
+    isWindowMaximized: () => Promise<boolean>
+    minimizeWindow: () => Promise<void>
+    toggleMaximizeWindow: () => Promise<void>
+    closeWindow: () => Promise<void>
+    onWindowMaximizedChange: (listener: (maximized: boolean) => void) => () => void
   }
 
   interface Window {
