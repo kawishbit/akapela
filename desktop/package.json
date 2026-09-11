@@ -1,0 +1,37 @@
+{
+  "name": "akapela-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "description": "Akapela as a desktop app: a window over the same server compose runs.",
+  "type": "module",
+  "main": "dist/src/main.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "predev": "npm run build",
+    "dev": "electron dist/src/main.js",
+    "fetch-binaries": "npm run build && node dist/scripts/fetch-binaries.js",
+    "prepack:app": "npm run build && node dist/scripts/prepack.js",
+    "pack:app": "npm run prepack:app && electron-builder --publish never",
+    "pack:dir": "npm run prepack:app && electron-builder --dir --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
+    "eslint": "^10.0.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller"
+    ]
+  }
+}

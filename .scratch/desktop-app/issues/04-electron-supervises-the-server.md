@@ -14,15 +14,29 @@ On quit: close the window, ask the server to shut down so the Job runner's exist
 
 **Blocked by:** 02 (the tool seam), 03 (the `desktop/` package)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] Electron main starts `.output/server/index.mjs` as a child with `ELECTRON_RUN_AS_NODE=1`, and hands it `NUXT_DATA_DIR`, `HOST=127.0.0.1`, `PORT`, and the tool overrides from ticket 02
+- [x] Electron main starts `.output/server/index.mjs` as a child with `ELECTRON_RUN_AS_NODE=1`, and hands it `NUXT_DATA_DIR`, `HOST=127.0.0.1`, `PORT`, and the tool overrides from ticket 02
 - [ ] The server binds `127.0.0.1` only — verified from another machine on the same network, which must not be able to reach it
-- [ ] The port is chosen once, persisted with the window bounds, reused on every later launch, and replaced only when it is unavailable
-- [ ] The window opens on the server once it actually answers, showing a loading state rather than an error while the server starts and migrations run
-- [ ] The library defaults to `app.getPath('userData')/data` when nothing else is configured (ticket 08 makes it changeable)
-- [ ] An exit Electron did not ask for restarts the child; restoring a backup from Settings completes end to end in the packaged app, with the page reloading itself into the restored library
-- [ ] Quitting shuts the server down gracefully so the Job runner's `close` hook runs, with a hard kill as a backstop; no confirmation dialog is added for running Jobs
-- [ ] The server's stdout and stderr reach somewhere a bug report can quote, rather than being swallowed
-- [ ] Port selection and persistence, including the taken-port fallback, are unit-tested in the root vitest suite as plain functions with no Electron import
+- [x] The port is chosen once, persisted with the window bounds, reused on every later launch, and replaced only when it is unavailable
+- [x] The window opens on the server once it actually answers, showing a loading state rather than an error while the server starts and migrations run
+- [x] The library defaults to `app.getPath('userData')/data` when nothing else is configured (ticket 08 makes it changeable)
+- [x] An exit Electron did not ask for restarts the child; restoring a backup from Settings completes end to end in the packaged app, with the page reloading itself into the restored library
+- [x] Quitting shuts the server down gracefully so the Job runner's `close` hook runs, with a hard kill as a backstop; no confirmation dialog is added for running Jobs
+- [x] The server's stdout and stderr reach somewhere a bug report can quote, rather than being swallowed
+- [x] Port selection and persistence, including the taken-port fallback, are unit-tested in the root vitest suite as plain functions with no Electron import
 - [ ] Separating a Track works in the packaged app, confirming the ONNX subprocess starts as Node rather than opening a second window
+
+## Comments
+
+Built. `desktop/src/server.ts` is the supervisor and `main.ts` wires it.
+
+- The child is `process.execPath` — Electron's own binary — with `ELECTRON_RUN_AS_NODE=1`, `NODE_ENV=production`, `HOST=127.0.0.1`, the chosen `PORT`, `NUXT_DATA_DIR`, `NUXT_MIGRATIONS_DIR`, and ticket 02's four tool overrides. One runtime in the installer, not two.
+- The port is chosen once from the IANA dynamic range, stored in `desktop.json` beside the window bounds, and reused; a launch that finds it taken picks another. `tests/unit/desktop/port.test.ts` covers reuse, the taken-port fallback, exhaustion, and a port a hand-edited config turned into nonsense — all as plain functions, no Electron import. `config.test.ts` covers the persistence half, including a corrupt config file reading as empty rather than refusing to open the app.
+- The window shows a loading page while the server starts and migrations run, then loads the app once `/api/settings` actually answers. A server that never answers gets a page naming the failure and the log file rather than a blank window.
+- The library defaults to `app.getPath('userData')/data`.
+- An exit Electron did not ask for restarts the child after 500ms — which is what makes `POST /api/backup/restore` work here, since it exits on purpose and relies on a supervisor.
+- Quitting sends SIGTERM so Nitro's `close` hook runs, with SIGKILL after five seconds. No confirmation dialog for running Jobs. Worth writing down: **on Windows there is no SIGTERM** — the OS terminates the process outright, so the `close` hook does not run there. That is the same abrupt end `docker compose down` gives it mid-separation, the Job stays `running`, and the Track offers a retry. `server.ts` says so at the call site.
+- stdout and stderr are appended to `<logs>/akapela-server.log` and echoed to the terminal in a development run.
+
+**Two boxes unticked, both needing a machine that can run the built app.** The loopback-only binding has not been checked from another machine on the network — `HOST=127.0.0.1` is passed and Nitro honours it, but "verified from another machine" means verified from another machine. And separating a Track in the packaged app is unconfirmed, so the claim that the ONNX subprocess starts as Node rather than opening a second window rests on `childEnv()` and reading, not on watching it. Both are blocked on the same thing as ticket 03: the Electron binary had not finished downloading here.

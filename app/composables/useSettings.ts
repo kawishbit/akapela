@@ -13,6 +13,7 @@ export function useSettings() {
     lyricsProviders: [DEFAULT_LYRICS_PROVIDER, 'manual'],
     micProcessingDefault: false,
     monitoringDefault: false,
+    ytDlpUpdatable: false,
   }
 
   const { data, refresh } = useAsyncData<AppSettings>(
@@ -60,6 +61,7 @@ export function useSettings() {
     defaultLyricsProvider: computed(() => data.value?.defaultLyricsProvider ?? DEFAULT_LYRICS_PROVIDER),
     micProcessingDefault: computed(() => data.value?.micProcessingDefault ?? false),
     monitoringDefault: computed(() => data.value?.monitoringDefault ?? false),
+    ytDlpUpdatable: computed(() => data.value?.ytDlpUpdatable ?? false),
     saving,
     saveError,
     setDefaultLyricsProvider,

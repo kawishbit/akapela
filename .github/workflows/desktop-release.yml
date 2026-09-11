@@ -1,0 +1,128 @@
+# Builds the desktop installers on a tag and publishes them to a GitHub
+# Release with checksums.
+#
+# This is a matrix rather than something run from a development machine
+# because a macOS DMG has to be built and notarized on a macOS runner — that
+# is the forcing function, not a preference.
+name: Desktop release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            arch: x64
+          # darwin-arm64 is deliberately absent, and putting it back needs one
+          # thing first: `desktop/scripts/binaries.json` has no Apple Silicon
+          # ffmpeg pinned, because no publisher has been found that ships one
+          # confirmed to carry librubberband — and an ffmpeg without it would
+          # silently lose every Adjustment rather than fail. Matrixing a leg
+          # that always fails would only stop the release from being cut, since
+          # `publish` needs `build`. Pin one, then add it back here and to
+          # `electron-builder.yml`. See ticket 05 of `.scratch/desktop-app/`.
+          - os: macos-13
+            platform: darwin
+            arch: x64
+          # Included because it comes free with the others.
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # The app itself, exactly as it is built for the container. The desktop
+      # shell wraps this; it does not replace any of it (ADR 0009).
+      - name: Build the app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Install the desktop shell
+        working-directory: desktop
+        # `desktop/` is installed and run from inside its own directory —
+        # there is no pnpm workspace in this repo, and the root install (the
+        # one the Dockerfile runs) must never see Electron.
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch the pinned ffmpeg and ffprobe
+        working-directory: desktop
+        run: pnpm fetch-binaries -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+
+      - name: Build the installer
+        working-directory: desktop
+        env:
+          AKAPELA_TARGET_PLATFORM: ${{ matrix.platform }}
+          AKAPELA_TARGET_ARCH: ${{ matrix.arch }}
+          # macOS is signed and notarized. An unsigned macOS build is refused
+          # outright — "Akapela is damaged and can't be opened" — not warned
+          # about, and a normal user has no way past it, so this is the
+          # difference between a mac build existing and not existing.
+          # Windows is deliberately unsigned for now: SmartScreen warns and can
+          # be clicked through, which is survivable next to a few hundred
+          # dollars a year for a certificate on a first release nobody has
+          # installed. Revisit if people actually hit it.
+          CSC_LINK: ${{ matrix.platform == 'darwin' && secrets.MAC_CERTIFICATE_P12 || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'darwin' && secrets.MAC_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: pnpm pack:app -- --${{ matrix.arch }}
+
+      - name: Checksum the artifacts
+        working-directory: desktop/release
+        shell: bash
+        run: |
+          shopt -s nullglob
+          # macOS runners have `shasum`, not `sha256sum`.
+          sha256() { command -v sha256sum >/dev/null && sha256sum "$1" || shasum -a 256 "$1"; }
+          for file in *.exe *.dmg *.AppImage *.zip; do
+            sha256 "$file" > "$file.sha256"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: akapela-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.dmg
+            desktop/release/*.AppImage
+            desktop/release/*.sha256
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          # No auto-updater: the app checks this release and links here. The
+          # notes say which platforms are signed and what a Windows user will
+          # see the first time.
+          generate_release_notes: true

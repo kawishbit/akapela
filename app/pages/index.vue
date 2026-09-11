@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Link, Loader2, Music2, Plus, Search, Settings, X } from 'lucide-vue-next'
 import type { TrackWithJob } from '~~/server/lib/tracks'
-import { UPLOAD_ACCEPT, UPLOAD_EXTENSIONS_SENTENCE } from '~~/shared/upload'
+import { UNSUPPORTED_UPLOAD_MESSAGE, UPLOAD_ACCEPT, UPLOAD_EXTENSIONS_SENTENCE, uploadExtension } from '~~/shared/upload'
 import { INVALID_YOUTUBE_URL_MESSAGE, youtubeVideoId } from '~~/shared/youtube'
 
 const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry } = useLibrary()
@@ -26,6 +26,49 @@ async function onFilesChosen(event: Event) {
   const files = Array.from(input.files ?? [])
   input.value = ''
   if (files.length) await upload(files)
+}
+
+/**
+ * Dropping files on the library.
+ *
+ * The same import path the file picker uses, with the same validation and the
+ * same messages — nothing new on the server, no new Job kind, no new state.
+ * Anything unsupported is refused by name rather than silently ignored, and a
+ * mixed drop imports none of it rather than importing some and dropping the
+ * rest on the floor.
+ *
+ * Deliberately not here: dock and taskbar drops, and "Open with Akapela" file
+ * associations. Both mean a cold start that arrives with a file already in
+ * hand, which is real machinery for an affordance nobody asked for.
+ */
+const dragging = ref(false)
+let dragDepth = 0
+
+function onDragEnter(event: DragEvent) {
+  if (!event.dataTransfer?.types.includes('Files')) return
+  dragDepth++
+  dragging.value = true
+}
+
+function onDragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) dragging.value = false
+}
+
+async function onDrop(event: DragEvent) {
+  dragDepth = 0
+  dragging.value = false
+  const items = Array.from(event.dataTransfer?.files ?? [])
+  if (!items.length) return
+
+  // A dropped folder arrives as a zero-byte entry with no extension, which
+  // `uploadExtension` refuses along with everything else unsupported.
+  const refused = items.filter(file => !uploadExtension(file.name))
+  if (refused.length) {
+    uploadError.value = refused.map(file => `${file.name}: ${UNSUPPORTED_UPLOAD_MESSAGE}`).join('\n')
+    return
+  }
+  await upload(items)
 }
 
 async function openUrlForm() {
@@ -87,7 +130,23 @@ async function onRetry(track: TrackWithJob) {
 </script>
 
 <template>
-  <main class="mx-auto max-w-6xl px-4 pb-36 pt-6 sm:pb-28 sm:pt-8">
+  <main
+    class="relative mx-auto max-w-6xl px-4 pb-36 pt-6 sm:pb-28 sm:pt-8"
+    @dragenter.prevent="onDragEnter"
+    @dragover.prevent
+    @dragleave="onDragLeave"
+    @drop.prevent="onDrop"
+  >
+    <div
+      v-if="dragging"
+      class="pointer-events-none fixed inset-3 z-40 flex items-center justify-center rounded-[12px] border-2 border-dashed border-accent bg-ground/80"
+      aria-hidden="true"
+    >
+      <p class="text-sm font-bold uppercase tracking-[1.4px] text-text">
+        Drop to import
+      </p>
+    </div>
+
     <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-2xl font-bold tracking-tight">
         Your Library

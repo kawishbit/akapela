@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { decodeWav, encodeWav } from '../../../app/audio/wav'
 import { fetchModel } from '../separators/download-model'
+import { childEnv, separateCliPath } from '../tools'
 import type { Handler } from '../jobs-runner'
 import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir, trackExists } from './track-paths'
 
@@ -28,22 +29,6 @@ export interface Separator {
   /** Runs the model over the Backing Track WAV at `backingPath`. */
   separate: (backingPath: string, modelsDir: string) => Promise<Stems>
 }
-
-/**
- * `separate-cli.ts`, run as its own `node` subprocess — CPU isolation for
- * the ONNX inference, the same shape as every other heavy external
- * dependency this app spawns (ffmpeg, yt-dlp) rather than links against.
- *
- * Resolved against `process.cwd()`, the same convention `use-akapela.ts`
- * already uses for `dataDir`/`migrationsDir` — not `import.meta.url`, which
- * Nitro rewrites into its own `.nuxt` virtual module namespace even under
- * `pnpm dev`, not a real filesystem path (confirmed the hard way: it
- * resolved to a `.nuxt/separators/separate-cli.ts` that doesn't exist).
- * `process.cwd()` is the repo root under `pnpm dev`/`aspire run` and `/app`
- * in the compose image, where this file needs to actually be copied
- * (ticket 07's Dockerfile update) for this to keep working there.
- */
-const SEPARATE_CLI_PATH = resolve(process.cwd(), 'server/lib/separators/separate-cli.ts')
 
 export class MdxNetSeparator implements Separator {
   private modelPath: string | undefined
@@ -80,7 +65,17 @@ function runSeparateCli(
   vocalsOutPath: string,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [SEPARATE_CLI_PATH, modelPath, backingPath, instrumentalOutPath, vocalsOutPath])
+    // `separate-cli.ts`, run as its own subprocess — CPU isolation for the
+    // ONNX inference, the same shape as every other heavy external dependency
+    // this app spawns (ffmpeg, yt-dlp) rather than links against. `childEnv`
+    // carries `ELECTRON_RUN_AS_NODE=1`, without which `process.execPath` under
+    // a packaged desktop app is the GUI binary and this spawns a second
+    // window instead of running the CLI.
+    const child = spawn(
+      process.execPath,
+      [separateCliPath(), modelPath, backingPath, instrumentalOutPath, vocalsOutPath],
+      { env: childEnv() },
+    )
     let stderr = ''
     child.stderr.on('data', d => (stderr += d))
     child.on('error', error => reject(new Error(`could not start the separation subprocess: ${error.message}`)))

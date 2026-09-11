@@ -142,6 +142,9 @@ describe('a Akapela with no Genius token', () => {
       lyricsProviders: ['lrclib', 'manual'],
       micProcessingDefault: false,
       monitoringDefault: false,
+      // False everywhere but the Desktop App, which is the only Akapela that
+      // owns its own yt-dlp and can replace it (ADR 0010).
+      ytDlpUpdatable: false,
     })
   })
 
@@ -389,6 +392,9 @@ describe('the default Lyrics Provider', () => {
       lyricsProviders: ['lrclib', 'genius', 'manual'],
       micProcessingDefault: false,
       monitoringDefault: false,
+      // False everywhere but the Desktop App, which is the only Akapela that
+      // owns its own yt-dlp and can replace it (ADR 0010).
+      ytDlpUpdatable: false,
     })
   })
 

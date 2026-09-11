@@ -15,11 +15,26 @@ Both are real machinery for an affordance nobody has asked for.
 
 **Blocked by:** 03 (the window)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Dropping a supported audio file (`mp3`, `m4a`, `wav`, `flac`, `ogg`) on the library window imports it through the existing upload path, with the same validation and the same error messages
-- [ ] Dropping anything else — an unsupported file, a folder, a link — is refused with the message the upload path already gives, rather than being silently ignored
-- [ ] Dropping several files at once either imports them all or refuses clearly; it does not import one and drop the rest on the floor
-- [ ] Nothing on the server changes
-- [ ] Dock and taskbar drops and file associations are not implemented
+- [x] Dropping a supported audio file (`mp3`, `m4a`, `wav`, `flac`, `ogg`) on the library window imports it through the existing upload path, with the same validation and the same error messages
+- [x] Dropping anything else — an unsupported file, a folder, a link — is refused with the message the upload path already gives, rather than being silently ignored
+- [x] Dropping several files at once either imports them all or refuses clearly; it does not import one and drop the rest on the floor
+- [x] Nothing on the server changes
+- [x] Dock and taskbar drops and file associations are not implemented
 - [ ] If this could not be done as a small change, the ticket is closed `wontfix` with a note saying what it would have taken
+
+## Comments
+
+Done, and it was a small diff: about 40 lines in `app/pages/index.vue`, nothing else. No server change, no new Job kind, no new state — it hands the dropped files to the same `upload()` the file picker calls.
+
+- Supported files (`mp3`, `m4a`, `wav`, `flac`, `ogg`) import through the existing upload path.
+- Anything else is refused with `UNSUPPORTED_UPLOAD_MESSAGE` from `shared/upload.ts`, named per file, rather than silently ignored. A dropped folder arrives as a zero-byte entry with no extension and is refused by the same rule.
+- A mixed drop refuses the whole thing and imports none of it, rather than importing some and dropping the rest on the floor.
+- A dashed outline appears while a drag carrying files is over the window, tracked by enter/leave depth so crossing a child element does not flicker it.
+
+Dock and taskbar drops and file associations are not implemented, deliberately.
+
+Worth noting it also works in a browser, since it is ordinary HTML drag-and-drop — the ticket framed it as a desktop affordance, and it is free in both.
+
+The last checkbox is about the `wontfix` path, which does not apply.

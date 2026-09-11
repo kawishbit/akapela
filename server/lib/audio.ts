@@ -9,6 +9,7 @@ import {
   REVERB_AMOUNT_MIN,
   type EffectsTarget,
 } from '../../shared/adjustments'
+import { ffmpegToolPath, type FfmpegTool } from './tools'
 
 /**
  * Thin wrappers over ffmpeg and ffprobe, ported from `worker/akapela_worker/audio.py`
@@ -24,9 +25,9 @@ export const BACKING_CHANNELS = 2
 export class AudioError extends Error {}
 
 /** Runs ffmpeg/ffprobe and rejects with `AudioError` on a non-zero exit. */
-function run(bin: 'ffmpeg' | 'ffprobe', args: string[]): Promise<string> {
+function run(bin: FfmpegTool, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args)
+    const child = spawn(ffmpegToolPath(bin), args)
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', d => (stdout += d))

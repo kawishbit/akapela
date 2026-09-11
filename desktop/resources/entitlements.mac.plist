@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    The one that matters, and the one with no build-time error when it is
+    missing: without it `getUserMedia` fails under the hardened runtime at the
+    exact moment someone presses record. Only a human trying to sing catches
+    that, which is why ticket 09 says to verify it by recording a Take in the
+    notarized build.
+  -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+
+  <!--
+    Electron's V8 needs both of these under the hardened runtime; without them
+    the app will not launch at all, which at least fails loudly.
+  -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!--
+    The server, the separation CLI, ffmpeg, and yt-dlp are all real child
+    processes, and yt-dlp is downloaded rather than signed alongside the app.
+  -->
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

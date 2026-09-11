@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { SETTINGS_ROW_ID, settings } from '../db/schema'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_PROVIDERS, type LyricsProviderName } from '../../shared/lyrics'
+import { ytDlpIsManaged } from './tools'
 import type { Akapela } from './akapela'
 
 /**
@@ -16,6 +17,13 @@ export interface AppSettings {
   micProcessingDefault: boolean
   /** Whether a new recording session starts with Monitoring on. */
   monitoringDefault: boolean
+  /**
+   * Whether this Akapela owns its yt-dlp and can replace it — true on the
+   * desktop, false under compose, where the image bakes one in and updating
+   * it means rebuilding the image (ADR 0010). What puts the "Update yt-dlp"
+   * control on the Settings page, or leaves it off.
+   */
+  ytDlpUpdatable: boolean
 }
 
 /** What a singer may pick: Manual always, plus every remote provider this instance can reach. */
@@ -39,6 +47,7 @@ export function getSettings(akapela: Akapela): AppSettings {
     lyricsProviders: offered,
     micProcessingDefault: row?.micProcessingDefault ?? false,
     monitoringDefault: row?.monitoringDefault ?? false,
+    ytDlpUpdatable: ytDlpIsManaged(),
   }
 }
 

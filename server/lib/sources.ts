@@ -2,6 +2,8 @@ import { mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { COVER_BASENAME, coverExtension } from './cover'
+import { childEnv, jsRuntimePath, ytDlpPath } from './tools'
+import { ensureManagedYtDlp } from './ytdlp'
 
 /**
  * Source fetchers: where a Track's audio and metadata come from. Ported from
@@ -38,6 +40,9 @@ export interface SourceFetcher {
 export class YtDlpFetcher implements SourceFetcher {
   async fetchMetadata(url: string, directory: string): Promise<SourceMetadata> {
     await mkdir(directory, { recursive: true })
+    // Desktop only, and only the first time: the app owns its yt-dlp there and
+    // fetches it when an import needs it. Inert everywhere else.
+    await ensureManagedYtDlp()
     const stdout = await runYtDlp(['-J', '--no-playlist', ...jsRuntimeArgs(), url])
 
     let info: Record<string, unknown>
@@ -62,6 +67,7 @@ export class YtDlpFetcher implements SourceFetcher {
 
   async downloadAudio(url: string, directory: string, onProgress: ProgressCallback): Promise<string> {
     await mkdir(directory, { recursive: true })
+    await ensureManagedYtDlp()
     // A retry may have left a different-extension file behind than this attempt will produce.
     for (const stale of await originalFiles(directory)) await rm(join(directory, stale), { force: true })
 
@@ -85,14 +91,25 @@ async function originalFiles(directory: string): Promise<string[]> {
  * YouTube's player challenges are solved by running JavaScript in an external
  * runtime. Node (22+) is what the image and dev machines have — the same
  * requirement the Python worker had, unrelated to this being Python.
+ *
+ * A singer who downloaded the desktop installer has no Node on their PATH, and
+ * without a runtime YouTube now refuses most formats rather than merely
+ * offering fewer — so the desktop shell sets `AKAPELA_JS_RUNTIME` to
+ * Electron's own binary and this hands yt-dlp that path outright.
+ * `--js-runtimes node:<path>` takes either a directory or the binary itself;
+ * yt-dlp then runs it as `node`, which it is, because `childEnv` puts
+ * `ELECTRON_RUN_AS_NODE=1` in the environment yt-dlp passes down to it. No
+ * fourth binary ships for this, and nothing changes for compose, `pnpm dev`,
+ * or `aspire run`, which all have a real Node and set no override.
  */
 function jsRuntimeArgs(): string[] {
-  return ['--js-runtimes', 'node']
+  const runtime = jsRuntimePath()
+  return ['--js-runtimes', runtime ? `node:${runtime}` : 'node']
 }
 
 function runYtDlp(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('yt-dlp', args)
+    const child = spawn(ytDlpPath(), args, { env: childEnv() })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', d => (stdout += d))
@@ -109,7 +126,7 @@ const PROGRESS_LINE = /\[download]\s+([\d.]+)%/
 
 function runYtDlpWithProgress(args: string[], onProgress: ProgressCallback): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn('yt-dlp', args)
+    const child = spawn(ytDlpPath(), args, { env: childEnv() })
     let stderr = ''
     let buffered = ''
 
@@ -131,11 +148,28 @@ function runYtDlpWithProgress(args: string[], onProgress: ProgressCallback): Pro
   })
 }
 
+/**
+ * What yt-dlp says when the JavaScript runtime it needs is missing or will not
+ * run. Generic on its own — "no supported JS runtime" means nothing to a
+ * singer — so it is named for what it is, and for which of the two situations
+ * they are in.
+ */
+const MISSING_JS_RUNTIME = /js\s*runtime|jsruntime|--js-runtimes/i
+
+function jsRuntimeAdvice(): string {
+  return jsRuntimePath()
+    ? 'Akapela could not run the JavaScript YouTube needs to hand over a video. '
+      + 'Try Update yt-dlp in Settings; if that does not help, this is worth reporting.'
+    : 'YouTube needs a JavaScript runtime to hand over a video, and there is no `node` on this machine\'s PATH. '
+      + 'Install Node 22 or newer (https://nodejs.org), or import the file instead.'
+}
+
 /** yt-dlp prefixes its messages with `ERROR:`; the card already says the import failed. */
 function cleanYtDlpMessage(stderr: string, exitCode: number | null): string {
   const cleaned = stderr
     .trim()
     .replace(/^(ERROR|WARNING):\s*/, '')
+  if (MISSING_JS_RUNTIME.test(cleaned)) return `${jsRuntimeAdvice()}\n\n${cleaned}`
   return cleaned || `yt-dlp failed without a message (exit code ${exitCode})`
 }
 

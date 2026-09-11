@@ -1,0 +1,88 @@
+{
+  "$comment": [
+    "linux-arm64 and win32-arm64 are pinned but their checksums are not recorded yet: nobody has downloaded",
+    "those two archives to hash them, and neither is in the release matrix. Run --record on them before",
+    "adding either to `.github/workflows/desktop-release.yml`.",
+    "",
+    "ffmpeg and ffprobe, pinned per platform. These ship inside the installer, unlike yt-dlp (ADR 0010).",
+    "The Dockerfile fetches `latest` and that is fine for a self-hoster building an image on their own",
+    "machine; it is not fine for a binary you sign and hand to other people, so every entry here names",
+    "one immutable build and the SHA-256 its archive must have. A mismatch fails the fetch.",
+    "",
+    "Always the `gpl` build variant, never `lgpl`: BtbN's own build scripts (scripts.d/50-rubberband.sh)",
+    "strip librubberband out of every lgpl* variant, and Rubber Band is this app's only pitch and tempo",
+    "engine — the Dockerfile carries the long version of this reasoning, and ADR 0004 already commits the",
+    "whole project to GPL-3.0 because of it. The macOS builds are checked the same way: evermeet.cx lists",
+    "rubberband among its external libraries.",
+    "",
+    "A null sha256 means nobody has verified that build yet, and `fetch-binaries.ts` refuses it. Run it",
+    "with --record on a machine that can reach the URL to fill one in."
+  ],
+  "platforms": {
+    "win32-x64": {
+      "archive": "zip",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-10-15-31/ffmpeg-N-126492-gefb0a7e5e7-win64-gpl.zip",
+      "$verified": "Downloaded and checked: `ffmpeg -version` reports --enable-gpl and --enable-librubberband, and `ffmpeg -filters` lists the rubberband filter.",
+      "sha256": "079321027fec0ad26225517b3b66d78336e001dd4cf152e85e5ba2e78f23535d",
+      "members": {
+        "ffmpeg.exe": "ffmpeg-N-126492-gefb0a7e5e7-win64-gpl/bin/ffmpeg.exe",
+        "ffprobe.exe": "ffmpeg-N-126492-gefb0a7e5e7-win64-gpl/bin/ffprobe.exe"
+      }
+    },
+    "win32-arm64": {
+      "archive": "zip",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-10-15-31/ffmpeg-N-126492-gefb0a7e5e7-winarm64-gpl.zip",
+      "sha256": null,
+      "members": {
+        "ffmpeg.exe": "ffmpeg-N-126492-gefb0a7e5e7-winarm64-gpl/bin/ffmpeg.exe",
+        "ffprobe.exe": "ffmpeg-N-126492-gefb0a7e5e7-winarm64-gpl/bin/ffprobe.exe"
+      }
+    },
+    "linux-x64": {
+      "archive": "tar.xz",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-10-15-31/ffmpeg-N-126492-gefb0a7e5e7-linux64-gpl.tar.xz",
+      "$verified": "Downloaded and hashed. Not run — the machine that pinned it was Windows. Same BtbN build matrix and same `gpl` variant as win32-x64, whose `ffmpeg -version` was checked and reports --enable-librubberband.",
+      "sha256": "41e0b9591520fa458917106b60fee083f647f8252423a60ebaf1f3f3db446a30",
+      "members": {
+        "ffmpeg": "ffmpeg-N-126492-gefb0a7e5e7-linux64-gpl/bin/ffmpeg",
+        "ffprobe": "ffmpeg-N-126492-gefb0a7e5e7-linux64-gpl/bin/ffprobe"
+      }
+    },
+    "linux-arm64": {
+      "archive": "tar.xz",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-10-15-31/ffmpeg-N-126492-gefb0a7e5e7-linuxarm64-gpl.tar.xz",
+      "sha256": null,
+      "members": {
+        "ffmpeg": "ffmpeg-N-126492-gefb0a7e5e7-linuxarm64-gpl/bin/ffmpeg",
+        "ffprobe": "ffmpeg-N-126492-gefb0a7e5e7-linuxarm64-gpl/bin/ffprobe"
+      }
+    },
+    "darwin-x64": {
+      "$comment": "BtbN publishes Linux and Windows only. evermeet.cx is the long-standing macOS publisher, one binary per archive, and its build carries rubberband 4.0.0.",
+      "archive": "zip-per-binary",
+      "sha256": null,
+      "$verified": "Downloaded and hashed. Not run — the machine that pinned it was Windows. evermeet.cx's own release info for 9.0.1 lists rubberband 4.0.0 among its external libraries, which is the check that matters here.",
+      "binaries": {
+        "ffmpeg": {
+          "url": "https://evermeet.cx/ffmpeg/ffmpeg-9.0.1.zip",
+          "sha256": "8a8c9e549983409fe6604b9aa665648b7a5def9407fe814c39c8b2ea7f64a48f",
+          "member": "ffmpeg"
+        },
+        "ffprobe": {
+          "url": "https://evermeet.cx/ffmpeg/ffprobe-9.0.1.zip",
+          "sha256": "d13f35db03456b7f65b7edb6437c86e23810fbfe91795e571f5b77211343b4f1",
+          "member": "ffprobe"
+        }
+      }
+    },
+    "darwin-arm64": {
+      "$comment": "Unresolved. evermeet.cx states outright that it will not publish native Apple Silicon builds, and no other publisher has been verified to ship an arm64 ffmpeg with librubberband compiled in. Until one is, this entry fails the fetch rather than shipping an ffmpeg that would silently lose every Adjustment. See ticket 05 of `.scratch/desktop-app/`.",
+      "archive": "zip-per-binary",
+      "sha256": null,
+      "binaries": {
+        "ffmpeg": { "url": null, "sha256": null, "member": "ffmpeg" },
+        "ffprobe": { "url": null, "sha256": null, "member": "ffprobe" }
+      }
+    }
+  }
+}

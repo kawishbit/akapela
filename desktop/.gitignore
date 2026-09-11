@@ -1,0 +1,8 @@
+node_modules/
+dist/
+# Downloaded per platform by `pnpm fetch-binaries`; pinned in
+# `scripts/binaries.json`, never committed.
+vendor/
+# What electron-builder writes, and what `prepack.ts` stages for it.
+release/
+staging/

@@ -23,6 +23,22 @@ _The whole loop, start to finish: an empty library, a Track imported from YouTub
 
 ## Running it
 
+Download it, open it, sing. Nothing else to install.
+
+**[Download Akapela](https://github.com/kawishbit/akapela/releases/latest)** — Windows, macOS, and a Linux AppImage. Check the release for which of those it actually carries; see [ADR 0009](docs/adr/0009-electron-wraps-the-server.md) for how the app is put together.
+
+Your library lives in the app's own folder by default. Settings shows you where, and lets you point it somewhere else — including at a folder a server install already built, which opens that library as it is.
+
+**On macOS**, builds are signed and notarized, so the app opens like any other one — an unsigned macOS build would be refused outright rather than warned about, which is why there simply isn't one.
+
+**On Windows**, the installer isn't signed yet. SmartScreen will show a blue "Windows protected your PC" box the first time; choose **More info**, then **Run anyway**. That's the whole of it, and it only happens once.
+
+**Updates** aren't automatic. The app checks for a newer release when it starts and says so quietly in Settings with a link to the download page.
+
+### Run it on a server
+
+If you'd rather have Akapela on all the time, reachable from every device in the house, run it with Docker instead. It's the same app.
+
 Akapela runs as one Docker container with one data folder. Docker with Compose is the only thing you need to install.
 
 ```
@@ -54,13 +70,19 @@ docker compose up -d --build
 
 Running `docker compose up -d` on its own just reuses the image you already built, so use `--build` whenever you've pulled new code. The database migrates itself on startup — there's no separate step for that.
 
-**Back it up from Settings.** "Download backup" gives you a WAL-checkpointed archive of everything that isn't re-downloadable — the database, every Track's audio, every Take and Mix — leaving out the separation model, which just downloads again if it's ever missing. "Restore from backup" replaces your entire library with what's in the file and restarts the app; `docker compose` brings it straight back up. You can still copy the data folder by hand while the stack is stopped, if you'd rather.
+**Back it up from Settings.** "Download backup" gives you a WAL-checkpointed archive of everything that isn't re-downloadable — the database, every Track's audio, every Take and Mix — leaving out the separation model, which just downloads again if it's ever missing. "Restore from backup" replaces your entire library with what's in the file and restarts the app; `docker compose` brings it straight back up, and so does the downloadable app. You can still copy the data folder by hand while the stack is stopped, if you'd rather.
+
+Both halves read the same data folder and the same database, so **a backup archive moves between the downloadable app and a Docker install in either direction** — take a backup on one, restore it on the other. You can also just point the downloadable app straight at a folder Docker built, from Settings, and it opens that library as it is.
 
 **There is no login.** Akapela has no accounts and no authentication: anyone who can reach the port can see your library and everything you've recorded. It's built to run on a machine on your own network. If you want it reachable from outside your network, put it behind something that checks who's asking — a reverse proxy with authentication, or a VPN — and let that handle TLS too.
 
 ### When YouTube imports break
 
-Akapela fetches YouTube audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp). YouTube changes its site without warning, so an import that worked last month can suddenly stop working. If that happens, an updated yt-dlp has almost always already shipped:
+Akapela fetches YouTube audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp). YouTube changes its site without warning, so an import that worked last month can suddenly stop working. If that happens, an updated yt-dlp has almost always already shipped.
+
+**In the downloadable app**, open Settings and press **Update yt-dlp**. The app keeps its own copy, so that's the whole fix — no reinstalling, nothing to wait for.
+
+**Under Docker**, yt-dlp is baked into the image, so updating it means rebuilding:
 
 ```
 git pull
@@ -108,6 +130,16 @@ pnpm typecheck
 pnpm test
 ```
 
+The desktop shell lives in `desktop/`, and it's deliberately thin — it starts the same server and points a window at it ([ADR 0009](docs/adr/0009-electron-wraps-the-server.md)), so almost every change still belongs in the Nuxt app. It's installed and run from inside its own directory, the way `apphost/` is, because Electron is a several-hundred-megabyte dependency the root install must never see:
+
+```
+cd desktop
+pnpm install
+AKAPELA_SERVER_URL=http://localhost:3000 pnpm dev
+```
+
+That opens a window on a server you're already running in another terminal, so hot reload and the Dashboard keep working. `AGENTS.md` covers building an actual installer.
+
 A few docs are worth reading before you dig in: `AGENTS.md` covers day-to-day development, configuring the AppHost, and reading traces; `CONTEXT.md` defines the project's vocabulary (Track, Song, Take, and Mix all have precise meanings here, and the code uses those exact words); `DESIGN.md` covers the visual design system; and `docs/adr/` records the reasoning behind past decisions.
 
 ## Roadmap
@@ -115,7 +147,7 @@ A few docs are worth reading before you dig in: `AGENTS.md` covers day-to-day de
 Nothing here is scheduled yet — this is roughly the order they'd get tackled in:
 
 - [x] Backup and restore from within the app
-- [ ] A desktop app (Electron)
+- [x] A desktop app (Electron)
 - [ ] Spotify import
 - [ ] Deezer import
 - [ ] SoundCloud import

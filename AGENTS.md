@@ -2,11 +2,13 @@
 
 A self-hosted karaoke app. Read `CONTEXT.md` for the vocabulary and `DESIGN.md` for the visual system before touching UI or domain code.
 
-## Two ways to run it, and which is which
+## Three ways it runs, and which is which
 
 **`aspire run` is the development path.** It starts the app as a local process with hot reload, with its logs and traces reported into the Aspire Dashboard. Use it for everything you do here. It needs the Aspire CLI, which is a development-time dependency and nothing else.
 
 **`docker compose up` is what a self-hoster runs.** It is the shipping artifact, it is what the Dockerfile builds, and the AppHost is never in that path (ADR 0007). It is not a development loop — it rebuilds on every edit and has no hot reload — so reach for it only when you are changing the Dockerfile or compose file themselves, or checking that what ships still works. A self-hoster never installs the Aspire CLI and never needs to know it exists; `README.md` is written so they do not have to.
+
+**`desktop/` builds the Desktop App a singer downloads.** It starts the same built Nitro server on loopback and points a window at it (ADR 0009); it does not replace or reimplement any of it. What is in `desktop/` is deliberately thin, and keeping it thin is the point: almost every change to Akapela still belongs in the Nuxt app and should never touch `desktop/`. See "The desktop shell" below for the loop.
 
 Neither path is needed for the checks. `pnpm lint`, `pnpm typecheck`, and `pnpm test` all run against the source with nothing started.
 
@@ -49,6 +51,35 @@ Those land in the AppHost's user secrets, outside the repo (`aspire secret list`
 Pin `app-port` only if you want a stable URL to type. It is the port the app is published on, not the one Nuxt listens on, so a fixed one collides with whatever else already holds it — which is why the default is to let Aspire allocate (ADR 0007).
 
 That is the Aspire path only. `docker compose up` still reads `.env` — `AKAPELA_PORT`, `AKAPELA_DATA`, and `AKAPELA_GENIUS_TOKEN`, unchanged; see `.env.example`.
+
+## The desktop shell
+
+`desktop/` is installed and run **from inside its own directory**. There is no pnpm workspace in this repo — `apphost/` works the same way, and for the same reason here: `electron` is a several-hundred-megabyte development dependency and the root `pnpm install` is what the Dockerfile runs. It must never see it. `pnpm lint`, `pnpm typecheck`, and `pnpm test` at the root are unaffected by any of this and never build the shell.
+
+The development loop points a window at a server you are already running:
+
+```
+pnpm dev                                     # or `aspire run`, in another terminal
+cd desktop && pnpm install
+AKAPELA_SERVER_URL=http://localhost:3000 pnpm dev
+```
+
+Hot reload survives, and under `aspire run` the Dashboard keeps collecting the app's logs and traces — the shell stays out of the way. With `AKAPELA_SERVER_URL` unset the shell starts `.output/server/index.mjs` itself and supervises it, which is the production shape; that one needs a `pnpm build` at the root first, and the bundled binaries below.
+
+Building an actual installer:
+
+```
+pnpm build                                   # at the repo root, for .output
+cd desktop
+pnpm fetch-binaries                          # ffmpeg and ffprobe, pinned in scripts/binaries.json
+pnpm pack:app
+```
+
+`pnpm fetch-binaries -- --platform win32 --arch x64` cross-fetches for another platform; the checksums are pinned and a mismatch fails loudly. Installers are built on a GitHub Actions matrix (`.github/workflows/desktop-release.yml`) rather than a development machine, because a macOS DMG has to be signed and notarized on a macOS runner.
+
+The parts of the shell that are easy to get wrong — the port rules, the window bounds, the config store, the packaged layout, the version check — are plain functions with no Electron import, covered by the **root** vitest suite in `tests/unit/desktop/`. Keep them that way; there is no e2e harness and there is not meant to be one (ADR 0009).
+
+The four external tools the server shells out to all sit behind `server/lib/tools.ts`. Set no override and it resolves bare names off `PATH` exactly as compose does; the shell sets absolute paths. Anything that spawns a process from the server should go through `childEnv()`, which carries `ELECTRON_RUN_AS_NODE=1` — without it, a packaged app spawning `process.execPath` opens a second window instead of running the child.
 
 ## Committing
 

@@ -81,17 +81,17 @@ _Avoid_: Playback, feedback, loopback
 ### Background work
 
 **Job**:
-A unit of long-running work handed from the app to the Worker, such as an import or producing a Mix. Moves through queued, running, and then succeeded or failed.
+A unit of long-running work the app runs itself, such as an import or producing a Mix. Moves through queued, running, and then succeeded or failed. Jobs run one at a time, in the order they were created.
 _Avoid_: Task, process, operation
-
-**Worker**:
-The separate process that runs Jobs one at a time, in the order they were created.
-_Avoid_: Queue, daemon, service
 
 ### Development
 
+**Desktop App**:
+The packaged Akapela you download and open on one machine; the same app compose serves, in a window of its own.
+_Avoid_: Electron app, native app, client
+
 **AppHost**:
-The Aspire program in `apphost/` that starts the app and the Worker together for local development, hands them their configuration, and reports them to the Dashboard. Development only: it is not part of what a self-hoster deploys (ADR 0007).
+The Aspire program in `apphost/` that starts the app for local development, hands it its configuration, and reports it to the Dashboard. Development only: it is not part of what a self-hoster deploys (ADR 0007).
 _Avoid_: Orchestrator, launcher, dev server
 
 **Dashboard**:
@@ -99,5 +99,5 @@ The Aspire web UI the AppHost opens, listing each running resource with its heal
 _Avoid_: Console, admin, control panel
 
 **Trace**:
-One request followed through everything it caused: the API route that served it, any Job it enqueued, and the Worker running that Job. Carried across the two halves as the `traceparent` stored on the Job. Development only, like the AppHost that collects it (ADR 0007).
+One request followed through everything it caused: the API route that served it, and any Job it enqueued. Carried from the request to the Job as the `traceparent` stored on the Job. Development only, like the AppHost that collects it (ADR 0007).
 _Avoid_: Log, span tree, transaction

@@ -8,10 +8,16 @@ Glossary only. No code changes, no ADR — the decision is already recorded twic
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The **Worker** entry is removed from `CONTEXT.md`
-- [ ] **Job** is redefined as work the app runs itself, keeping the queued/running/succeeded/failed lifecycle and the one-at-a-time, creation-order guarantee that the Worker entry used to carry — that behaviour is still true, it just belongs to the app now
-- [ ] **AppHost** and **Trace** lose their Worker clauses without losing their meaning
-- [ ] Nothing else in `CONTEXT.md` still implies a second process; `grep -n Worker CONTEXT.md` comes back empty
-- [ ] Ordinary uses of "worker" elsewhere are left alone — `AudioWorklet`, `worker_threads`, Workbox, and the historical references inside `docs/adr/` and `.scratch/` are all correct as written and are not part of this
+- [x] The **Worker** entry is removed from `CONTEXT.md`
+- [x] **Job** is redefined as work the app runs itself, keeping the queued/running/succeeded/failed lifecycle and the one-at-a-time, creation-order guarantee that the Worker entry used to carry — that behaviour is still true, it just belongs to the app now
+- [x] **AppHost** and **Trace** lose their Worker clauses without losing their meaning
+- [x] Nothing else in `CONTEXT.md` still implies a second process; `grep -n Worker CONTEXT.md` comes back empty
+- [x] Ordinary uses of "worker" elsewhere are left alone — `AudioWorklet`, `worker_threads`, Workbox, and the historical references inside `docs/adr/` and `.scratch/` are all correct as written and are not part of this
+
+## Comments
+
+Done. `CONTEXT.md` lost the **Worker** entry; **Job** now carries the one-at-a-time, creation-order guarantee itself, which is still true — `server/plugins/jobs-runner.ts` runs one `JobsRunner` per server process against the same `jobs` table the API routes write to. **AppHost** starts the app, singular. **Trace** follows a request into any Job it enqueued, carried by the `traceparent` on the row rather than "across the two halves".
+
+`grep -n Worker CONTEXT.md` comes back empty. `AudioWorklet`, `worker_threads`, Workbox, and the historical references in `docs/adr/` and `.scratch/` were left alone.

@@ -40,6 +40,7 @@ import telemetryBrowserPost from '../../server/api/telemetry/browser.post'
 import backupGet from '../../server/api/backup.get'
 import backupRestorePost from '../../server/api/backup/restore.post'
 import settingsGet from '../../server/api/settings.get'
+import toolsYtDlpPost from '../../server/api/tools/yt-dlp.post'
 import settingsPut from '../../server/api/settings.put'
 import presetsGet from '../../server/api/presets.get'
 import presetsPost from '../../server/api/presets.post'
@@ -146,6 +147,7 @@ export async function createTestApi() {
   router.post('/api/backup/restore', backupRestorePost)
   router.get('/api/settings', settingsGet)
   router.put('/api/settings', settingsPut)
+  router.post('/api/tools/yt-dlp', toolsYtDlpPost)
   router.get('/api/presets', presetsGet)
   router.post('/api/presets', presetsPost)
   router.delete('/api/presets/:id', presetsIdDelete)

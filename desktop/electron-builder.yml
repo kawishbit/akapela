@@ -1,0 +1,83 @@
+# What ships. `scripts/prepack.ts` stages `staging/` first; everything in it
+# goes in as extraResources, outside the asar, because every one of those paths
+# is either spawned as a process or read by one.
+appId: dev.akapela.desktop
+productName: Akapela
+copyright: Akapela contributors, GPL-3.0-only
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - package.json
+
+extraResources:
+  - from: staging/output
+    to: output
+  - from: staging/migrations
+    to: migrations
+  - from: staging/separators
+    to: separators
+  - from: staging/bin
+    to: bin
+  - from: staging/licenses
+    to: licenses
+
+# No auto-updater in v1: the app checks the latest release and links to it.
+# electron-builder writes these anyway; nothing reads them.
+publish:
+  - provider: github
+    owner: kawishbit
+    repo: akapela
+    releaseType: release
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # Unsigned initially. SmartScreen warns and can be clicked through — a real
+  # but survivable cost next to a few hundred dollars a year for an OV
+  # certificate on a first release nobody has installed yet. Revisit if people
+  # actually hit it.
+  signAndEditExecutable: true
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  license: ../LICENSE
+
+mac:
+  category: public.app-category.music
+  target:
+    # x64 only for now: there is no Apple Silicon ffmpeg pinned in
+    # scripts/binaries.json that can be confirmed to carry librubberband, and
+    # Rubber Band is this app's only pitch and tempo engine (ADR 0004). Add
+    # arm64 back here and to the release workflow's matrix once one is pinned.
+    - target: dmg
+      arch: [x64]
+  # Notarization requires the hardened runtime, and the hardened runtime is
+  # where the microphone dies silently: without this usage description and the
+  # audio-input entitlement below, getUserMedia fails at the exact moment
+  # someone presses record, with no build-time error anywhere.
+  hardenedRuntime: true
+  gatekeeperAssert: false
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Akapela records your singing over a backing track.
+  # An unsigned macOS build is refused outright — "Akapela is damaged and can't
+  # be opened" — not warned about, so this is the difference between a mac
+  # build existing and not existing. Credentials come from repository secrets
+  # (APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID) and are never here.
+  notarize: true
+
+dmg:
+  writeUpdateInfo: false
+
+linux:
+  category: AudioVideo
+  target:
+    - target: AppImage
+      arch: [x64]

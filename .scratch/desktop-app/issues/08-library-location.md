@@ -10,12 +10,24 @@ Restart-to-apply is honest rather than lazy. The database handle is opened and t
 
 **Blocked by:** 04 (the supervisor, and the restart it makes possible)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] With nothing configured, the library lives at `app.getPath('userData')/data` and the app opens straight onto it
-- [ ] Settings shows the current library location and offers a native folder picker to change it, shown only when running as the desktop app
-- [ ] Choosing a folder stores it in Electron's own config and restarts the server against it; the window comes back on the new library on its own
+- [x] With nothing configured, the library lives at `app.getPath('userData')/data` and the app opens straight onto it
+- [x] Settings shows the current library location and offers a native folder picker to change it, shown only when running as the desktop app
+- [x] Choosing a folder stores it in Electron's own config and restarts the server against it; the window comes back on the new library on its own
 - [ ] Pointing at a folder a compose instance built opens that library intact, with its Tracks, Takes, Mixes, and cached separation model — verified by actually doing it
-- [ ] Pointing at an empty folder creates a fresh library there, the same way a first run does
-- [ ] A folder that cannot be written to reports that before the restart, not after, so the app cannot be left pointing at somewhere it cannot use
-- [ ] Nothing is moved, copied, or deleted at the old location; the wording in Settings makes it plain that this changes which library is open rather than relocating anything
+- [x] Pointing at an empty folder creates a fresh library there, the same way a first run does
+- [x] A folder that cannot be written to reports that before the restart, not after, so the app cannot be left pointing at somewhere it cannot use
+- [x] Nothing is moved, copied, or deleted at the old location; the wording in Settings makes it plain that this changes which library is open rather than relocating anything
+
+## Comments
+
+Built.
+
+- With nothing configured the library is `app.getPath('userData')/data` — `defaultLibraryDir()` in `desktop/src/library.ts`, handed to the server as `NUXT_DATA_DIR`. No first-run prompt, straight onto an empty library.
+- Settings shows the current folder and offers a native picker, in a section that only renders when `window.akapela` is there — so it is absent in a browser and absent under compose. There is also **File › Change Library Folder…** in the menu, and a "Show in file manager" button.
+- Choosing a folder stores it in `desktop.json` and restarts the server against it; the window goes back to the loading page and comes back on the new library on its own, reusing ticket 04's supervisor rather than adding anything.
+- `checkLibraryDir()` creates the folder and proves Akapela can write in it **before** the restart. It does not stop at `access(W_OK)`, which is advisory on Windows and passes on a read-only directory — it writes a probe file and removes it. A refusal comes back through the picker's result and is shown in Settings; the stored folder is not changed.
+- Nothing is moved, copied, or deleted at either end. The Settings copy says so outright: "Choosing another one opens the library that's already there — nothing is moved, copied, or deleted at either end."
+
+**One box unticked: pointing at a folder a compose instance built has not been done.** It should work — it is the same `NUXT_DATA_DIR` the container sets, the same layout, the same `akapela.db` — but "verified by actually doing it" is what the ticket asks for and nobody has. Blocked on the same missing Electron binary as tickets 03 and 04.

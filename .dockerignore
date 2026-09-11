@@ -6,6 +6,7 @@ node_modules
 data
 worker
 apphost
+desktop
 .agents
 .scratch
 docs
