@@ -71,6 +71,12 @@ function stageSeparators(): void {
     '--module', 'nodenext',
     '--moduleResolution', 'nodenext',
     '--target', 'es2022',
+    // The repo typechecks strict, and this has to agree with it. Without it
+    // `noImplicitAny` is off, the untyped `ndarray-fft` subpath import in
+    // `stft.ts` stops being an error, and the `@ts-expect-error` that guards
+    // it fails the build as an unused directive (TS2578) — a packaging-only
+    // failure that `pnpm typecheck` cannot see.
+    '--strict',
     '--skipLibCheck',
     '--allowImportingTsExtensions',
     '--rewriteRelativeImportExtensions',
@@ -90,7 +96,16 @@ function stageSeparators(): void {
   // NuGet for a ~220MB CUDA execution provider this app never asks for —
   // `mdx-net.ts` creates its session with `executionProviders: ['cpu']`. The
   // Dockerfile's long comment is the full version of this.
-  run('pnpm', ['install', '--prod', '--frozen-lockfile', '--ignore-workspace'], separators)
+  // `--node-linker=hoisted` is load-bearing, not a preference. pnpm's default
+  // layout is a `node_modules/` of symlinks into `.pnpm/`, and every transitive
+  // dependency exists *only* inside `.pnpm/`. electron-builder copies
+  // extraResources with symlinks dereferenced and does not follow them back
+  // into `.pnpm/`, so that default ships the three direct dependencies as real
+  // directories and silently leaves everything beneath them behind — the
+  // packaged app then dies at the first separation with `Cannot find module
+  // 'onnxruntime-common'`. A hoisted install writes a real, flat, complete
+  // tree, which is what survives the copy.
+  run('pnpm', ['install', '--prod', '--frozen-lockfile', '--ignore-workspace', '--node-linker=hoisted'], separators)
 
   pruneOnnxRuntime(join(separators, 'node_modules', 'onnxruntime-node', 'bin', 'napi-v6'))
 }

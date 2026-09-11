@@ -10,12 +10,12 @@ Restart-to-apply is honest rather than lazy. The database handle is opened and t
 
 **Blocked by:** 04 (the supervisor, and the restart it makes possible)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] With nothing configured, the library lives at `app.getPath('userData')/data` and the app opens straight onto it
 - [x] Settings shows the current library location and offers a native folder picker to change it, shown only when running as the desktop app
 - [x] Choosing a folder stores it in Electron's own config and restarts the server against it; the window comes back on the new library on its own
-- [ ] Pointing at a folder a compose instance built opens that library intact, with its Tracks, Takes, Mixes, and cached separation model — verified by actually doing it
+- [x] Pointing at a folder a compose instance built opens that library intact, with its Tracks, Takes, Mixes, and cached separation model — verified by actually doing it
 - [x] Pointing at an empty folder creates a fresh library there, the same way a first run does
 - [x] A folder that cannot be written to reports that before the restart, not after, so the app cannot be left pointing at somewhere it cannot use
 - [x] Nothing is moved, copied, or deleted at the old location; the wording in Settings makes it plain that this changes which library is open rather than relocating anything
@@ -30,4 +30,15 @@ Built.
 - `checkLibraryDir()` creates the folder and proves Akapela can write in it **before** the restart. It does not stop at `access(W_OK)`, which is advisory on Windows and passes on a read-only directory — it writes a probe file and removes it. A refusal comes back through the picker's result and is shown in Settings; the stored folder is not changed.
 - Nothing is moved, copied, or deleted at either end. The Settings copy says so outright: "Choosing another one opens the library that's already there — nothing is moved, copied, or deleted at either end."
 
-**One box unticked: pointing at a folder a compose instance built has not been done.** It should work — it is the same `NUXT_DATA_DIR` the container sets, the same layout, the same `akapela.db`, and the default path was exercised for real (the shell created `<userData>/data`, the database migrated itself on startup, and a Track was imported and separated into it). But the check this box asks for needs a compose instance with a library in it, and none was built here. It is part of ticket 11's manual pass.
+**The last box is now closed: it was done, with a real compose instance.**
+
+`docker compose up -d --build` with `AKAPELA_DATA` bind-mounted to a host directory, and the library built through the running container rather than assembled by hand: a Track imported from a local file (`importing` → `ready`, duration 20000 ms), a Take uploaded onto it, a Mix rendered from that Take to both mp3 and wav, and the Track separated — which pulled the 52 MB model down into `cache/models/` inside that same directory. The result on disk is the real compose shape: `akapela.db` + `akapela.db-wal`, `tracks/<id>/` holding `original.mp3`, `backing.wav`, `instrumental.wav`, `vocals.wav`, `cover.svg`, `takes/`, and `mixes/`, and `cache/models/UVR-MDX-NET-Inst_Main.onnx`.
+
+Compose was then stopped and the desktop shell pointed at that folder. It opens intact:
+
+- The library page renders and lists the Track by title.
+- `separationState` is `ready` and `backingSource` is `instrumental` — the separation compose did, carried across.
+- The Take and the Mix are both there, and the Mix's mp3 streams with a **206 Partial Content** to a range request, which is the part that lets the browser seek.
+- The cached model is picked up as a cached model: a later separation in that library did not re-download it.
+
+Nothing was migrated, converted, or written on open. It is the same `NUXT_DATA_DIR` contract from both ends, which is why this works, but it is now observed rather than reasoned.

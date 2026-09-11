@@ -62,7 +62,6 @@ mac:
   # audio-input entitlement below, getUserMedia fails at the exact moment
   # someone presses record, with no build-time error anywhere.
   hardenedRuntime: true
-  gatekeeperAssert: false
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:

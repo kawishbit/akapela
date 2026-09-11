@@ -26,6 +26,12 @@ export interface Layout {
   serverEntry: string
   /** Handed to the server as `NUXT_MIGRATIONS_DIR`. */
   migrationsDir: string
+  /**
+   * Handed to the server as `AKAPELA_PUBLIC_DIR`. The Mix render reads the
+   * reverb impulse response straight off disk rather than over HTTP, and it
+   * otherwise resolves that path against a cwd the shell does not control.
+   */
+  publicDir: string
   ffmpeg: string
   ffprobe: string
   /** Handed to the server as `AKAPELA_SEPARATE_CLI`. */
@@ -62,6 +68,7 @@ export function packagedLayout(resourcesPath: string, platform: NodeJS.Platform)
   return {
     serverEntry: join(resourcesPath, 'output', 'server', 'index.mjs'),
     migrationsDir: join(resourcesPath, 'migrations'),
+    publicDir: join(resourcesPath, 'output', 'public'),
     ffmpeg: join(resourcesPath, 'bin', executableName('ffmpeg', platform)),
     ffprobe: join(resourcesPath, 'bin', executableName('ffprobe', platform)),
     separateCli: join(resourcesPath, 'separators', 'server', 'lib', 'separators', 'separate-cli.js'),
@@ -80,6 +87,7 @@ export function developmentLayout(desktopRoot: string, platform: NodeJS.Platform
   return {
     serverEntry: join(repoRoot, '.output', 'server', 'index.mjs'),
     migrationsDir: join(repoRoot, 'server', 'db', 'migrations'),
+    publicDir: join(repoRoot, '.output', 'public'),
     ffmpeg: join(vendor, executableName('ffmpeg', platform)),
     ffprobe: join(vendor, executableName('ffprobe', platform)),
     separateCli: join(repoRoot, 'server', 'lib', 'separators', 'separate-cli.ts'),

@@ -8,7 +8,11 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  globalIgnores(['dist/**', 'vendor/**', 'release/**', 'node_modules/**']),
+  // `staging/` belongs here for the same reason as `release/`: it is build
+  // output `prepack.ts` writes, it carries the server bundle's own
+  // `eslint-disable` comments for rules this config does not define, and flat
+  // config does not read `.gitignore` — which already lists it.
+  globalIgnores(['dist/**', 'vendor/**', 'release/**', 'staging/**', 'node_modules/**']),
   {
     files: ['src/**/*.ts', 'src/**/*.cts', 'scripts/**/*.ts'],
     extends: [tseslint.configs.base],

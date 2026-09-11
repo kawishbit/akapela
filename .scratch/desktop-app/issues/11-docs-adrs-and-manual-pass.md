@@ -54,3 +54,21 @@ Written. The one thing this ticket was gated on — a real downloadable artifact
 | Point at a compose-built library | **not done** — no compose instance was built here |
 
 None of this was on macOS, and there is no macOS build to do it with (ticket 09).
+
+---
+
+**Update: the Windows pass is now complete except for the microphone, and it was run against a built and installed app rather than a development shell.** The box stays unticked only because "on both platforms" still means macOS, which does not exist (ticket 09).
+
+| | |
+| - | - |
+| Import from a file | **done** — in the installed app; `importing` → `ready`, duration correct, through the bundled ffmpeg and ffprobe |
+| Import from YouTube | **done** — a real video imported end to end: yt-dlp fetched itself into `cache/bin/` on first need (17.8 MB), solved the player challenge with Electron as its JavaScript runtime, and produced `backing.wav`, the real `cover.jpg` thumbnail, and `original.webm`. Title resolved to "Me at the zoo", duration 19006 ms — the actual video |
+| Separate a Track | **done** — in the installed app, after fixing the shipped dependency tree (ticket 05); model fetched, both Stems written, Backing Source moved to the Instrumental |
+| Record a Take with a real microphone | **still not done** — needs a person at a microphone. This is the only item on this list that no amount of scripting reaches |
+| Render and download a Mix | **done, with a caveat worth stating** — rendered in the installed app with pitch +2, reverb 65, low pass 4000 Hz on both targets and a −30 ms nudge, downloaded as mp3 *and* wav, both valid 20-second audio. The caveat: the Take underneath was written by ffmpeg, not sung, so this exercised the render and download path but not capture |
+| Restore a backup | **done** — 409 without confirmation, 202 with it, the process exited, the supervisor restarted it, and the library came back whole (ticket 04) |
+| Point at a compose-built library | **done** — a real `docker compose up` library with a Track, Take, Mix and cached model, opened intact by the desktop app (ticket 08) |
+
+**This pass earned its keep.** Four bugs came out of it, all in the packaging path, all invisible to `pnpm lint`, `pnpm typecheck` and `pnpm test` — including one that shipped a broken dependency tree and one that broke every Mix with reverb. They are written up in ticket 05. The lesson worth carrying: the checks cover the source, and nothing but building and running the artifact covers the artifact.
+
+Still not done, and still honestly unticked: **macOS, entirely** — no build, no signing, no `⌘V` check, no microphone entitlement — and **recording a Take on either platform.**

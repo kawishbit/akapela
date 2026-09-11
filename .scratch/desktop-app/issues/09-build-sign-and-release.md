@@ -42,3 +42,16 @@ Not done, and honestly unticked:
 - **A clean-machine install per platform.** None done.
 
 For the README ticket: **the SmartScreen click-through** is "Windows protected your PC" → **More info** → **Run anyway**, once, on first run of an unsigned installer. That wording is now in `README.md`.
+
+---
+
+**Update: this workflow would have failed on every platform, and two of the reasons are now fixed.** Building an installer locally for the first time (ticket 05) surfaced four bugs in the packing path; two of them were blocking *this* ticket's workflow rather than just a local build:
+
+- **`mac.gatekeeperAssert` was removed in electron-builder 26**, and the config schema is `additionalProperties: false`. That is a validation failure, and validation happens **before any platform packaging** — so the key sitting in the `mac:` block would have failed the `windows-latest` and `ubuntu-latest` legs of the matrix too, not only the macOS ones. The first tag pushed would have produced a release with no artifacts at all. Removed.
+- **`prepack.ts` could not compile the separation CLI** at all (a `--strict` mismatch, details in ticket 05). Every leg runs `prepack`, so every leg would have stopped there.
+
+What this does *not* change: the four boxes above stay unticked. There is still no Apple Developer account, so no signing, no notarization, and no macOS build; the microphone entitlement is still unverified; and the clean-machine install per platform has not been done. A Windows installer was built and installed **on this development machine**, which is explicitly not the clean machine that box asks for.
+
+One thing worth checking against the schema while it was open: `notarize: true` is valid in 26.15.3, and its documentation names exactly the credential set the workflow already passes (`APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`). So the notarization wiring is right, and only the account is missing.
+
+Also observed, and worth a decision before a release rather than after: **the app's `userData` directory is `akapela-desktop`, not `Akapela`.** `productName` governs the install directory, the executable, and the Start Menu entry, but `app.getName()` falls back to `package.json`'s `name`. A singer looking for their configuration finds `%APPDATA%\akapela-desktop` under an app that calls itself Akapela everywhere else. Harmless today, and *not* harmless to change after people have libraries pointed at it — this is the cheapest it will ever be to fix.

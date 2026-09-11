@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { mkdir, rename, rm } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import {
   effectsReachBacking,
@@ -111,8 +111,19 @@ export async function probeDurationMs(path: string): Promise<number> {
  * Resolved by checking the built output first rather than assuming a `cwd`:
  * `pnpm dev` serves straight from `public/`, the compose image serves the
  * copy Nuxt's build already puts in `.output/public/` next to it.
+ *
+ * Both of those still assume the cwd is the app's own root, and the desktop
+ * shell is the one place where it is not: the server is a child of Electron
+ * and inherits whatever directory the app was launched from. `AKAPELA_PUBLIC_DIR`
+ * is that override, the same shape every path in `tools.ts` already takes —
+ * set by the shell, set by nobody else, so compose and `pnpm dev` keep the
+ * behaviour below verbatim. Without it a Mix with any reverb fails in the
+ * packaged app with ffmpeg's "No such file or directory" against a path
+ * built from wherever the singer happened to start Akapela.
  */
-function impulseResponsePath(): string {
+export function impulseResponsePath(): string {
+  const fromShell = process.env.AKAPELA_PUBLIC_DIR?.trim()
+  if (fromShell) return join(fromShell, 'audio', 'large-hall-ir.wav')
   const built = resolve('.output/public/audio/large-hall-ir.wav')
   return existsSync(built) ? built : resolve('public/audio/large-hall-ir.wav')
 }

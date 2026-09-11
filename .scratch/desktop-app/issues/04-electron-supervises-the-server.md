@@ -48,3 +48,11 @@ Built. `desktop/src/server.ts` is the supervisor and `main.ts` wires it.
 One thing worth recording that ticket 05 guessed the other way: this ran the **TypeScript** `separate-cli.ts` directly, so Electron 44's Node (24.20.0) does have native type-stripping enabled. Ticket 05 still compiles it for the installer, and should — the point there was not to bet a signed artifact on it — but the bet would have been won.
 
 Still unverified: restoring a backup end to end in a packaged app. The supervisor restarts a child that exits, which is the mechanism restore depends on, but nobody has driven the Settings flow through it.
+
+**Now verified.** Driven through the shell against a real library:
+
+- `GET /api/backup` returned a 5.0 MB archive containing exactly `akapela.db` and `tracks/` — the 52 MB cached model in the same data directory is excluded by `BACKUP_ENTRIES`, which is the allowlist doing its job on real data rather than in a fixture.
+- Restoring without confirming returns **409** with the "Restoring replaces your entire library" message, because the library had a Track to lose.
+- Restoring with `confirm=true` returns **202 `{"restarting":true}`** and the process exits.
+- **The supervisor brought it back**, and the log is unambiguous about which half is which: `[akapela] server exited (code 0, signal null)` followed by `Listening on http://127.0.0.1:60431`. That is the deliberate exit, then the restart — the thing this ticket built, doing the one job that has no other backstop. Compose gets this from `restart: unless-stopped` and `pnpm dev` does not get it at all.
+- The library came back intact afterwards: the Track with its separation state and Backing Source, its Take, and its Mix. The cached model was untouched, having never been in the archive.

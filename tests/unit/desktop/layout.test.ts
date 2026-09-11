@@ -36,6 +36,13 @@ describe('packagedLayout', () => {
     expect(layout.separateCli.endsWith('separate-cli.js')).toBe(true)
   })
 
+  // The Mix render reads the reverb impulse response off disk, and the server
+  // resolves it against its cwd unless told otherwise — which under the shell
+  // is whatever directory Electron was launched from.
+  it('names the public assets the Mix render reads the impulse response from', () => {
+    expect(layout.publicDir).toContain(join('output', 'public'))
+  })
+
   it('names the executables for the target platform', () => {
     expect(packagedLayout('C:\\Resources', 'win32').ffmpeg.endsWith('ffmpeg.exe')).toBe(true)
   })
@@ -58,6 +65,12 @@ describe('developmentLayout', () => {
 
   it('takes its binaries from the vendor directory the fetch script fills', () => {
     expect(layout.ffmpeg).toBe(join(vendorDir(desktopRoot, 'linux', 'x64'), 'ffmpeg'))
+  })
+
+  // Also the built output: the shell runs the built server here too, so the
+  // impulse response is beside it rather than in the repo's own `public/`.
+  it('reads the public assets out of the build, not the checkout', () => {
+    expect(layout.publicDir).toBe(join(repoRoot, '.output', 'public'))
   })
 })
 
