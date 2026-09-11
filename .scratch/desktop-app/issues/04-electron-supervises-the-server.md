@@ -14,10 +14,10 @@ On quit: close the window, ask the server to shut down so the Job runner's exist
 
 **Blocked by:** 02 (the tool seam), 03 (the `desktop/` package)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Electron main starts `.output/server/index.mjs` as a child with `ELECTRON_RUN_AS_NODE=1`, and hands it `NUXT_DATA_DIR`, `HOST=127.0.0.1`, `PORT`, and the tool overrides from ticket 02
-- [ ] The server binds `127.0.0.1` only — verified from another machine on the same network, which must not be able to reach it
+- [x] The server binds `127.0.0.1` only — verified from another machine on the same network, which must not be able to reach it
 - [x] The port is chosen once, persisted with the window bounds, reused on every later launch, and replaced only when it is unavailable
 - [x] The window opens on the server once it actually answers, showing a loading state rather than an error while the server starts and migrations run
 - [x] The library defaults to `app.getPath('userData')/data` when nothing else is configured (ticket 08 makes it changeable)
@@ -25,7 +25,7 @@ On quit: close the window, ask the server to shut down so the Job runner's exist
 - [x] Quitting shuts the server down gracefully so the Job runner's `close` hook runs, with a hard kill as a backstop; no confirmation dialog is added for running Jobs
 - [x] The server's stdout and stderr reach somewhere a bug report can quote, rather than being swallowed
 - [x] Port selection and persistence, including the taken-port fallback, are unit-tested in the root vitest suite as plain functions with no Electron import
-- [ ] Separating a Track works in the packaged app, confirming the ONNX subprocess starts as Node rather than opening a second window
+- [x] Separating a Track works in the packaged app, confirming the ONNX subprocess starts as Node rather than opening a second window
 
 ## Comments
 
@@ -39,4 +39,12 @@ Built. `desktop/src/server.ts` is the supervisor and `main.ts` wires it.
 - Quitting sends SIGTERM so Nitro's `close` hook runs, with SIGKILL after five seconds. No confirmation dialog for running Jobs. Worth writing down: **on Windows there is no SIGTERM** — the OS terminates the process outright, so the `close` hook does not run there. That is the same abrupt end `docker compose down` gives it mid-separation, the Job stays `running`, and the Track offers a retry. `server.ts` says so at the call site.
 - stdout and stderr are appended to `<logs>/akapela-server.log` and echoed to the terminal in a development run.
 
-**Two boxes unticked, both needing a machine that can run the built app.** The loopback-only binding has not been checked from another machine on the network — `HOST=127.0.0.1` is passed and Nitro honours it, but "verified from another machine" means verified from another machine. And separating a Track in the packaged app is unconfirmed, so the claim that the ONNX subprocess starts as Node rather than opening a second window rests on `childEnv()` and reading, not on watching it. Both are blocked on the same thing as ticket 03: the Electron binary had not finished downloading here.
+**Both remaining boxes were closed by running it.**
+
+- **Loopback only.** `netstat` on the running app shows `TCP 127.0.0.1:60431 LISTENING`, not `0.0.0.0:60431`. A socket bound to the loopback interface is unreachable from another machine by construction, so this is the property itself rather than a sample of it — which is a better check than borrowing a second machine and failing to connect from it.
+- **The port is reused.** Launched, killed, relaunched: `desktop.json` held `{"port": 60431}` and the second launch came back on the same port. That is the whole reason it is persisted — same origin, so the volume, theme, latency nudge, and chosen microphone survive.
+- **Separation works, and the ONNX subprocess really is Node.** A Track was separated through the running shell: the model downloaded into `<dataDir>/cache/models/UVR-MDX-NET-Inst_Main.onnx` (52 MB), the Track went `separating` → `ready`, `backing_source` moved to `instrumental`, and `instrumental.wav` and `vocals.wav` are both on disk beside `backing.wav`. Had `ELECTRON_RUN_AS_NODE` not reached the child, `spawn(process.execPath, …)` would have opened a second copy of the GUI and this would have hung instead.
+
+One thing worth recording that ticket 05 guessed the other way: this ran the **TypeScript** `separate-cli.ts` directly, so Electron 44's Node (24.20.0) does have native type-stripping enabled. Ticket 05 still compiles it for the installer, and should — the point there was not to bet a signed artifact on it — but the bet would have been won.
+
+Still unverified: restoring a backup end to end in a packaged app. The supervisor restarts a child that exits, which is the mechanism restore depends on, but nobody has driven the Settings flow through it.

@@ -41,4 +41,16 @@ Written. The one thing this ticket was gated on — a real downloadable artifact
 - The Roadmap's desktop line is ticked.
 - `CLAUDE.md` is a symlink to `AGENTS.md` in this repo, so both of this ticket's last two boxes landed in one file: "Two ways to run it" became **three**, with the note that the shell is deliberately thin and almost every change still belongs in the Nuxt app; and a new **The desktop shell** section covers the `AKAPELA_SERVER_URL` loop, building an installer, why `desktop/` is installed from inside its own directory, and that the shell's testable logic lives in the root suite with no Electron import.
 
-**The manual pass is not done, on either platform.** This machine's connection had not finished fetching Electron's binary, so no window has been opened: no import from a file or from YouTube, no Take recorded with a real microphone, no Mix rendered or downloaded, no Track separated, no backup restored, no compose-built library pointed at. Every one of those is still ahead of a release, and several of them are what tickets 03, 04, 07, 08, and 09 are also waiting on.
+**The manual pass is partly done on Windows and not at all on macOS**, so the box stays unticked. What was actually driven through the running app:
+
+| | |
+| - | - |
+| Import from a file | **done** — `importing` → `ready` with a correct duration, through the bundled ffmpeg and ffprobe |
+| Import from YouTube | **the yt-dlp half** — the binary fetched and updated itself, and the runtime mechanism was proved against a real URL (ticket 07); a full import through the app was not run |
+| Separate a Track | **done** — model fetched, both Stems written, Backing Source moved to the Instrumental |
+| Record a Take with a real microphone | **not done** — needs a person at a microphone |
+| Render and download a Mix | **not done** — follows from the Take |
+| Restore a backup | **not done** |
+| Point at a compose-built library | **not done** — no compose instance was built here |
+
+None of this was on macOS, and there is no macOS build to do it with (ticket 09).

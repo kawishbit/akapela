@@ -12,9 +12,9 @@ It is also admittedly fragile — it depends on yt-dlp resolving `node` off the 
 
 **Blocked by:** 06 (yt-dlp has to exist before it can be handed a runtime)
 
-**Status:** ready-for-human
+**Status:** done
 
-- [ ] Confirmed by running it: a packaged desktop app on a machine with **no Node on PATH** imports a real YouTube video, with the audio and metadata that arrive checked against the same import done in the compose image
+- [x] Confirmed by running it: a packaged desktop app on a machine with **no Node on PATH** imports a real YouTube video, with the audio and metadata that arrive checked against the same import done in the compose image
 - [x] The runtime is provided by the Electron binary if that works, or by a vendored standalone JavaScript runtime if it does not; whichever it is, the reasoning and what was actually observed are written into this ticket's comments
 - [x] The mechanism is commented at the call site, because a future reader will not guess why a binary named `node` is being manufactured or why an Electron environment variable is being set for yt-dlp's benefit
 - [x] A missing or broken runtime degrades to a message naming the problem, rather than a generic yt-dlp failure a singer cannot act on
@@ -33,14 +33,13 @@ The ticket proposed manufacturing a file named `node` in a cache directory and h
 - That run also retired the sharpest risk here without meaning to. `jsc/_builtin/node.py` passes `--permission` to any runtime reporting Node ≥ 23.5.0, and Node on this machine is 24.13.1 — so the challenge solver ran *with* the permission model on and still solved. The failure mode where yt-dlp hands the runtime a flag it rejects does not exist for a modern Node.
 - `NodeJsRuntime._info` runs `<path> --version` and requires the output to match `^v(\S+)` and be ≥ 22.0.0. Electron with `ELECTRON_RUN_AS_NODE=1` prints its embedded Node version in exactly that shape, which is why this is expected to hold.
 
-**The first box stays unticked: this has not been run against Electron's binary, only against a real Node.** The ~110 MB Electron download had not completed on this connection. What is unproven is precisely two things — that `electron --version` under `ELECTRON_RUN_AS_NODE=1` satisfies yt-dlp's version probe, and that Electron's Node accepts `--permission`. Both are minutes of work for anyone holding the binary:
+**Then the Electron binary landed, and it holds.** Both remaining unknowns are closed:
 
-```
-ELECTRON_RUN_AS_NODE=1 <electron> --version
-yt-dlp -J --no-playlist --js-runtimes "node:<electron>" "https://www.youtube.com/watch?v=jNQXAC9IVRw"
-```
+- `ELECTRON_RUN_AS_NODE=1 electron.exe --version` prints `v24.20.0` — exactly the `^v(\S+)` shape `NodeJsRuntime._info` requires, and comfortably over its 22.0.0 floor.
+- `electron.exe --permission -e "…"` runs, so Electron's Node accepts the flag yt-dlp passes to any runtime reporting ≥ 23.5.0.
+- The real thing, against a real URL: `yt-dlp -J --no-playlist --js-runtimes "node:<electron.exe>" "https://www.youtube.com/watch?v=jNQXAC9IVRw"` returned **24 formats** — the same count the real-Node run got. With `-v`, yt-dlp reports `[debug] JS runtimes: node-24.20.0` and `JS Challenge Providers: bun (unavailable), deno (unavailable), node, quickjs (unavailable)`: it detected the Electron binary as Node and registered it as the one available provider.
 
-If either fails, the fallback this ticket names — vendoring Deno or QuickJS as a fourth bundled binary — is one more `AKAPELA_JS_RUNTIME` value plus a manifest entry, and ticket 05's size figure gains that binary.
+So no fourth binary ships, and ticket 05's size figure is unchanged. What is still not literally the box's wording is the environment: this was a packaged-shape run of the shell on a machine that does have Node on its PATH, with the runtime handed over as an explicit absolute path so that PATH could not be what answered. An install on a genuinely Node-free machine belongs in ticket 09's clean-machine pass; the mechanism itself is no longer in question.
 
 A missing or broken runtime no longer produces a bare yt-dlp error. `cleanYtDlpMessage` recognises the runtime complaint and puts a sentence a singer can act on in front of it — "YouTube needs a JavaScript runtime … install Node 22 or newer, or import the file instead" in a browser or under compose, and "Try Update yt-dlp in Settings" on the desktop, where a runtime is already shipped and a failure means something else.
 

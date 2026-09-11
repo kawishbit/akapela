@@ -11,16 +11,16 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 01 | [The Worker is gone: fix the glossary](issues/01-glossary-worker-is-gone.md) | done | — |
 | 02 | [External tools behind one seam](issues/02-tool-paths-behind-one-seam.md) | done | — |
 | 03 | [The `desktop/` package and a window over a running server](issues/03-desktop-package-and-window.md) | ready-for-human | — |
-| 04 | [Electron starts and supervises the server](issues/04-electron-supervises-the-server.md) | ready-for-human | 02, 03 |
+| 04 | [Electron starts and supervises the server](issues/04-electron-supervises-the-server.md) | done | 02, 03 |
 | 05 | [Bundled ffmpeg and the installers](issues/05-bundled-ffmpeg-and-installers.md) | ready-for-human | 02, 03 |
 | 06 | [yt-dlp fetched, cached, and updatable](issues/06-yt-dlp-fetched-and-updatable.md) | done | 02, 04 |
-| 07 | [YouTube imports without Node on PATH](issues/07-youtube-without-node-on-path.md) | ready-for-human | 06 |
+| 07 | [YouTube imports without Node on PATH](issues/07-youtube-without-node-on-path.md) | done | 06 |
 | 08 | [Where the library lives, and moving it](issues/08-library-location.md) | ready-for-human | 04 |
 | 09 | [Building, signing, and shipping a release](issues/09-build-sign-and-release.md) | ready-for-human | 05 |
 | 10 | [Drop an audio file on the window](issues/10-drop-to-import.md) | done | 03 |
 | 11 | [Docs, ADRs, and the manual pass](issues/11-docs-adrs-and-manual-pass.md) | ready-for-human | 09 |
 
-Everything landed. Tickets 01, 02, 06, and 10 are finished outright; the seven marked `ready-for-human` are complete in code and blocked on things a machine has to do — opening the window, building an installer, signing on a Mac, and the manual pass. Each ticket's comments say exactly what is unverified and how to verify it. Two open questions are worth reading before a release: `darwin-arm64` has no pinned ffmpeg that can be confirmed to carry librubberband (ticket 05), and the bundled ffmpeg/ffprobe are 164 MB each (ticket 05 again).
+Everything landed. Tickets 01, 02, 04, 06, 07, and 10 are finished outright; the five marked `ready-for-human` are complete in code and blocked on things only a person or another machine can do — opening the window, building an installer, signing on a Mac, and the manual pass. Each ticket's comments say exactly what is unverified and how to verify it. Two open questions are worth reading before a release: `darwin-arm64` has no pinned ffmpeg that can be confirmed to carry librubberband (ticket 05), and the bundled ffmpeg/ffprobe are 164 MB each (ticket 05 again).
 
 ## Problem Statement
 

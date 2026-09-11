@@ -34,3 +34,5 @@ Done. `server/lib/ytdlp.ts` is the whole of it, and it is server-side rather tha
 - Compose is untouched: the image still bakes yt-dlp in, sets no override, `ytDlpIsManaged()` is false, and the Settings section is absent — asserted directly in `tests/api/tools.test.ts`.
 
 The binary path is `<dataDir>/cache/bin/yt-dlp[.exe]`, computed by the shell (`desktop/src/layout.ts`) and handed over as the ticket-02 override, so there is exactly one place that knows the shape. Under `cache/` means the existing backup exclusion already covers it, and living with the data rather than inside the app means it survives app updates the way the separation model does.
+
+**Verified against the running app, not only in the suite.** `POST /api/tools/yt-dlp` on the real desktop shell downloaded the real binary to `<dataDir>/cache/bin/yt-dlp.exe` (17.8 MB) and answered `{"version":"2026.08.19"}` — the version read by running what it had just downloaded. `GET /api/settings` on the same instance reports `ytDlpUpdatable: true`, which is what puts the control on the page; the suite asserts it is false everywhere else.
