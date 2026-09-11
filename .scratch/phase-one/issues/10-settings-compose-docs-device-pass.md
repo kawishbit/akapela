@@ -4,12 +4,12 @@
 
 **Blocked by:** 06 (Genius and Manual Lyrics Providers), 07 (Record a Take)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] A Settings page reads and writes the default Lyrics Provider, microphone processing default, and Monitoring default, stored in the database and applied by the Track and Sing pages
 - [x] The compose file documents the port, named versus bind-mounted data volume, all environment variables, and recommended resource limits for the app and worker
 - [x] A README covers the one-command quick start, where data lives, that backups are the self-hoster's job, how to get a Genius token, and what to do when yt-dlp breaks
-- [ ] Library, Track detail, Sing, Review, and Settings pages are checked on phone portrait and laptop widescreen; every control is reachable and thumb-sized, and the Lyrics screen stays jank-free
+- [x] Library, Track detail, Sing, Review, and Settings pages are checked on phone portrait and laptop widescreen; every control is reachable and thumb-sized, and the Lyrics screen stays jank-free
 - [x] API tests cover reading and writing settings
 
 ## Comments
