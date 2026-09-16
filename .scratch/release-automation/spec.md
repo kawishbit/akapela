@@ -10,7 +10,7 @@ Status: ready-for-human
 | 02 | [PR title drives the semver-bump label](issues/02-pr-title-label.md) | done | — |
 | 03 | [workflow_dispatch cuts a release](issues/03-workflow-dispatch-release.md) | ready-for-human | 01, 02 |
 
-01 and 02 are verified live on PR #1 — including catching and fixing a real bug in `pr-title.yml` (a missing `--repo` flag). What's left on 03 needs a human with repo-admin access: actually running `workflow_dispatch` once to watch the version-bump-and-tag chain work end to end, since that pushes a real commit and tag and publishes a real GitHub Release. See ADR 0011 for the reasoning behind the version/labeling scheme.
+01 and 02 are verified live on PR #1 — including catching and fixing a real bug in `pr-title.yml` (a missing `--repo` flag). 03's first real run surfaced a bigger one: `main` is rule-protected (`GH013`, "Changes must be made through a pull request"), so the `version` job's direct push was always going to fail — fixed by having it open a PR instead, with a new `tag` job that tags the PR's merge commit (see ADR 0011's amendment). What's left needs a human: `workflow_dispatch` once more, then merging the release PR it opens, to watch the full chain work end to end.
 
 ## Problem Statement
 
@@ -24,4 +24,5 @@ Settled during a grilling session (see project chat) and recorded in ADR 0011:
 - Correct both `package.json` files to `1.0.0` to match the already-published `v1.0.0` GitHub Release, then bump forward by ordinary semver.
 - The bump level comes from `bump:major`/`bump:minor`/`bump:patch` labels on PRs merged since the previous tag (highest wins, defaults to `patch`), applied automatically from the PR's Conventional Commits title (`feat:` → minor, `feat!:`/`fix!:` → major, everything else → patch) so labeling isn't a separate step to remember.
 - `workflow_dispatch`'s `version` input can still override the computed result with an explicit `X.Y.Z`, or force a `major`/`minor`/`patch` bump.
+- `main` requires every change go through a PR (a repository rule, found the hard way), so `workflow_dispatch` opens a `release/vX.Y.Z` PR with the version bump rather than pushing it — merging that PR is what lands it. A `tag` job then tags the merge commit and pushes the tag, which is what actually fires `build`/`publish`.
 - Release notes and source-code archives were already covered by GitHub's own release machinery; signing/notarization is untouched and out of scope (needs a paid Apple Developer account and a Windows cert, a business decision, not a workflow change).

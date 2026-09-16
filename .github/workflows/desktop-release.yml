@@ -1,13 +1,20 @@
 # Cuts a release, then builds the desktop installers on the tag it creates and
 # publishes them to a GitHub Release with checksums.
 #
-# Two ways in (ADR 0011):
-#   - `workflow_dispatch`, by hand: the `version` job below computes the next
-#     semver (or takes the input's override), commits it into both
-#     `package.json` files, and pushes a `vX.Y.Z` tag. That push is itself a
-#     `push: tags` event, so it re-triggers this workflow — which is how
-#     `build` and `publish` end up running on a tag, not on the dispatch.
-#   - `push: tags: ['v*']`: whatever pushed the tag, `build` and `publish` run.
+# Three steps (ADR 0011, amended — `main` turned out to be rule-protected:
+# "Changes must be made through a pull request", discovered the hard way by
+# a `version` job that tried to push straight to it):
+#   1. `workflow_dispatch`, by hand: the `version` job computes the next
+#      semver (or takes the input's override), commits it into both
+#      `package.json` files on a new `release/vX.Y.Z` branch, and opens a PR
+#      to `main`. It does not merge it — that needs a human, same as any
+#      other change to `main`.
+#   2. Merging that PR (by hand) is what actually lands the version bump.
+#   3. The `tag` job, on that PR's merge, tags the resulting commit and
+#      pushes the tag directly — tags aren't rule-protected. That push is a
+#      `push: tags` event, so it re-triggers this workflow, which is how
+#      `build` and `publish` end up running on a tag rather than on either
+#      the dispatch or the merge.
 #
 # `build` is a matrix rather than something run from a development machine
 # because a macOS DMG has to be built and notarized on a macOS runner — that
@@ -17,6 +24,8 @@ name: Desktop release
 on:
   push:
     tags: ['v*']
+  pull_request:
+    types: [closed]
   workflow_dispatch:
     inputs:
       version:
@@ -24,16 +33,20 @@ on:
           Leave blank to auto-bump from the PRs merged since the previous tag
           (bump:major/minor/patch labels, highest wins, defaults to patch).
           Or give "major"/"minor"/"patch" to force that bump, or an explicit
-          "X.Y.Z" to override the computed version entirely.
+          "X.Y.Z" to override the computed version entirely. Opens a PR to
+          main rather than tagging directly — merge it to actually cut the
+          release (see the `tag` job).
         required: false
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   # Only what workflow_dispatch triggers: compute/accept the version, commit
-  # it, and tag it. Never runs on the push-tag trigger — a tag push already
-  # means this job already did its job for that tag.
+  # it to a release branch, and open a PR. Never runs on the other two
+  # triggers — a tag push means this already happened for that tag, and a
+  # closed PR is what the `tag` job below is for.
   version:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -93,20 +106,46 @@ jobs:
           echo "tag=v$new_version" >> "$GITHUB_OUTPUT"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Bump both package.json files and tag
+      - name: Bump both package.json files and open a release PR
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -eo pipefail
+          git checkout -b "release/$TAG"
           npm pkg set version="$VERSION"
           (cd desktop && npm pkg set version="$VERSION")
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json desktop/package.json
           git commit -m "chore(release): $TAG"
-          git tag "$TAG"
-          git push origin "HEAD:${{ github.ref }}" --follow-tags
+          git push origin "release/$TAG"
+          gh pr create --repo "$GITHUB_REPOSITORY" \
+            --base "${{ github.ref_name }}" --head "release/$TAG" \
+            --title "chore(release): $TAG" \
+            --body "Merging this cuts $TAG: the \`tag\` job tags the merge commit and pushes it, which triggers \`build\`/\`publish\`."
+
+  # On a release PR's merge — never on an ordinary PR, and never on the push
+  # or dispatch triggers, which are what this job's own tag push produces.
+  tag:
+    if: >-
+      github.event_name == 'pull_request' && github.event.pull_request.merged == true
+      && startsWith(github.event.pull_request.head.ref, 'release/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Tag the merge commit and push it
+        env:
+          TAG: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -eo pipefail
+          tag="${TAG#release/}"
+          git tag "$tag"
+          git push origin "$tag"
 
   build:
     if: github.event_name == 'push'
