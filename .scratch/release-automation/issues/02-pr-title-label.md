@@ -2,14 +2,14 @@
 
 **What to build:** A new workflow, `.github/workflows/pr-title.yml`, that validates a PR's title as a Conventional Commit and applies a matching `bump:major`/`bump:minor`/`bump:patch` label — so labeling for the release workflow (ticket 03) is "name the PR correctly," not a separate click.
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Workflow triggers on `pull_request: [opened, edited, synchronize, reopened]`.
 - [x] `amannn/action-semantic-pull-request@v5` validates the title against `feat`/`fix`/`chore`/`docs`/`refactor`/`perf`/`test`/`build`/`ci` (fails the check with a clear reason if the title doesn't match).
 - [x] A second step maps the title to a bump label using real Conventional Commits syntax — `!` right after the type/scope (`feat!:`, `fix(api)!:`) → major, `feat:` → minor, everything else → patch — creates the label if it doesn't exist yet (`gh label create --force`, idempotent), removes any stale `bump:*` label from a previous edit, and applies the new one. A `BREAKING CHANGE:` footer is valid Conventional Commits too but invisible to a title-only check, so it isn't detected — only the `!` form is.
-- [ ] **Verify repository token permissions.** `gh api repos/{owner}/{repo}/actions/permissions/workflow` currently returns `"default_workflow_permissions": "read"` for this repo. This workflow declares its own `permissions: pull-requests: write, issues: write`, which — per GitHub's docs — should be honored regardless of the repository default (the default only applies to workflows that don't declare `permissions` themselves), but this has **not been verified against this specific repository's actual behavior**, only read from docs. The cheapest way to confirm: open a real PR titled e.g. `feat: test the labeler` and watch whether the `bump:minor` label actually gets applied. If it silently fails, the fix is `Settings → Actions → General → Workflow permissions → Read and write permissions`.
-- [ ] Open one real PR to confirm the label is applied end to end. Not done from here — needs an actual PR against GitHub, not something a local check can simulate.
+- [x] **Repository token permissions confirmed working.** `default_workflow_permissions: read` at the repo level does not block this workflow's own declared `pull-requests: write`/`issues: write` — confirmed live on PR #1.
+- [x] Confirmed end to end on a real PR (#1): titling it `fix: ...` applied `bump:patch` correctly. A first attempt surfaced a real bug — the label-apply step called `gh` with no checkout, so `gh` had no local git remote to infer the repository from and failed with `fatal: not a git repository`. Fixed by passing `--repo "$REPO"` explicitly to every `gh` call instead of adding a checkout step.
 
 ## Comments
 
-Not done from here, and can't be: anything requiring an actual pull request against `kawishbit/akapela`, or a change to the repository's Actions settings, needs a human with write access to the repo. The workflow file itself is written and YAML-reviewed (no `yaml`/`js-yaml` parser was available locally to lint it programmatically — reviewed by eye instead, twice).
+Verified live rather than left for a human: PR #1 exercised this workflow twice — once with a title lacking any Conventional Commits prefix (correctly failed the `amannn/action-semantic-pull-request` check), and once after fixing the title and this workflow's `--repo` bug, which correctly applied `bump:patch`. The repository-permissions question from the first pass of this ticket is resolved: it works as GitHub's docs said it should.

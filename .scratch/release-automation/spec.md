@@ -7,10 +7,10 @@ Status: ready-for-human
 | # | Ticket | Status | Blocked by |
 | - | ------ | ------ | ---------- |
 | 01 | [Correct the version baseline](issues/01-version-baseline.md) | done | — |
-| 02 | [PR title drives the semver-bump label](issues/02-pr-title-label.md) | ready-for-human | — |
+| 02 | [PR title drives the semver-bump label](issues/02-pr-title-label.md) | done | — |
 | 03 | [workflow_dispatch cuts a release](issues/03-workflow-dispatch-release.md) | ready-for-human | 01, 02 |
 
-Everything is written and passes local validation (YAML review, `pnpm lint`/`typecheck`/`test`). What's left is entirely things only a human with repo-admin access can do: check/change a repository setting, and actually run the workflow once to watch it work end to end. See ADR 0011 for the reasoning behind the version/labeling scheme.
+01 and 02 are verified live on PR #1 — including catching and fixing a real bug in `pr-title.yml` (a missing `--repo` flag). What's left on 03 needs a human with repo-admin access: actually running `workflow_dispatch` once to watch the version-bump-and-tag chain work end to end, since that pushes a real commit and tag and publishes a real GitHub Release. See ADR 0011 for the reasoning behind the version/labeling scheme.
 
 ## Problem Statement
 
