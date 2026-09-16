@@ -188,7 +188,11 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-  build:
+  # Lint, typecheck, and the test suite, once, before any installer is built.
+  # The tests are platform-independent but shell out to a real ffmpeg for
+  # their audio fixtures — including the rubberband filter every Mix uses —
+  # which Ubuntu's package provides and the runner image doesn't carry.
+  checks:
     needs: tag
     # always() so a skipped `tag` (every path except a merged release PR)
     # doesn't skip this through the usual needs propagation; the conditions
@@ -199,6 +203,33 @@ jobs:
         || needs.tag.result == 'success'
         || (github.event_name == 'workflow_dispatch' && inputs.dry_run)
       )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.sha || github.sha }}
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -filters | grep -q rubberband \
+            || { echo "::error::this ffmpeg has no rubberband filter; the Mix tests need it" >&2; exit 1; }
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  build:
+    needs: [tag, checks]
+    if: always() && !cancelled() && needs.checks.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -234,13 +265,11 @@ jobs:
           cache: pnpm
 
       # The app itself, exactly as it is built for the container. The desktop
-      # shell wraps this; it does not replace any of it (ADR 0009).
+      # shell wraps this; it does not replace any of it (ADR 0009). Installed
+      # per platform, since better-sqlite3 and onnxruntime-node are native.
       - name: Build the app
         run: |
           pnpm install --frozen-lockfile
-          pnpm lint
-          pnpm typecheck
-          pnpm test
           pnpm build
 
       - name: Install the desktop shell

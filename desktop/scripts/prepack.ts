@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
@@ -42,6 +42,14 @@ function requireDir(path: string, how: string): void {
 
 function run(command: string, args: string[], cwd: string): void {
   execFileSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' })
+}
+
+/** `pnpm@<version>` from a package's `packageManager` field, for `npx`. */
+function pinnedPnpm(dir: string): string {
+  const { packageManager } = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { packageManager?: string }
+  const version = packageManager?.match(/^pnpm@(\d+\.\d+\.\d+)/)?.[1]
+  if (!version) throw new Error(`${join(dir, 'package.json')} has no pnpm@X.Y.Z packageManager to install with`)
+  return `pnpm@${version}`
 }
 
 function stageServer(): void {
@@ -105,7 +113,15 @@ function stageSeparators(): void {
   // packaged app then dies at the first separation with `Cannot find module
   // 'onnxruntime-common'`. A hoisted install writes a real, flat, complete
   // tree, which is what survives the copy.
-  run('pnpm', ['install', '--prod', '--frozen-lockfile', '--ignore-workspace', '--node-linker=hoisted'], separators)
+  //
+  // The pnpm that runs this is the one `package.json`'s `packageManager`
+  // pins, named explicitly rather than whatever `pnpm` is on PATH. That
+  // package still uses pnpm 10's layout (its lockfile, its `pnpm` field), and
+  // the Dockerfile gets 10 for it through corepack. A pnpm 12 on PATH only
+  // switched to it on some machines — on CI it didn't, and pnpm 12 walked up
+  // to `desktop/pnpm-workspace.yaml`, looked for this directory in
+  // `desktop/pnpm-lock.yaml`, and failed the install.
+  run('npx', ['--yes', pinnedPnpm(separators), 'install', '--prod', '--frozen-lockfile', '--ignore-workspace', '--node-linker=hoisted'], separators)
 
   pruneOnnxRuntime(join(separators, 'node_modules', 'onnxruntime-node', 'bin', 'napi-v6'))
 }
