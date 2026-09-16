@@ -15,7 +15,7 @@ import { dirname, join, resolve } from 'node:path'
  *   staging/migrations/  the database migrates itself on startup
  *   staging/separators/  the separation CLI, compiled to JavaScript
  *   staging/stretch/     the Mix render's stretch CLI, compiled, and the Rubber Band wasm it loads
- *   staging/bin/         the pinned ffmpeg and ffprobe
+ *   staging/bin/         the pinned ffmpeg
  *   staging/licenses/    GPL-3.0 and the bundled binaries' licence texts
  *
  * The separation CLI is compiled rather than shipped as TypeScript: today
@@ -180,7 +180,7 @@ function pruneOnnxRuntime(napiDir: string): void {
 function stageBinaries(): void {
   const vendor = join(desktopRoot, 'vendor', `${platform}-${arch}`)
   requireDir(vendor, `Run \`pnpm fetch-binaries -- --platform ${platform} --arch ${arch}\` first.`)
-  step('staging ffmpeg and ffprobe')
+  step('staging ffmpeg')
   cpSync(vendor, join(staging, 'bin'), { recursive: true })
 }
 

@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 
 /**
- * Puts the ffmpeg and ffprobe an installer will carry into
- * `desktop/vendor/<platform>-<arch>/`.
+ * Puts the ffmpeg an installer will carry into
+ * `desktop/vendor/<platform>-<arch>/`. Only ffmpeg: the app reads durations
+ * from the headers of the WAVs it writes, so ffprobe, a second full copy of
+ * every codec, is left in the archive rather than shipped for nothing.
  *
  * ffmpeg is bundled and yt-dlp is not, and the asymmetry is the point
  * (ADR 0010): ffmpeg is stable and load-bearing for every import and every
@@ -33,7 +35,7 @@ interface BinarySpec {
 }
 
 interface PlatformSpec {
-  /** `zip-per-binary`: the publisher ships ffmpeg and ffprobe as separate archives, each with its own checksum. */
+  /** `zip-per-binary`: the publisher ships each binary as its own archive, with its own checksum. */
   archive: 'zip' | 'tar.xz' | 'zip-per-binary'
   url?: string | null
   sha256?: string | null
@@ -120,9 +122,13 @@ async function main(): Promise<void> {
   const scratch = join(desktopRoot, 'vendor', `.${key}.tmp`)
   rmSync(scratch, { recursive: true, force: true })
   mkdirSync(scratch, { recursive: true })
+  // Emptied first: `prepack.ts` stages this whole directory, so a binary the
+  // manifest has stopped naming (ffprobe, once) would otherwise keep shipping
+  // from any machine that fetched it before.
+  rmSync(outDir, { recursive: true, force: true })
   mkdirSync(outDir, { recursive: true })
 
-  process.stdout.write(`ffmpeg and ffprobe for ${key}\n`)
+  process.stdout.write(`ffmpeg for ${key}\n`)
   const recorded: Record<string, string> = {}
 
   try {
@@ -154,7 +160,7 @@ async function main(): Promise<void> {
     }
 
     // No effect on Windows, where the extension decides.
-    for (const name of ['ffmpeg', 'ffprobe', 'ffmpeg.exe', 'ffprobe.exe']) {
+    for (const name of ['ffmpeg', 'ffmpeg.exe']) {
       const path = join(outDir, name)
       if (existsSync(path)) chmodSync(path, 0o755)
     }

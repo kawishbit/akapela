@@ -275,7 +275,7 @@ jobs:
         # Dockerfile runs) must never see Electron.
         run: pnpm install --frozen-lockfile
 
-      - name: Fetch the pinned ffmpeg and ffprobe
+      - name: Fetch the pinned ffmpeg
         working-directory: desktop
         run: pnpm fetch-binaries -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
@@ -288,12 +288,10 @@ jobs:
         working-directory: desktop/vendor/darwin-arm64
         run: |
           set -eo pipefail
-          for bin in ffmpeg ffprobe; do
-            archs=$(lipo -archs "$bin")
-            [ "$archs" = "arm64" ] || { echo "::error::$bin is built for '$archs', not arm64 only" >&2; exit 1; }
-            outside=$(otool -L "$bin" | tail -n +2 | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/Library/)' || true)
-            [ -z "$outside" ] || { echo "::error::$bin loads libraries outside macOS itself: $outside" >&2; exit 1; }
-          done
+          archs=$(lipo -archs ffmpeg)
+          [ "$archs" = "arm64" ] || { echo "::error::ffmpeg is built for '$archs', not arm64 only" >&2; exit 1; }
+          outside=$(otool -L ffmpeg | tail -n +2 | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/Library/)' || true)
+          [ -z "$outside" ] || { echo "::error::ffmpeg loads libraries outside macOS itself: $outside" >&2; exit 1; }
           # Not `grep -q`: it exits at the first match, ffmpeg dies of SIGPIPE,
           # and pipefail fails the step on a build that is fine.
           ./ffmpeg -hide_banner -encoders | grep libmp3lame >/dev/null \

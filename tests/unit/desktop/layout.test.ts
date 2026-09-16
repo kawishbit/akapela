@@ -27,9 +27,13 @@ describe('packagedLayout', () => {
     expect(layout.migrationsDir).toContain('migrations')
   })
 
-  it('points at the bundled ffmpeg and ffprobe rather than anything on the PATH', () => {
+  it('points at the bundled ffmpeg rather than anything on the PATH', () => {
     expect(layout.ffmpeg).toContain(join('bin', 'ffmpeg'))
-    expect(layout.ffprobe).toContain(join('bin', 'ffprobe'))
+  })
+
+  // Durations are read from the WAV header, so no installer carries ffprobe.
+  it('names no ffprobe', () => {
+    expect(Object.keys(layout)).not.toContain('ffprobe')
   })
 
   it('points at the separation CLI compiled to JavaScript, not the TypeScript source', () => {

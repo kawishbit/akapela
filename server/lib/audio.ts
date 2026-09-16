@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, rename, rm } from 'node:fs/promises'
+import { mkdir, open, rename, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import {
@@ -9,10 +9,10 @@ import {
   REVERB_AMOUNT_MIN,
   type EffectsTarget,
 } from '../../shared/adjustments'
-import { childEnv, ffmpegToolPath, rubberBandWasmPath, stretchCliPath, type FfmpegTool } from './tools'
+import { childEnv, ffmpegPath, rubberBandWasmPath, stretchCliPath } from './tools'
 
 /**
- * Thin wrappers over ffmpeg and ffprobe, ported from `worker/akapela_worker/audio.py`
+ * Thin wrappers over ffmpeg, ported from `worker/akapela_worker/audio.py`
  * (ticket 03/04 of `.scratch/worker-to-typescript/`; ffmpeg was always just a
  * subprocess call, never a Python-specific dependency).
  *
@@ -24,10 +24,10 @@ export const BACKING_CHANNELS = 2
 
 export class AudioError extends Error {}
 
-/** Runs ffmpeg/ffprobe and rejects with `AudioError` on a non-zero exit. */
-function run(bin: FfmpegTool, args: string[]): Promise<string> {
+/** Runs ffmpeg and rejects with `AudioError` on a non-zero exit. */
+function run(bin: 'ffmpeg', args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegToolPath(bin), args)
+    const child = spawn(ffmpegPath(), args)
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', d => (stdout += d))
@@ -81,28 +81,57 @@ export async function normalizeToBackingTrack(src: string, dst: string): Promise
   await rename(tmp, dst)
 }
 
-/** The duration of an audio file, in milliseconds. */
-export async function probeDurationMs(path: string): Promise<number> {
-  let stdout: string
+/**
+ * The duration of a WAV file, in milliseconds, read from its own header.
+ *
+ * Every file this is asked about is one Akapela wrote itself: a Backing Track
+ * `normalizeToBackingTrack` produced, or a Stem the separation encoded. Both
+ * are plain PCM WAV (ADR 0005), whose duration is its data chunk's size over
+ * its byte rate — the same arithmetic ffprobe does for PCM. Reading that here
+ * is what lets no installer ship ffprobe, which was a second full copy of
+ * ffmpeg's codecs for this one number.
+ *
+ * Only chunk headers are read, never the audio. A data chunk whose declared
+ * size is unset or overruns the file is measured to the end of the file.
+ */
+export async function wavDurationMs(path: string): Promise<number> {
+  const fail = (why: string) => new AudioError(`could not read the duration of ${path}: ${why}`)
+  const handle = await open(path, 'r').catch((error: Error) => {
+    throw fail(error.message)
+  })
   try {
-    stdout = await run('ffprobe', [
-      '-v',
-      'error',
-      '-show_entries',
-      'format=duration',
-      '-of',
-      'json',
-      path,
-    ])
+    const fileBytes = (await handle.stat()).size
+    const header = Buffer.alloc(12)
+    await handle.read(header, 0, 12, 0)
+    if (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WAVE') {
+      throw fail('it is not a WAV file')
+    }
+
+    let byteRate = 0
+    let offset = 12
+    const chunk = Buffer.alloc(16)
+    while (offset + 8 <= fileBytes) {
+      await handle.read(chunk, 0, 8, offset)
+      const id = chunk.toString('ascii', 0, 4)
+      const size = chunk.readUInt32LE(4)
+      const body = offset + 8
+      if (id === 'fmt ') {
+        await handle.read(chunk, 0, 16, body)
+        byteRate = chunk.readUInt32LE(8)
+      }
+      else if (id === 'data') {
+        if (!byteRate) throw fail('its audio comes before its format')
+        const remaining = fileBytes - body
+        const dataBytes = size === 0 || size === 0xFFFFFFFF || size > remaining ? remaining : size
+        return Math.round((dataBytes / byteRate) * 1000)
+      }
+      offset = body + size + (size % 2)
+    }
+    throw fail('it has no audio data')
   }
-  catch (error) {
-    throw error instanceof AudioError
-      ? new AudioError(`ffprobe could not read ${path}: ${error.message.replace(/^ffprobe exited \d+: /, '')}`)
-      : error
+  finally {
+    await handle.close()
   }
-  const seconds = Number(JSON.parse(stdout)?.format?.duration)
-  if (!Number.isFinite(seconds)) throw new AudioError(`ffprobe reported no duration for ${path}`)
-  return Math.round(seconds * 1000)
 }
 
 /**

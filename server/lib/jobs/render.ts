@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import type Database from 'better-sqlite3'
-import { probeDurationMs, renderMix } from '../audio'
+import { renderMix, wavDurationMs } from '../audio'
 import { BACKING_SOURCE_FILES } from '../tracks'
 import type { Handler } from '../jobs-runner'
 import type { BackingSource } from '../../../shared/backing-source'
@@ -89,7 +89,7 @@ export const runRender: Handler = async (ctx) => {
   const timeRatio = 100 / tempoPercent
   const pitchScale = row.linked ? tempoPercent / 100 : 2 ** (row.pitch_semitones / 12)
 
-  const originalDurationMs = await probeDurationMs(backing)
+  const originalDurationMs = await wavDurationMs(backing)
   const targetDurationMs = Math.round(originalDurationMs * timeRatio)
   const targetSongMs = row.start_position_ms + row.latency_nudge_ms
   const vocalWallMs = targetSongMs * timeRatio

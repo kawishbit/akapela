@@ -89,7 +89,6 @@ function serverEnvironment(): NodeJS.ProcessEnv {
     // from Electron rather than its own root — so a Mix with any reverb fails.
     AKAPELA_PUBLIC_DIR: overrideIfPresent(layout.publicDir),
     AKAPELA_FFMPEG: overrideIfPresent(layout.ffmpeg),
-    AKAPELA_FFPROBE: overrideIfPresent(layout.ffprobe),
     AKAPELA_SEPARATE_CLI: overrideIfPresent(layout.separateCli),
     // The Mix render stretches the Backing Track in its own subprocess, with
     // the Rubber Band wasm the preview uses rather than ffmpeg's filter.

@@ -107,8 +107,8 @@ const app = await builder
   // to the default, so moving what lives at `/` has to think about this too.
   .withHttpHealthCheck({ path: '/' });
 
-// The app shells out to tools it does not install: ffmpeg and ffprobe for
-// every import and every render, yt-dlp for a YouTube import's audio and
+// The app shells out to tools it does not install: ffmpeg for every import
+// and every render, yt-dlp for a YouTube import's audio and
 // metadata, and Node for the JavaScript yt-dlp has to run to solve YouTube's
 // player challenges (the same Node the app itself runs on, but yt-dlp finds
 // it on the PATH independently, so it is checked independently too). Missing,
@@ -126,25 +126,12 @@ const app = await builder
 // Nothing here is cached: the probe repeats, so installing what is missing into
 // a directory already on the PATH is enough to go healthy without a restart.
 
-// `install` is a whole sentence, and identical sentences are said once, so the
-// usual case — ffmpeg and ffprobe absent together, as one package — does not
-// repeat the same install line twice.
-const ffmpegInstall
-  = 'Install ffmpeg — ffprobe ships with it: '
-    + 'winget install Gyan.FFmpeg, brew install ffmpeg, or apt install ffmpeg.';
-
 const appPrerequisites = [
   {
     command: 'ffmpeg',
     cost: 'no Track can be imported and no Mix can be rendered',
-    install: ffmpegInstall,
-    // ffmpeg and ffprobe are what the app cannot do this job at all without.
-    essential: true,
-  },
-  {
-    command: 'ffprobe',
-    cost: 'no audio duration can be read, which every import and render needs',
-    install: ffmpegInstall,
+    install: 'Install ffmpeg: winget install Gyan.FFmpeg, brew install ffmpeg, or apt install ffmpeg.',
+    // ffmpeg is what the app cannot do this job at all without.
     essential: true,
   },
   {
@@ -193,7 +180,7 @@ async function checkAppPrerequisites(): Promise<HealthCheckResult> {
   const found = await Promise.all(appPrerequisites.map(tool => onPath(tool.command)));
   const missing = appPrerequisites.filter((_, index) => !found[index]);
   if (missing.length === 0) {
-    return { status: HealthStatus.Healthy, description: 'ffmpeg, ffprobe, yt-dlp, and node are on the PATH.' };
+    return { status: HealthStatus.Healthy, description: 'ffmpeg, yt-dlp, and node are on the PATH.' };
   }
   return {
     status: missing.some(tool => tool.essential) ? HealthStatus.Unhealthy : HealthStatus.Degraded,

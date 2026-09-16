@@ -15,7 +15,8 @@ RUN pnpm build
 FROM node:24-bookworm-slim
 RUN corepack enable
 WORKDIR /app
-# ffmpeg (with ffprobe) normalizes every Source and renders every Mix.
+# ffmpeg normalizes every Source and renders every Mix. ffprobe is not
+# installed: the app reads durations from the headers of the WAVs it writes.
 # yt-dlp fetches a YouTube import's audio and metadata; Node — already this
 # image's own base — is what it shells out to for solving YouTube's player
 # challenges. We fetch the `yt-dlp_linux` asset specifically: it's a
@@ -36,8 +37,8 @@ WORKDIR /app
 # trust model as the yt-dlp fetch above) rather than the `apt-get install
 # ffmpeg` this used to be: Debian's package pulls in ffmpeg's entire shared
 # library dependency tree — every codec library it links against — which on
-# its own is ~460MB, nearly a quarter of this whole image, for two binaries
-# that between them only ever ask for `pcm_s16le` (built into ffmpeg's core,
+# its own is ~460MB, nearly a quarter of this whole image, for a binary
+# that only ever asks for `pcm_s16le` (built into ffmpeg's core,
 # no library needed), `libmp3lame` (server/lib/audio.ts is the only caller of
 # either), and the reverb, low-pass, and mixing filters every build carries.
 # The Mix render no longer uses ffmpeg's `rubberband` filter — it stretches
@@ -53,9 +54,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     *) echo "unsupported architecture for the ffmpeg static build: $ffmpeg_arch" >&2; exit 1 ;; \
   esac \
   && curl -fL "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-${ffmpeg_arch}-gpl.tar.xz" -o /tmp/ffmpeg.tar.xz \
-  && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp "ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffmpeg" "ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffprobe" \
+  && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp "ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffmpeg" \
   && install -m a=rx "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffmpeg" /usr/local/bin/ffmpeg \
-  && install -m a=rx "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-gpl/bin/ffprobe" /usr/local/bin/ffprobe \
   && rm -rf /tmp/ffmpeg.tar.xz "/tmp/ffmpeg-master-latest-${ffmpeg_arch}-gpl" \
   && curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
   && chmod a+rx /usr/local/bin/yt-dlp \
