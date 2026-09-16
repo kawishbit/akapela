@@ -1,0 +1,59 @@
+# Turns a PR's title into the semver-bump label the release workflow reads
+# (ADR 0011): title the PR like a Conventional Commit and the label follows,
+# rather than having to remember to click one by hand.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate the title follows Conventional Commits
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            chore
+            docs
+            refactor
+            perf
+            test
+            build
+            ci
+          requireScope: false
+
+      - name: Apply the matching bump label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: ${{ github.event.pull_request.title }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -e
+          # Conventional Commits marks a breaking change with `!` right after
+          # the type/scope (`feat!:`, `fix(api)!:`) — not a type of its own.
+          # A `BREAKING CHANGE:` footer is real Conventional Commits too, but
+          # invisible to a title-only check; it isn't detected here.
+          case "$TITLE" in
+            *'!:'*) BUMP=major ;;
+            feat:*|feat\(*) BUMP=minor ;;
+            *) BUMP=patch ;;
+          esac
+          # Idempotent: creating a label that already exists just updates it,
+          # so this never fails on a repeat run.
+          gh label create "bump:$BUMP" --color 5319e7 --force
+          gh pr edit "$PR" \
+            --remove-label "bump:major" \
+            --remove-label "bump:minor" \
+            --remove-label "bump:patch" \
+            2>/dev/null || true
+          gh pr edit "$PR" --add-label "bump:$BUMP"
