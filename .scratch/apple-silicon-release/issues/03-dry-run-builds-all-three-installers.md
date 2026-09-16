@@ -15,7 +15,7 @@ This ticket is where macOS joins them and the whole set is proven together.
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] A `dry_run` dispatch completes with `checks` and all three build legs green, and uploads all three installers with `.sha256` files
 - [ ] `version`, `tag`, and `publish` are skipped on a dry run; nothing new appears in tags, branches, or releases
