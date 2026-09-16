@@ -65,9 +65,17 @@ jobs:
         run: |
           set -eo pipefail
 
+          # The tag is what "since the previous release" means, below — but
+          # the version to bump *from* has to be at least package.json's
+          # current value too. A release-bump PR can merge (advancing
+          # package.json) and still not finish tagging/building if something
+          # after the merge fails or the tag gets deleted to retry — the
+          # tag alone would then propose a version already spent.
           prev_tag=$(git tag --list 'v*' --sort=-v:refname | head -n1)
-          prev_version=${prev_tag#v}
-          [ -z "$prev_version" ] && prev_version="0.0.0"
+          tag_version=${prev_tag#v}
+          [ -z "$tag_version" ] && tag_version="0.0.0"
+          pkg_version=$(node -p "require('./package.json').version")
+          prev_version=$(printf '%s\n%s\n' "$tag_version" "$pkg_version" | sort -V | tail -n1)
 
           new_version=""
           bump=""
