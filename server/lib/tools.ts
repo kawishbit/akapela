@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 
 /**
- * Where the four external things Akapela shells out to are found.
+ * Where the external things Akapela shells out to are found.
  *
  * In the compose image and in every development loop the answer is a
  * convention: the Dockerfile installs `ffmpeg`, `ffprobe`, and `yt-dlp` onto
@@ -45,6 +45,26 @@ export function ytDlpPath(): string {
  */
 export function separateCliPath(): string {
   return override('AKAPELA_SEPARATE_CLI') ?? resolve(process.cwd(), 'server/lib/separators/separate-cli.ts')
+}
+
+/**
+ * `AKAPELA_STRETCH_CLI`, else the Mix render's stretch entry point resolved
+ * against `process.cwd()`, for the same reasons as `separateCliPath`.
+ */
+export function stretchCliPath(): string {
+  return override('AKAPELA_STRETCH_CLI') ?? resolve(process.cwd(), 'server/lib/stretch/stretch-cli.ts')
+}
+
+/**
+ * `AKAPELA_RUBBERBAND_WASM`, else the build `rubberband-wasm` installed at the
+ * repo root — the same file the browser engine fetches for the live preview,
+ * which is what makes a Mix sound like the preview (ADR 0003). The compose
+ * image copies it to that same place under `/app`; the desktop shell stages
+ * its own copy and sets the override.
+ */
+export function rubberBandWasmPath(): string {
+  return override('AKAPELA_RUBBERBAND_WASM')
+    ?? resolve(process.cwd(), 'node_modules/rubberband-wasm/dist/rubberband.wasm')
 }
 
 /**

@@ -19,6 +19,8 @@ extraResources:
     to: migrations
   - from: staging/separators
     to: separators
+  - from: staging/stretch
+    to: stretch
   - from: staging/bin
     to: bin
   - from: staging/licenses

@@ -39,13 +39,12 @@ WORKDIR /app
 # its own is ~460MB, nearly a quarter of this whole image, for two binaries
 # that between them only ever ask for `pcm_s16le` (built into ffmpeg's core,
 # no library needed), `libmp3lame` (server/lib/audio.ts is the only caller of
-# either), and the `rubberband` filter `renderMix` builds into every Mix's
-# `-filter_complex` — which is exactly why this is the "gpl" build variant,
-# not "lgpl": BtbN's own build scripts (`scripts.d/50-rubberband.sh`) strip
-# librubberband out of every `lgpl*` variant, GPL being what it is, and ADR
-# 0004 already commits this whole project to GPL-3.0 because of Rubber Band,
-# so there's no license upside to the "lgpl" build costing this app its one
-# actual pitch/tempo engine.
+# either), and the reverb, low-pass, and mixing filters every build carries.
+# The Mix render no longer uses ffmpeg's `rubberband` filter — it stretches
+# with the Rubber Band WebAssembly build the browser preview runs (ADR 0003,
+# ADR 0004 amendments) — so nothing here needs librubberband any more. This
+# is still the "gpl" variant; whether a slimmer build serves as well is
+# `.scratch/apple-silicon-release/issues/05-slimmer-bundled-ffmpeg.md`.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xz-utils \
   && ffmpeg_arch="$(dpkg --print-architecture)" \
   && case "$ffmpeg_arch" in \
@@ -84,6 +83,12 @@ COPY --from=build /app/server/db/migrations ./migrations
 # the root install gets from pnpm-lock.yaml.
 COPY --from=build /app/server/lib/separators ./server/lib/separators
 COPY --from=build /app/app/audio/wav.ts ./app/audio/wav.ts
+# The Mix render's stretch runs the same way, as its own `node` subprocess
+# (server/lib/stretch/stretch-cli.ts), and loads the Rubber Band wasm from
+# where `rubberBandWasmPath()` in server/lib/tools.ts looks for it by default.
+# It imports nothing outside Node and this repo, so it needs no install.
+COPY --from=build /app/server/lib/stretch ./server/lib/stretch
+COPY --from=build /app/node_modules/rubberband-wasm/dist/rubberband.wasm ./node_modules/rubberband-wasm/dist/rubberband.wasm
 # onnxruntime-node ships every platform's binary in one package regardless of
 # which one installs it (there's no per-platform split like better-sqlite3
 # has) — linux/x64 and linux/arm64 together are already ~65MB, and darwin

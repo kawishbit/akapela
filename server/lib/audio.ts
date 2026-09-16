@@ -9,7 +9,7 @@ import {
   REVERB_AMOUNT_MIN,
   type EffectsTarget,
 } from '../../shared/adjustments'
-import { ffmpegToolPath, type FfmpegTool } from './tools'
+import { childEnv, ffmpegToolPath, rubberBandWasmPath, stretchCliPath, type FfmpegTool } from './tools'
 
 /**
  * Thin wrappers over ffmpeg and ffprobe, ported from `worker/akapela_worker/audio.py`
@@ -180,24 +180,46 @@ export function appendEffects(
   return label
 }
 
+/** Runs the stretch subprocess and rejects with `AudioError` on a non-zero exit. */
+function runStretch(src: string, dst: string, timeRatio: number, pitchScale: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // `childEnv` carries `ELECTRON_RUN_AS_NODE=1`, without which
+    // `process.execPath` under the packaged desktop app is the GUI binary.
+    const child = spawn(
+      process.execPath,
+      [stretchCliPath(), rubberBandWasmPath(), src, dst, String(timeRatio), String(pitchScale)],
+      { env: childEnv() },
+    )
+    let stderr = ''
+    child.stderr.on('data', d => (stderr += d))
+    child.on('error', error => reject(new AudioError(`could not start the stretch subprocess: ${error.message}`)))
+    child.on('close', (code) => {
+      if (code === 0) resolve()
+      else reject(new AudioError(stderr.trim() || `stretch subprocess exited with code ${code}`))
+    })
+  })
+}
+
+export interface MixFilterGraphOptions {
+  vocalWallMs: number
+  vocalGain: number
+  backingGain: number
+  targetDurationMs: number
+  reverbAmount?: number
+  lowpassHz?: number
+  effectsTarget?: EffectsTarget
+}
+
 /**
- * Renders a Mix: the Backing Track stretched by Rubber Band, then the two
- * Effects, then the Take's dry vocal placed at `vocalWallMs` (already
- * converted from song time to wall time by the caller) and scaled by
- * `vocalGain`, summed with the backing scaled by `backingGain`. The result
- * always covers exactly `targetDurationMs` — the Backing Track's own duration
- * is padded or trimmed to it, since Rubber Band's extreme pitch shifts land a
- * few percent short of the input length on their own (ADR 0003, ADR 0004).
- *
- * Ported from `worker/akapela_worker/audio.py`'s `render_mix` (ticket 04).
+ * The `-filter_complex` for a Mix, over inputs `0` the Backing Track (already
+ * stretched), `1` the Take's dry vocal, and `2` the impulse response when
+ * `wantsImpulseResponse`. Nothing in it needs more than a stock ffmpeg.
  */
-export async function renderMix(options: RenderMixOptions): Promise<void> {
+export function buildMixFilterGraph(options: MixFilterGraphOptions): { filterComplex: string, wantsImpulseResponse: boolean } {
   const {
-    backing, vocal, dstMp3, dstWav, tempo, pitch, vocalWallMs, vocalGain, backingGain, targetDurationMs,
+    vocalWallMs, vocalGain, backingGain, targetDurationMs,
     reverbAmount = REVERB_AMOUNT_MIN, lowpassHz = LOWPASS_HZ_MAX, effectsTarget = 'backing',
   } = options
-
-  await mkdir(dirname(dstMp3), { recursive: true })
   const targetSeconds = targetDurationMs / 1000
 
   let vocalChain: string
@@ -228,9 +250,9 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
     vocalIr = '[ir_voc]'
   }
 
-  const backingSegments = [`[0:a]rubberband=tempo=${tempo}:pitch=${pitch}[stretched]`]
+  const backingSegments: string[] = []
   const backingLabel = appendEffects(backingSegments, {
-    label: 'stretched',
+    label: '0:a',
     prefix: 'bg',
     reverbAmount: backingReverb,
     lowpassHz: onBacking ? lowpassHz : LOWPASS_HZ_MAX,
@@ -257,27 +279,71 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
     `[bg][${vocalLabel}]amix=inputs=2:duration=first:normalize=0[out]`,
   ].join(';')
 
-  const inputs = ['-i', backing, '-i', vocal]
-  if (backingWantsIr || vocalWantsIr) inputs.push('-i', impulseResponsePath())
+  return { filterComplex, wantsImpulseResponse: backingWantsIr || vocalWantsIr }
+}
 
+/**
+ * Renders a Mix: the Backing Track stretched by Rubber Band, then the two
+ * Effects, then the Take's dry vocal placed at `vocalWallMs` (already
+ * converted from song time to wall time by the caller) and scaled by
+ * `vocalGain`, summed with the backing scaled by `backingGain`. The result
+ * always covers exactly `targetDurationMs` — the Backing Track's own duration
+ * is padded or trimmed to it, since Rubber Band's extreme pitch shifts land a
+ * few percent short of the input length on their own (ADR 0003, ADR 0004).
+ *
+ * The stretch is Rubber Band WebAssembly — the build and options the live
+ * preview runs — in its own subprocess, not ffmpeg's `rubberband` filter; ffmpeg
+ * only ever sees audio that is already stretched. Unadjusted, there is nothing
+ * to stretch and the Backing Track goes to ffmpeg as it is.
+ *
+ * Ported from `worker/akapela_worker/audio.py`'s `render_mix` (ticket 04).
+ */
+export async function renderMix(options: RenderMixOptions): Promise<void> {
+  const { backing, vocal, dstMp3, dstWav, tempo, pitch } = options
+
+  await mkdir(dirname(dstMp3), { recursive: true })
+
+  const stretchedWav = dstMp3.replace(/\.mp3$/, '.stretched.part.wav')
   const tmpWav = dstMp3.replace(/\.mp3$/, '.part.wav')
   try {
-    await run('ffmpeg', [
-      '-y', '-nostdin', '-hide_banner', '-loglevel', 'error',
-      ...inputs,
-      '-filter_complex', filterComplex,
-      '-map', '[out]',
-      '-ar', String(BACKING_SAMPLE_RATE),
-      '-ac', String(BACKING_CHANNELS),
-      '-c:a', 'pcm_s16le',
-      tmpWav,
-    ])
+    let backingInput = backing
+    if (tempo !== 1 || pitch !== 1) {
+      try {
+        await runStretch(backing, stretchedWav, 1 / tempo, pitch)
+      }
+      catch (error) {
+        throw error instanceof AudioError
+          ? new AudioError(`Rubber Band could not stretch the Backing Track: ${error.message}`)
+          : error
+      }
+      backingInput = stretchedWav
+    }
+
+    const { filterComplex, wantsImpulseResponse } = buildMixFilterGraph(options)
+    const inputs = ['-i', backingInput, '-i', vocal]
+    if (wantsImpulseResponse) inputs.push('-i', impulseResponsePath())
+
+    try {
+      await run('ffmpeg', [
+        '-y', '-nostdin', '-hide_banner', '-loglevel', 'error',
+        ...inputs,
+        '-filter_complex', filterComplex,
+        '-map', '[out]',
+        '-ar', String(BACKING_SAMPLE_RATE),
+        '-ac', String(BACKING_CHANNELS),
+        '-c:a', 'pcm_s16le',
+        tmpWav,
+      ])
+    }
+    catch (error) {
+      await rm(tmpWav, { force: true })
+      throw error instanceof AudioError
+        ? new AudioError(`ffmpeg could not render the Mix: ${error.message.replace(/^ffmpeg exited \d+: /, '')}`)
+        : error
+    }
   }
-  catch (error) {
-    await rm(tmpWav, { force: true })
-    throw error instanceof AudioError
-      ? new AudioError(`ffmpeg could not render the Mix: ${error.message.replace(/^ffmpeg exited \d+: /, '')}`)
-      : error
+  finally {
+    await rm(stretchedWav, { force: true })
   }
 
   const tmpMp3 = dstMp3.replace(/\.mp3$/, '.part.mp3')

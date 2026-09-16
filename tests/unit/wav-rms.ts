@@ -66,3 +66,29 @@ export function wavDurationSeconds(path: string): number {
   const bytesPerFrame = info.channels * (info.bitsPerSample / 8)
   return info.dataLength / bytesPerFrame / info.sampleRate
 }
+
+/**
+ * Rising zero crossings per second of a 16-bit PCM WAV's first channel between
+ * two timestamps — for a pure tone, its frequency, which is what tells a pitch
+ * shift apart from an untouched signal.
+ */
+export function zeroCrossingFrequency(path: string, startSeconds: number, endSeconds: number): number {
+  const buffer = readFileSync(path)
+  const info = readWavInfo(buffer)
+  if (info.bitsPerSample !== 16) throw new Error(`expected 16-bit PCM, got ${info.bitsPerSample}-bit`)
+
+  const bytesPerFrame = info.channels * 2
+  const totalFrames = Math.floor(info.dataLength / bytesPerFrame)
+  const startFrame = Math.max(0, Math.round(startSeconds * info.sampleRate))
+  const endFrame = Math.min(totalFrames, Math.round(endSeconds * info.sampleRate))
+  if (endFrame <= startFrame + 1) return 0
+
+  let crossings = 0
+  let previous = buffer.readInt16LE(info.dataOffset + startFrame * bytesPerFrame)
+  for (let frame = startFrame + 1; frame < endFrame; frame++) {
+    const sample = buffer.readInt16LE(info.dataOffset + frame * bytesPerFrame)
+    if (previous < 0 && sample >= 0) crossings++
+    previous = sample
+  }
+  return crossings / ((endFrame - startFrame) / info.sampleRate)
+}

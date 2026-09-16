@@ -36,6 +36,11 @@ describe('packagedLayout', () => {
     expect(layout.separateCli.endsWith('separate-cli.js')).toBe(true)
   })
 
+  it('points at the Mix render’s stretch CLI compiled to JavaScript, and the Rubber Band build it loads', () => {
+    expect(layout.stretchCli.endsWith(join('stretch', 'server', 'lib', 'stretch', 'stretch-cli.js'))).toBe(true)
+    expect(layout.rubberBandWasm.endsWith(join('stretch', 'rubberband.wasm'))).toBe(true)
+  })
+
   // The Mix render reads the reverb impulse response off disk, and the server
   // resolves it against its cwd unless told otherwise — which under the shell
   // is whatever directory Electron was launched from.
@@ -61,6 +66,11 @@ describe('developmentLayout', () => {
 
   it('runs the TypeScript separation CLI, the same file compose and `pnpm dev` run', () => {
     expect(layout.separateCli).toBe(join(repoRoot, 'server', 'lib', 'separators', 'separate-cli.ts'))
+  })
+
+  it('runs the TypeScript stretch CLI against the Rubber Band build the root install carries', () => {
+    expect(layout.stretchCli).toBe(join(repoRoot, 'server', 'lib', 'stretch', 'stretch-cli.ts'))
+    expect(layout.rubberBandWasm).toBe(join(repoRoot, 'node_modules', 'rubberband-wasm', 'dist', 'rubberband.wasm'))
   })
 
   it('takes its binaries from the vendor directory the fetch script fills', () => {

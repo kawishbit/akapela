@@ -190,8 +190,9 @@ jobs:
 
   # Lint, typecheck, and the test suite, once, before any installer is built.
   # The tests are platform-independent but shell out to a real ffmpeg for
-  # their audio fixtures — including the rubberband filter every Mix uses —
-  # which Ubuntu's package provides and the runner image doesn't carry.
+  # their audio fixtures and the Mix render, which the runner image doesn't
+  # carry. Any stock ffmpeg with libmp3lame will do: the render stretches with
+  # Rubber Band WebAssembly, not ffmpeg's rubberband filter (ADR 0003).
   checks:
     needs: tag
     # always() so a skipped `tag` (every path except a merged release PR)
@@ -213,8 +214,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
-          ffmpeg -hide_banner -filters | grep -q rubberband \
-            || { echo "::error::this ffmpeg has no rubberband filter; the Mix tests need it" >&2; exit 1; }
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4

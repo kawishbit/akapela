@@ -14,6 +14,7 @@ import { dirname, join, resolve } from 'node:path'
  *                        looks for `../public` beside itself
  *   staging/migrations/  the database migrates itself on startup
  *   staging/separators/  the separation CLI, compiled to JavaScript
+ *   staging/stretch/     the Mix render's stretch CLI, compiled, and the Rubber Band wasm it loads
  *   staging/bin/         the pinned ffmpeg and ffprobe
  *   staging/licenses/    GPL-3.0 and the bundled binaries' licence texts
  *
@@ -127,6 +128,37 @@ function stageSeparators(): void {
 }
 
 /**
+ * Compiles the Mix render's stretch CLI the same way as the separation CLI,
+ * and stages the Rubber Band wasm it loads beside it. The wasm is the one the
+ * root install carries — the same file Vite hands the browser for the live
+ * preview — so a Mix and the preview it was sung over run one build. It needs
+ * no install of its own: nothing it imports is outside Node and this repo.
+ */
+function stageStretch(): void {
+  step('compiling the stretch CLI')
+  const out = join(staging, 'stretch')
+  mkdirSync(out, { recursive: true })
+  run('npx', [
+    'tsc',
+    join(repoRoot, 'server', 'lib', 'stretch', 'stretch-cli.ts'),
+    '--module', 'nodenext',
+    '--moduleResolution', 'nodenext',
+    '--target', 'es2022',
+    '--strict',
+    '--skipLibCheck',
+    '--allowImportingTsExtensions',
+    '--rewriteRelativeImportExtensions',
+    '--rootDir', repoRoot,
+    '--outDir', out,
+  ], desktopRoot)
+  writeFileSync(join(out, 'package.json'), `${JSON.stringify({ type: 'module' }, null, 2)}\n`)
+
+  const wasm = join(repoRoot, 'node_modules', 'rubberband-wasm', 'dist', 'rubberband.wasm')
+  if (!existsSync(wasm)) throw new Error(`${wasm} is missing. Run \`pnpm install\` at the repo root first.`)
+  cpSync(wasm, join(out, 'rubberband.wasm'))
+}
+
+/**
  * onnxruntime-node ships every platform's binary in one package regardless of
  * which one installs it — over 200MB of platforms this installer will never
  * run on. Keeping only the target's is the difference between an installer
@@ -171,6 +203,7 @@ function main(): void {
   mkdirSync(staging, { recursive: true })
   stageServer()
   stageSeparators()
+  stageStretch()
   stageBinaries()
   stageLicenses()
   step(`\nStaged at ${staging}`)
