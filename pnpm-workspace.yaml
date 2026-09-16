@@ -1,3 +1,10 @@
+# One @types/node for the whole tree, matching the Node 24 the Dockerfile and
+# CI run. Transitive dependencies pulled in 22.x and 26.x side by side, and
+# the mismatched EventEmitter types broke `pnpm typecheck` on every
+# `ChildProcess.on(...)` in server/lib.
+overrides:
+  '@types/node': 24.13.3
+
 allowBuilds:
   better-sqlite3: true
   esbuild: true
