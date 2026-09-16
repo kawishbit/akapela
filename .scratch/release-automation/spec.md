@@ -10,7 +10,7 @@ Status: ready-for-human
 | 02 | [PR title drives the semver-bump label](issues/02-pr-title-label.md) | done | — |
 | 03 | [workflow_dispatch cuts a release](issues/03-workflow-dispatch-release.md) | ready-for-human | 01, 02 |
 
-01 and 02 are verified live on PR #1 — including catching and fixing a real bug in `pr-title.yml` (a missing `--repo` flag). 03's first real run surfaced a bigger one: `main` is rule-protected (`GH013`, "Changes must be made through a pull request"), so the `version` job's direct push was always going to fail — fixed by having it open a PR instead, with a new `tag` job that tags the PR's merge commit (see ADR 0011's amendment). What's left needs a human: `workflow_dispatch` once more, then merging the release PR it opens, to watch the full chain work end to end.
+01 and 02 are verified live on PR #1 — including catching and fixing a real bug in `pr-title.yml` (a missing `--repo` flag). 03 has taken two real, live failures to get right: `main` is rule-protected (`GH013`, "Changes must be made through a pull request"), fixed by having the `version` job open a PR instead of pushing (ADR 0011's amendment); then GitHub Actions itself was disallowed from creating PRs at all (a separate repo setting, `can_approve_pull_request_reviews`), fixed by enabling it. `release/v1.0.1`'s PR (#3) was opened by hand to avoid wasting that run. What's left: dispatch once more (or just merge #3) to confirm the whole chain — tag → build → publish — now runs unattended.
 
 ## Problem Statement
 
