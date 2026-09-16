@@ -57,20 +57,26 @@ mac:
     # arm64 back here and to the release workflow's matrix once one is pinned.
     - target: dmg
       arch: [x64]
-  # Notarization requires the hardened runtime, and the hardened runtime is
-  # where the microphone dies silently: without this usage description and the
-  # audio-input entitlement below, getUserMedia fails at the exact moment
-  # someone presses record, with no build-time error anywhere.
+  # Kept even though the build below is unsigned: if a certificate is ever
+  # added, the hardened runtime is where the microphone dies silently without
+  # these — this usage description and the audio-input entitlement are what
+  # keep getUserMedia from failing at the exact moment someone presses record,
+  # with no build-time error anywhere.
   hardenedRuntime: true
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:
     NSMicrophoneUsageDescription: Akapela records your singing over a backing track.
-  # An unsigned macOS build is refused outright — "Akapela is damaged and can't
-  # be opened" — not warned about, so this is the difference between a mac
-  # build existing and not existing. Credentials come from repository secrets
-  # (APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID) and are never here.
-  notarize: true
+  # No Apple Developer Program membership ($99/year) behind this build, so no
+  # signing and no notarization: `notarize: true` fails outright without Apple
+  # credentials — it errors asking for them rather than skipping quietly — and
+  # a signing identity that isn't there isn't found either, so electron-builder
+  # just ships the .app/.dmg unsigned. The cost lands on whoever opens it
+  # rather than on the build: Gatekeeper refuses it as "from an unidentified
+  # developer" until they right-click → Open (or System Settings → Privacy &
+  # Security → Open Anyway), the mac equivalent of clicking through Windows'
+  # SmartScreen warning below. Revisit if that turns out to be too much friction.
+  notarize: false
 
 dmg:
   writeUpdateInfo: false

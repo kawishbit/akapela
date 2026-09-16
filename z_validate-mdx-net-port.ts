@@ -5,9 +5,9 @@
  * part of `pnpm test` (like the Python suite's own policy: the real model is
  * a network fetch and minutes of CPU, never run automatically). Run by hand:
  *
- *   node scripts/validate-mdx-net-port.ts <path-to-UVR-MDX-NET-Inst_HQ_3.onnx> <path-to-test-clip.wav> [reference-instrumental.wav]
+ *   node z_validate-mdx-net-port.ts <path-to-UVR-MDX-NET-Inst_HQ_3.onnx> <path-to-test-clip.wav> [reference-instrumental.wav]
  *
- * Run with `pnpm tsx scripts/validate-mdx-net-port.ts ...` — plain `node`
+ * Run with `pnpm tsx z_validate-mdx-net-port.ts ...` — plain `node`
  * cannot resolve this repo's extensionless relative imports.
  *
  * Without a reference file, it prints this run's own fingerprint (RMS, first
@@ -16,8 +16,8 @@
  * sample-correlation coefficient between the two.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
-import { decodeWav, encodeWav } from '../app/audio/wav'
-import { MdxNetModel } from '../server/lib/separators/mdx-net'
+import { decodeWav, encodeWav } from './app/audio/wav'
+import { MdxNetModel } from './server/lib/separators/mdx-net'
 
 async function main(): Promise<void> {
   const [modelPath, clipPath, referencePath] = process.argv.slice(2)

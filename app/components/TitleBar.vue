@@ -22,18 +22,18 @@ const isMac = computed(() => platform.value === 'darwin')
 <template>
   <div
     v-if="isDesktop"
-    class="flex h-[38px] shrink-0 select-none items-center bg-ground [-webkit-app-region:drag]"
-    :class="isMac ? 'pl-20 pr-2' : 'pl-2'"
+    class="sticky top-0 z-50 flex h-11 shrink-0 select-none items-center bg-ground [-webkit-app-region:drag]"
+    :class="isMac ? 'pl-24 pr-3' : 'pl-2'"
   >
-    <div class="flex h-full items-center gap-1 [-webkit-app-region:no-drag]">
+    <div class="flex h-full items-center gap-2 [-webkit-app-region:no-drag]">
       <img
         src="/logo.svg"
         alt=""
-        class="size-5 rounded-[4px]"
+        class="size-7 mr-5 rounded-[7px]"
       >
       <button
         type="button"
-        class="flex size-7 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:opacity-40 disabled:hover:bg-surface-mid"
+        class="flex size-9 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:opacity-40 disabled:hover:bg-surface-mid"
         :disabled="!canGoBack"
         aria-label="Back"
         @click="back"
@@ -42,7 +42,7 @@ const isMac = computed(() => platform.value === 'darwin')
       </button>
       <button
         type="button"
-        class="flex size-7 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:opacity-40 disabled:hover:bg-surface-mid"
+        class="flex size-9 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:opacity-40 disabled:hover:bg-surface-mid"
         :disabled="!canGoForward"
         aria-label="Forward"
         @click="forward"
@@ -53,19 +53,19 @@ const isMac = computed(() => platform.value === 'darwin')
 
     <div class="flex-1" />
 
-    <div class="flex h-full items-center gap-1 [-webkit-app-region:no-drag]">
+    <div class="flex h-full items-center gap-2 [-webkit-app-region:no-drag]">
       <NuxtLink
         to="/settings"
-        class="flex size-7 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
+        class="flex size-9 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
         aria-label="Settings"
       >
-        <Settings class="size-4" />
+        <Settings class="size-5" />
       </NuxtLink>
     </div>
 
     <div
       v-if="!isMac"
-      class="ml-1 flex h-full items-stretch [-webkit-app-region:no-drag]"
+      class="ml-2 flex h-full items-stretch [-webkit-app-region:no-drag]"
     >
       <button
         type="button"
@@ -73,7 +73,7 @@ const isMac = computed(() => platform.value === 'darwin')
         aria-label="Minimize"
         @click="minimizeWindow"
       >
-        <Minus class="size-4" />
+        <Minus class="size-5" />
       </button>
       <button
         type="button"
@@ -83,11 +83,11 @@ const isMac = computed(() => platform.value === 'darwin')
       >
         <Copy
           v-if="maximized"
-          class="size-3.5 -scale-x-100"
+          class="size-4 -scale-x-100"
         />
         <Square
           v-else
-          class="size-3.5"
+          class="size-4"
         />
       </button>
       <button
@@ -96,7 +96,7 @@ const isMac = computed(() => platform.value === 'darwin')
         aria-label="Close"
         @click="closeWindow"
       >
-        <X class="size-4" />
+        <X class="size-5" />
       </button>
     </div>
   </div>

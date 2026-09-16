@@ -22,9 +22,9 @@ export interface TitleBarWindowOptions {
 
 /**
  * Where the traffic lights land inside the strip `TitleBar.vue` draws.
- * Centred on a 38px-tall strip, which is the height that component uses.
+ * Centred on a 44px-tall strip (`h-11`), which is the height that component uses.
  */
-export const MAC_TRAFFIC_LIGHT_POSITION = { x: 16, y: 13 }
+export const MAC_TRAFFIC_LIGHT_POSITION = { x: 16, y: 16 }
 
 export function titleBarWindowOptions(platform: NodeJS.Platform): TitleBarWindowOptions {
   if (platform === 'darwin') {
