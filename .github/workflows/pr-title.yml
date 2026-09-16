@@ -35,6 +35,7 @@ jobs:
       - name: Apply the matching bump label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           TITLE: ${{ github.event.pull_request.title }}
           PR: ${{ github.event.pull_request.number }}
         run: |
@@ -48,12 +49,14 @@ jobs:
             feat:*|feat\(*) BUMP=minor ;;
             *) BUMP=patch ;;
           esac
+          # --repo is required on every call: there is no checkout in this
+          # job, so gh has no local git remote to infer the repository from.
           # Idempotent: creating a label that already exists just updates it,
           # so this never fails on a repeat run.
-          gh label create "bump:$BUMP" --color 5319e7 --force
-          gh pr edit "$PR" \
+          gh label create "bump:$BUMP" --repo "$REPO" --color 5319e7 --force
+          gh pr edit "$PR" --repo "$REPO" \
             --remove-label "bump:major" \
             --remove-label "bump:minor" \
             --remove-label "bump:patch" \
             2>/dev/null || true
-          gh pr edit "$PR" --add-label "bump:$BUMP"
+          gh pr edit "$PR" --repo "$REPO" --add-label "bump:$BUMP"
