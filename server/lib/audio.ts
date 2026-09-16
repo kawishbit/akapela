@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, rename, rm } from 'node:fs/promises'
+import { mkdir, open, rename, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import {
@@ -9,10 +9,10 @@ import {
   REVERB_AMOUNT_MIN,
   type EffectsTarget,
 } from '../../shared/adjustments'
-import { ffmpegToolPath, type FfmpegTool } from './tools'
+import { childEnv, ffmpegPath, rubberBandWasmPath, stretchCliPath } from './tools'
 
 /**
- * Thin wrappers over ffmpeg and ffprobe, ported from `worker/akapela_worker/audio.py`
+ * Thin wrappers over ffmpeg, ported from `worker/akapela_worker/audio.py`
  * (ticket 03/04 of `.scratch/worker-to-typescript/`; ffmpeg was always just a
  * subprocess call, never a Python-specific dependency).
  *
@@ -24,10 +24,10 @@ export const BACKING_CHANNELS = 2
 
 export class AudioError extends Error {}
 
-/** Runs ffmpeg/ffprobe and rejects with `AudioError` on a non-zero exit. */
-function run(bin: FfmpegTool, args: string[]): Promise<string> {
+/** Runs ffmpeg and rejects with `AudioError` on a non-zero exit. */
+function run(bin: 'ffmpeg', args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegToolPath(bin), args)
+    const child = spawn(ffmpegPath(), args)
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', d => (stdout += d))
@@ -81,28 +81,58 @@ export async function normalizeToBackingTrack(src: string, dst: string): Promise
   await rename(tmp, dst)
 }
 
-/** The duration of an audio file, in milliseconds. */
-export async function probeDurationMs(path: string): Promise<number> {
-  let stdout: string
+/**
+ * The duration of a WAV file, in milliseconds, read from its own header.
+ *
+ * Every file this is asked about is one Akapela wrote itself: a Backing Track
+ * `normalizeToBackingTrack` produced, or a Stem the separation encoded. Both
+ * are plain PCM WAV (ADR 0005), whose duration is its data chunk's size over
+ * its byte rate — the same arithmetic ffprobe does for PCM. Reading that here
+ * is what lets no installer ship ffprobe, which was a second full copy of
+ * ffmpeg's codecs for this one number.
+ *
+ * Only chunk headers are read, never the audio. A data chunk whose declared
+ * size is unset (0xFFFFFFFF, as a streamed write leaves it) or overruns the
+ * file is measured to the end of the file.
+ */
+export async function wavDurationMs(path: string): Promise<number> {
+  const fail = (why: string) => new AudioError(`could not read the duration of ${path}: ${why}`)
+  const handle = await open(path, 'r').catch((error: Error) => {
+    throw fail(error.message)
+  })
   try {
-    stdout = await run('ffprobe', [
-      '-v',
-      'error',
-      '-show_entries',
-      'format=duration',
-      '-of',
-      'json',
-      path,
-    ])
+    const fileBytes = (await handle.stat()).size
+    const header = Buffer.alloc(12)
+    await handle.read(header, 0, 12, 0)
+    if (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WAVE') {
+      throw fail('it is not a WAV file')
+    }
+
+    let byteRate = 0
+    let offset = 12
+    const chunk = Buffer.alloc(16)
+    while (offset + 8 <= fileBytes) {
+      await handle.read(chunk, 0, 8, offset)
+      const id = chunk.toString('ascii', 0, 4)
+      const size = chunk.readUInt32LE(4)
+      const body = offset + 8
+      if (id === 'fmt ') {
+        await handle.read(chunk, 0, 16, body)
+        byteRate = chunk.readUInt32LE(8)
+      }
+      else if (id === 'data') {
+        if (!byteRate) throw fail('its audio comes before its format')
+        const remaining = fileBytes - body
+        const dataBytes = size === 0xFFFFFFFF || size > remaining ? remaining : size
+        return Math.round((dataBytes / byteRate) * 1000)
+      }
+      offset = body + size + (size % 2)
+    }
+    throw fail('it has no audio data')
   }
-  catch (error) {
-    throw error instanceof AudioError
-      ? new AudioError(`ffprobe could not read ${path}: ${error.message.replace(/^ffprobe exited \d+: /, '')}`)
-      : error
+  finally {
+    await handle.close()
   }
-  const seconds = Number(JSON.parse(stdout)?.format?.duration)
-  if (!Number.isFinite(seconds)) throw new AudioError(`ffprobe reported no duration for ${path}`)
-  return Math.round(seconds * 1000)
 }
 
 /**
@@ -128,20 +158,13 @@ export function impulseResponsePath(): string {
   return existsSync(built) ? built : resolve('public/audio/large-hall-ir.wav')
 }
 
-export interface RenderMixOptions {
+export interface RenderMixOptions extends MixFilterGraphOptions {
   backing: string
   vocal: string
   dstMp3: string
   dstWav: string | null
   tempo: number
   pitch: number
-  vocalWallMs: number
-  vocalGain: number
-  backingGain: number
-  targetDurationMs: number
-  reverbAmount?: number
-  lowpassHz?: number
-  effectsTarget?: EffectsTarget
 }
 
 /**
@@ -180,24 +203,46 @@ export function appendEffects(
   return label
 }
 
+/** Runs the stretch subprocess and rejects with `AudioError` on a non-zero exit. */
+function runStretch(src: string, dst: string, timeRatio: number, pitchScale: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // `childEnv` carries `ELECTRON_RUN_AS_NODE=1`, without which
+    // `process.execPath` under the packaged desktop app is the GUI binary.
+    const child = spawn(
+      process.execPath,
+      [stretchCliPath(), rubberBandWasmPath(), src, dst, String(timeRatio), String(pitchScale)],
+      { env: childEnv() },
+    )
+    let stderr = ''
+    child.stderr.on('data', d => (stderr += d))
+    child.on('error', error => reject(new AudioError(`could not start the stretch subprocess: ${error.message}`)))
+    child.on('close', (code) => {
+      if (code === 0) resolve()
+      else reject(new AudioError(stderr.trim() || `stretch subprocess exited with code ${code}`))
+    })
+  })
+}
+
+export interface MixFilterGraphOptions {
+  vocalWallMs: number
+  vocalGain: number
+  backingGain: number
+  targetDurationMs: number
+  reverbAmount?: number
+  lowpassHz?: number
+  effectsTarget?: EffectsTarget
+}
+
 /**
- * Renders a Mix: the Backing Track stretched by Rubber Band, then the two
- * Effects, then the Take's dry vocal placed at `vocalWallMs` (already
- * converted from song time to wall time by the caller) and scaled by
- * `vocalGain`, summed with the backing scaled by `backingGain`. The result
- * always covers exactly `targetDurationMs` — the Backing Track's own duration
- * is padded or trimmed to it, since Rubber Band's extreme pitch shifts land a
- * few percent short of the input length on their own (ADR 0003, ADR 0004).
- *
- * Ported from `worker/akapela_worker/audio.py`'s `render_mix` (ticket 04).
+ * The `-filter_complex` for a Mix, over inputs `0` the Backing Track (already
+ * stretched), `1` the Take's dry vocal, and `2` the impulse response when
+ * `wantsImpulseResponse`. Nothing in it needs more than a stock ffmpeg.
  */
-export async function renderMix(options: RenderMixOptions): Promise<void> {
+export function buildMixFilterGraph(options: MixFilterGraphOptions): { filterComplex: string, wantsImpulseResponse: boolean } {
   const {
-    backing, vocal, dstMp3, dstWav, tempo, pitch, vocalWallMs, vocalGain, backingGain, targetDurationMs,
+    vocalWallMs, vocalGain, backingGain, targetDurationMs,
     reverbAmount = REVERB_AMOUNT_MIN, lowpassHz = LOWPASS_HZ_MAX, effectsTarget = 'backing',
   } = options
-
-  await mkdir(dirname(dstMp3), { recursive: true })
   const targetSeconds = targetDurationMs / 1000
 
   let vocalChain: string
@@ -228,9 +273,9 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
     vocalIr = '[ir_voc]'
   }
 
-  const backingSegments = [`[0:a]rubberband=tempo=${tempo}:pitch=${pitch}[stretched]`]
+  const backingSegments: string[] = []
   const backingLabel = appendEffects(backingSegments, {
-    label: 'stretched',
+    label: '0:a',
     prefix: 'bg',
     reverbAmount: backingReverb,
     lowpassHz: onBacking ? lowpassHz : LOWPASS_HZ_MAX,
@@ -257,27 +302,71 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
     `[bg][${vocalLabel}]amix=inputs=2:duration=first:normalize=0[out]`,
   ].join(';')
 
-  const inputs = ['-i', backing, '-i', vocal]
-  if (backingWantsIr || vocalWantsIr) inputs.push('-i', impulseResponsePath())
+  return { filterComplex, wantsImpulseResponse: backingWantsIr || vocalWantsIr }
+}
 
+/**
+ * Renders a Mix: the Backing Track stretched by Rubber Band, then the two
+ * Effects, then the Take's dry vocal placed at `vocalWallMs` (already
+ * converted from song time to wall time by the caller) and scaled by
+ * `vocalGain`, summed with the backing scaled by `backingGain`. The result
+ * always covers exactly `targetDurationMs` — the Backing Track's own duration
+ * is padded or trimmed to it, since Rubber Band's extreme pitch shifts land a
+ * few percent short of the input length on their own (ADR 0003, ADR 0004).
+ *
+ * The stretch is Rubber Band WebAssembly — the build and options the live
+ * preview runs — in its own subprocess, not ffmpeg's `rubberband` filter; ffmpeg
+ * only ever sees audio that is already stretched. Unadjusted, there is nothing
+ * to stretch and the Backing Track goes to ffmpeg as it is.
+ *
+ * Ported from `worker/akapela_worker/audio.py`'s `render_mix` (ticket 04).
+ */
+export async function renderMix(options: RenderMixOptions): Promise<void> {
+  const { backing, vocal, dstMp3, dstWav, tempo, pitch } = options
+
+  await mkdir(dirname(dstMp3), { recursive: true })
+
+  const stretchedWav = dstMp3.replace(/\.mp3$/, '.stretched.part.wav')
   const tmpWav = dstMp3.replace(/\.mp3$/, '.part.wav')
   try {
-    await run('ffmpeg', [
-      '-y', '-nostdin', '-hide_banner', '-loglevel', 'error',
-      ...inputs,
-      '-filter_complex', filterComplex,
-      '-map', '[out]',
-      '-ar', String(BACKING_SAMPLE_RATE),
-      '-ac', String(BACKING_CHANNELS),
-      '-c:a', 'pcm_s16le',
-      tmpWav,
-    ])
+    let backingInput = backing
+    if (tempo !== 1 || pitch !== 1) {
+      try {
+        await runStretch(backing, stretchedWav, 1 / tempo, pitch)
+      }
+      catch (error) {
+        throw error instanceof AudioError
+          ? new AudioError(`Rubber Band could not stretch the Backing Track: ${error.message}`)
+          : error
+      }
+      backingInput = stretchedWav
+    }
+
+    const { filterComplex, wantsImpulseResponse } = buildMixFilterGraph(options)
+    const inputs = ['-i', backingInput, '-i', vocal]
+    if (wantsImpulseResponse) inputs.push('-i', impulseResponsePath())
+
+    try {
+      await run('ffmpeg', [
+        '-y', '-nostdin', '-hide_banner', '-loglevel', 'error',
+        ...inputs,
+        '-filter_complex', filterComplex,
+        '-map', '[out]',
+        '-ar', String(BACKING_SAMPLE_RATE),
+        '-ac', String(BACKING_CHANNELS),
+        '-c:a', 'pcm_s16le',
+        tmpWav,
+      ])
+    }
+    catch (error) {
+      await rm(tmpWav, { force: true })
+      throw error instanceof AudioError
+        ? new AudioError(`ffmpeg could not render the Mix: ${error.message.replace(/^ffmpeg exited \d+: /, '')}`)
+        : error
+    }
   }
-  catch (error) {
-    await rm(tmpWav, { force: true })
-    throw error instanceof AudioError
-      ? new AudioError(`ffmpeg could not render the Mix: ${error.message.replace(/^ffmpeg exited \d+: /, '')}`)
-      : error
+  finally {
+    await rm(stretchedWav, { force: true })
   }
 
   const tmpMp3 = dstMp3.replace(/\.mp3$/, '.part.mp3')

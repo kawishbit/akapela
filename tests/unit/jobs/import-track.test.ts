@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 import { importHandler } from '../../../server/lib/jobs/import-track'
 import { BACKING_TRACK_FILE, trackDir } from '../../../server/lib/jobs/track-paths'
@@ -119,6 +120,35 @@ describe('importHandler (upload)', () => {
     expect(track.import_state).toBe('ready')
     expect(Math.abs((track.duration_ms as number) - 2000)).toBeLessThan(150)
     expect(existsSync(join(directory, 'original.mp3'))).toBe(true)
+  })
+
+  // Every format an upload accepts, plus the AAC and Opus yt-dlp's
+  // `bestaudio` hands back. The Track's duration comes from the Backing
+  // Track's WAV header rather than ffprobe, so each has to land on it too.
+  it.each([
+    { extension: 'mp3', codec: 'libmp3lame' },
+    { extension: 'm4a', codec: 'aac' },
+    { extension: 'wav', codec: 'pcm_s16le' },
+    { extension: 'flac', codec: 'flac' },
+    { extension: 'ogg', codec: 'libvorbis' },
+    { extension: 'webm', codec: 'libopus' },
+  ])('imports a $extension ($codec) upload with its duration', async ({ extension, codec }) => {
+    const t = setup()
+    const directory = trackDir(t.dataDir, TRACK_ID)
+    mkdirSync(directory, { recursive: true })
+    const encoded = spawnSync('ffmpeg', [
+      '-y', '-nostdin', '-hide_banner', '-loglevel', 'error',
+      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=3',
+      '-ar', '48000', '-ac', '2', '-c:a', codec, join(directory, `original.${extension}`),
+    ])
+    expect(encoded.status, encoded.stderr.toString()).toBe(0)
+    insertTrack(t, { sourceKind: 'upload', sourceRef: `sine.${extension}` })
+
+    await importHandler(new YtDlpFetcher())(buildCtx(t, 'j1'))
+
+    const track = getTrack(t)
+    expect(track.import_state).toBe('ready')
+    expect(Math.abs((track.duration_ms as number) - 3000)).toBeLessThan(100)
   })
 
   it('records the ffmpeg error and fails the Track on a corrupt original', async () => {

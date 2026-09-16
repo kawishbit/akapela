@@ -25,3 +25,20 @@ It sits on the same side of the line as pitch and Backing Source, for the same r
 - The recorded vocal is stored dry whatever the Target says. Singing with reverb on your own voice is decided at review and at render, never a property of the Take.
 - The browser gives the vocal its own chain — the same convolver and biquad, against the same impulse response — and the worker's render gives it the same `afir` and `lowpass` segments. Either side is left out of its graph entirely when the target does not reach it, so nothing is coloured by a filter merely set to be neutral.
 - `backing` is the default, and the value every Take, Track, and Mix written before the target existed parses as, so nothing already recorded or rendered changes meaning.
+
+## Amendment: the render stretches with the preview's own Rubber Band build
+
+The Mix render used to stretch the Backing Track with ffmpeg's `rubberband` filter. It now runs Rubber Band WebAssembly, the same `rubberband-wasm` build the browser engine loads for live playback, with the same options (real-time mode, no threads, high-consistency pitch, channels together). ffmpeg gets audio that is already stretched and does only the Effects, placement, mixing, and encoding.
+
+Two things forced this, and a third made it worth doing:
+
+- **No publisher ships a static Apple Silicon ffmpeg with librubberband.** The filter was in every Mix's graph, even with no Adjustments, so an ffmpeg without it failed every render. Building one from source for macOS broke on toolchain quirks and would have been a Mac-only build to maintain forever (`.scratch/apple-silicon-release/`).
+- **The filter was the only reason any bundled ffmpeg needed librubberband.** Moving the stretch lets every platform bundle a stock, checksum-pinned ffmpeg.
+- **The export now matches the preview more closely.** "Two implementations that must sound alike" is now one implementation for the stretch: the same wasm and the same option flags on both sides. The Effects are still two implementations sharing one impulse response.
+
+Consequences:
+
+- **The stretch runs in its own subprocess.** `server/lib/stretch/stretch-cli.ts` is spawned by `renderMix` the way the separate Job spawns its CLI. Rubber Band over a whole song takes seconds to minutes of CPU, and the Job runner shares its process with every API request.
+- **Unadjusted Mixes skip the stretch.** At tempo 100% and no pitch shift the Backing Track goes to ffmpeg unchanged. The old filter still ran over it, and the preview still does.
+- **Real-time mode, not offline mode.** Offline mode with a study pass would be the better choice for quality alone. It is not what the preview runs, and matching the preview is the point. `tests/unit/stretch/rubberband.test.ts` checks that the worklet's option flags and the render's are identical, because the worklet cannot import the module.
+- **The wasm is found the same way as every other tool** (`rubberBandWasmPath()` in `server/lib/tools.ts`). By default it is `node_modules/rubberband-wasm/dist/rubberband.wasm` under the app root, which the compose image copies in. The desktop shell stages its own copy and sets `AKAPELA_RUBBERBAND_WASM`.

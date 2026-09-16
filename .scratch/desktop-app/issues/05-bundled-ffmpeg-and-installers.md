@@ -84,3 +84,12 @@ So the prediction above holds and then some: **the two ffmpeg binaries are 40% o
 One incidental figure: an intermediate build, before the hoisted-install fix, came out at 245.3 MB — *larger* than the correct one, because `pruneOnnxRuntime()` was reaching through the pnpm symlink and failing to strip the platforms it was meant to strip. Fixing the layout fixed the pruning too.
 
 **Not covered by this:** macOS and Linux installers. Only `win32-x64` was built and only on this machine — the matrix in `.github/workflows/desktop-release.yml` is still unexercised, though fixes 1 and 2 above were both blocking it on every platform.
+
+**Resolved: `darwin-arm64`** (`.scratch/apple-silicon-release/`, tickets 01 and 02). The Mix render no longer uses ffmpeg's `rubberband` filter. It stretches with the Rubber Band WebAssembly build the preview uses, so a stock arm64 ffmpeg without librubberband renders every Mix correctly. A from-source build (`build-ffmpeg-darwin-arm64.sh`) came first and was removed after it hit Rubber Band not compiling under Xcode 26's libc++. The pin is now martin-riedl.de's 9.0.1 release (`https://ffmpeg.martin-riedl.de/download/macos/arm64/1787073674_9.0.1/`), with ffmpeg and ffprobe as separate zips:
+
+| platform | source | sha256 |
+| -------- | ------ | ------ |
+| darwin-arm64 ffmpeg | martin-riedl.de 9.0.1 | `8287a1…407fe` |
+| darwin-arm64 ffprobe | martin-riedl.de 9.0.1 | `102a26…0741a` |
+
+Checked on a download, not assumed: both binaries are thin arm64 Mach-O, and every library they load is under `/usr/lib` or `/System/Library`. The build is configured with `--enable-gpl --enable-version3 --enable-libmp3lame`. The release workflow re-checks all three on its macOS runner with `lipo`, `otool -L`, and `ffmpeg -encoders`. There is no darwin-x64 entry: macOS means Apple Silicon.

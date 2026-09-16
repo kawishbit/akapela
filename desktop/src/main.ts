@@ -89,8 +89,11 @@ function serverEnvironment(): NodeJS.ProcessEnv {
     // from Electron rather than its own root — so a Mix with any reverb fails.
     AKAPELA_PUBLIC_DIR: overrideIfPresent(layout.publicDir),
     AKAPELA_FFMPEG: overrideIfPresent(layout.ffmpeg),
-    AKAPELA_FFPROBE: overrideIfPresent(layout.ffprobe),
     AKAPELA_SEPARATE_CLI: overrideIfPresent(layout.separateCli),
+    // The Mix render stretches the Backing Track in its own subprocess, with
+    // the Rubber Band wasm the preview uses rather than ffmpeg's filter.
+    AKAPELA_STRETCH_CLI: overrideIfPresent(layout.stretchCli),
+    AKAPELA_RUBBERBAND_WASM: overrideIfPresent(layout.rubberBandWasm),
     // yt-dlp is not bundled: it chases a moving target and breaks quarterly,
     // so the app fetches it into the library's cache on first use and Settings
     // can replace it with one click (ADR 0010). This names where it goes;

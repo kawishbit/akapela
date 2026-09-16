@@ -17,7 +17,8 @@ import { join, resolve } from 'node:path'
  *   <resources>/output/public/…           its static assets, where it expects them
  *   <resources>/migrations/               the database migrates itself on startup
  *   <resources>/separators/…              the separation CLI, compiled to JavaScript
- *   <resources>/bin/ffmpeg|ffprobe        the pinned static builds
+ *   <resources>/stretch/…                 the Mix render's stretch CLI, compiled, and its Rubber Band wasm
+ *   <resources>/bin/ffmpeg                the pinned static build
  *   <resources>/licenses/                 GPL-3.0 and the bundled binaries' texts
  */
 
@@ -33,9 +34,12 @@ export interface Layout {
    */
   publicDir: string
   ffmpeg: string
-  ffprobe: string
   /** Handed to the server as `AKAPELA_SEPARATE_CLI`. */
   separateCli: string
+  /** Handed to the server as `AKAPELA_STRETCH_CLI`. */
+  stretchCli: string
+  /** Handed to the server as `AKAPELA_RUBBERBAND_WASM`: the stretch the Mix render runs, the one the preview runs. */
+  rubberBandWasm: string
   licensesDir: string
 }
 
@@ -44,7 +48,7 @@ export function executableName(name: string, platform: NodeJS.Platform): string 
   return platform === 'win32' ? `${name}.exe` : name
 }
 
-/** Where `scripts/fetch-binaries.ts` puts a platform's ffmpeg and ffprobe. */
+/** Where `scripts/fetch-binaries.ts` puts a platform's ffmpeg. */
 export function vendorDir(desktopRoot: string, platform: NodeJS.Platform, arch: string): string {
   return join(desktopRoot, 'vendor', `${platform}-${arch}`)
 }
@@ -70,16 +74,17 @@ export function packagedLayout(resourcesPath: string, platform: NodeJS.Platform)
     migrationsDir: join(resourcesPath, 'migrations'),
     publicDir: join(resourcesPath, 'output', 'public'),
     ffmpeg: join(resourcesPath, 'bin', executableName('ffmpeg', platform)),
-    ffprobe: join(resourcesPath, 'bin', executableName('ffprobe', platform)),
     separateCli: join(resourcesPath, 'separators', 'server', 'lib', 'separators', 'separate-cli.js'),
+    stretchCli: join(resourcesPath, 'stretch', 'server', 'lib', 'stretch', 'stretch-cli.js'),
+    rubberBandWasm: join(resourcesPath, 'stretch', 'rubberband.wasm'),
     licensesDir: join(resourcesPath, 'licenses'),
   }
 }
 
 /**
  * A checkout: the server is whatever `pnpm build` last produced at the repo
- * root, and the separation CLI is the TypeScript file Node type-strips, which
- * is what `pnpm dev` and compose both run.
+ * root, and the separation and stretch CLIs are the TypeScript files Node
+ * type-strips, which is what `pnpm dev` and compose both run.
  */
 export function developmentLayout(desktopRoot: string, platform: NodeJS.Platform, arch: string): Layout {
   const repoRoot = resolve(desktopRoot, '..')
@@ -89,8 +94,9 @@ export function developmentLayout(desktopRoot: string, platform: NodeJS.Platform
     migrationsDir: join(repoRoot, 'server', 'db', 'migrations'),
     publicDir: join(repoRoot, '.output', 'public'),
     ffmpeg: join(vendor, executableName('ffmpeg', platform)),
-    ffprobe: join(vendor, executableName('ffprobe', platform)),
     separateCli: join(repoRoot, 'server', 'lib', 'separators', 'separate-cli.ts'),
+    stretchCli: join(repoRoot, 'server', 'lib', 'stretch', 'stretch-cli.ts'),
+    rubberBandWasm: join(repoRoot, 'node_modules', 'rubberband-wasm', 'dist', 'rubberband.wasm'),
     licensesDir: join(desktopRoot, 'resources', 'licenses'),
   }
 }

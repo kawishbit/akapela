@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
@@ -14,7 +14,8 @@ import { dirname, join, resolve } from 'node:path'
  *                        looks for `../public` beside itself
  *   staging/migrations/  the database migrates itself on startup
  *   staging/separators/  the separation CLI, compiled to JavaScript
- *   staging/bin/         the pinned ffmpeg and ffprobe
+ *   staging/stretch/     the Mix render's stretch CLI, compiled, and the Rubber Band wasm it loads
+ *   staging/bin/         the pinned ffmpeg
  *   staging/licenses/    GPL-3.0 and the bundled binaries' licence texts
  *
  * The separation CLI is compiled rather than shipped as TypeScript: today
@@ -42,6 +43,14 @@ function requireDir(path: string, how: string): void {
 
 function run(command: string, args: string[], cwd: string): void {
   execFileSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' })
+}
+
+/** `pnpm@<version>` from a package's `packageManager` field, for `npx`. */
+function pinnedPnpm(dir: string): string {
+  const { packageManager } = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { packageManager?: string }
+  const version = packageManager?.match(/^pnpm@(\d+\.\d+\.\d+)/)?.[1]
+  if (!version) throw new Error(`${join(dir, 'package.json')} has no pnpm@X.Y.Z packageManager to install with`)
+  return `pnpm@${version}`
 }
 
 function stageServer(): void {
@@ -105,9 +114,48 @@ function stageSeparators(): void {
   // packaged app then dies at the first separation with `Cannot find module
   // 'onnxruntime-common'`. A hoisted install writes a real, flat, complete
   // tree, which is what survives the copy.
-  run('pnpm', ['install', '--prod', '--frozen-lockfile', '--ignore-workspace', '--node-linker=hoisted'], separators)
+  //
+  // The pnpm that runs this is the one `package.json`'s `packageManager`
+  // pins, named explicitly rather than whatever `pnpm` is on PATH. That
+  // package still uses pnpm 10's layout (its lockfile, its `pnpm` field), and
+  // the Dockerfile gets 10 for it through corepack. A pnpm 12 on PATH only
+  // switched to it on some machines — on CI it didn't, and pnpm 12 walked up
+  // to `desktop/pnpm-workspace.yaml`, looked for this directory in
+  // `desktop/pnpm-lock.yaml`, and failed the install.
+  run('npx', ['--yes', pinnedPnpm(separators), 'install', '--prod', '--frozen-lockfile', '--ignore-workspace', '--node-linker=hoisted'], separators)
 
   pruneOnnxRuntime(join(separators, 'node_modules', 'onnxruntime-node', 'bin', 'napi-v6'))
+}
+
+/**
+ * Compiles the Mix render's stretch CLI the same way as the separation CLI,
+ * and stages the Rubber Band wasm it loads beside it. The wasm is the one the
+ * root install carries — the same file Vite hands the browser for the live
+ * preview — so a Mix and the preview it was sung over run one build. It needs
+ * no install of its own: nothing it imports is outside Node and this repo.
+ */
+function stageStretch(): void {
+  step('compiling the stretch CLI')
+  const out = join(staging, 'stretch')
+  mkdirSync(out, { recursive: true })
+  run('npx', [
+    'tsc',
+    join(repoRoot, 'server', 'lib', 'stretch', 'stretch-cli.ts'),
+    '--module', 'nodenext',
+    '--moduleResolution', 'nodenext',
+    '--target', 'es2022',
+    '--strict',
+    '--skipLibCheck',
+    '--allowImportingTsExtensions',
+    '--rewriteRelativeImportExtensions',
+    '--rootDir', repoRoot,
+    '--outDir', out,
+  ], desktopRoot)
+  writeFileSync(join(out, 'package.json'), `${JSON.stringify({ type: 'module' }, null, 2)}\n`)
+
+  const wasm = join(repoRoot, 'node_modules', 'rubberband-wasm', 'dist', 'rubberband.wasm')
+  if (!existsSync(wasm)) throw new Error(`${wasm} is missing. Run \`pnpm install\` at the repo root first.`)
+  cpSync(wasm, join(out, 'rubberband.wasm'))
 }
 
 /**
@@ -132,7 +180,7 @@ function pruneOnnxRuntime(napiDir: string): void {
 function stageBinaries(): void {
   const vendor = join(desktopRoot, 'vendor', `${platform}-${arch}`)
   requireDir(vendor, `Run \`pnpm fetch-binaries -- --platform ${platform} --arch ${arch}\` first.`)
-  step('staging ffmpeg and ffprobe')
+  step('staging ffmpeg')
   cpSync(vendor, join(staging, 'bin'), { recursive: true })
 }
 
@@ -155,6 +203,7 @@ function main(): void {
   mkdirSync(staging, { recursive: true })
   stageServer()
   stageSeparators()
+  stageStretch()
   stageBinaries()
   stageLicenses()
   step(`\nStaged at ${staging}`)

@@ -24,7 +24,7 @@ Agents working without a terminal to sit in: `aspire start` runs it in the backg
 
 `pnpm dev` runs the app on its own the same way, without the Dashboard.
 
-`README.md` carries the full prerequisite list for both paths. The app also shells out to `ffmpeg`, `ffprobe`, and `yt-dlp`, and to `node` for the JavaScript yt-dlp runs against YouTube. The AppHost checks the PATH for all of these and says so in the Dashboard: the app goes unhealthy without ffmpeg or ffprobe, and degraded without yt-dlp or Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
+`README.md` carries the full prerequisite list for both paths. The app also shells out to `ffmpeg` and `yt-dlp`, and to `node` for the JavaScript yt-dlp runs against YouTube. It never runs `ffprobe`: durations come from the headers of the WAVs it writes, and only the test suite uses ffprobe. The AppHost checks the PATH for all of these and says so in the Dashboard: the app goes unhealthy without ffmpeg, and degraded without yt-dlp or Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
 
 ### Following a failure
 
@@ -71,15 +71,15 @@ Building an actual installer:
 ```
 pnpm build                                   # at the repo root, for .output
 cd desktop
-pnpm fetch-binaries                          # ffmpeg and ffprobe, pinned in scripts/binaries.json
+pnpm fetch-binaries                          # ffmpeg, pinned in scripts/binaries.json
 pnpm pack:app
 ```
 
-`pnpm fetch-binaries -- --platform win32 --arch x64` cross-fetches for another platform; the checksums are pinned and a mismatch fails loudly. Installers are built on a GitHub Actions matrix (`.github/workflows/desktop-release.yml`) rather than a development machine, because a macOS DMG has to be signed and notarized on a macOS runner.
+`pnpm fetch-binaries -- --platform win32 --arch x64` cross-fetches for another platform; the checksums are pinned and a mismatch fails loudly. Installers are built on a GitHub Actions matrix (`.github/workflows/desktop-release.yml`) rather than a development machine, because a macOS DMG has to be built on a macOS runner.
 
 The parts of the shell that are easy to get wrong — the port rules, the window bounds, the config store, the packaged layout, the version check — are plain functions with no Electron import, covered by the **root** vitest suite in `tests/unit/desktop/`. Keep them that way; there is no e2e harness and there is not meant to be one (ADR 0009).
 
-The four external tools the server shells out to all sit behind `server/lib/tools.ts`. Set no override and it resolves bare names off `PATH` exactly as compose does; the shell sets absolute paths. Anything that spawns a process from the server should go through `childEnv()`, which carries `ELECTRON_RUN_AS_NODE=1` — without it, a packaged app spawning `process.execPath` opens a second window instead of running the child.
+Everything the server spawns or loads from outside its own bundle sits behind `server/lib/tools.ts`: ffmpeg, yt-dlp, the JavaScript runtime yt-dlp uses, the separation and stretch CLIs, and the Rubber Band wasm the stretch loads. Set no override and it resolves bare names off `PATH` exactly as compose does; the shell sets absolute paths. Anything that spawns a process from the server should go through `childEnv()`, which carries `ELECTRON_RUN_AS_NODE=1` — without it, a packaged app spawning `process.execPath` opens a second window instead of running the child.
 
 ## Branching and committing
 

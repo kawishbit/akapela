@@ -22,3 +22,12 @@
 Not implemented, deliberately: signing/notarization (unchanged, out of scope per the grilling session).
 
 Four real failures across four consecutive live runs. Two were repository settings neither `gh api repos/.../rules/branches/main` (checked before ticket 03 was written) nor `gh api repos/.../actions/permissions/workflow` (checked before ticket 02, but only for the `default_workflow_permissions` field — `can_approve_pull_request_reviews` was sitting right there in the same response and got missed) surfaced ahead of time. The other two were genuine design gaps in the automation itself: relying on a `GITHUB_TOKEN`-authored push to retrigger the same workflow (which GitHub Actions never allows), and treating git tags as the sole source of truth for "what version comes next" when `package.json` can legitimately get ahead of them. Worth remembering for any future GitHub Actions automation in this repo: read *every* field of `actions/permissions/workflow`, not just the one being reasoned about at the time; never design a workflow that depends on its own `GITHUB_TOKEN` push triggering a later run; and when two files are both supposed to track "the current version," compute from whichever is actually ahead rather than picking one as the assumed source of truth.
+
+**Update (`.scratch/apple-silicon-release/`, ticket 03).** The third box above no longer describes the workflow. `build` runs off a merged release PR in the same workflow run (second amendment). `workflow_dispatch` also takes a `dry_run` input again, which builds all three installers from the dispatched ref without versioning, tagging, or publishing. Dry runs were used to prove the build before cutting the next release. What they found, and how each was fixed, is in ADR 0011's fourth amendment:
+- a `@types/node` split that broke typecheck;
+- the tests needing ffmpeg on runners that have none, fixed by one `checks` job;
+- the separation CLI's install picking up the wrong pnpm;
+- an empty `CSC_LINK` breaking the macOS build;
+- macOS having no ffmpeg to bundle, fixed by moving the render's stretch to Rubber Band WebAssembly and pinning a stock arm64 build.
+
+The last unticked box, a real end-to-end run, is now `.scratch/apple-silicon-release/issues/04-cut-v1-0-2-end-to-end.md`.

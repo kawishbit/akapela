@@ -1,13 +1,15 @@
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { monitorEventLoopDelay } from 'node:perf_hooks'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { appendEffects } from '../../../server/lib/audio'
+import { appendEffects, buildMixFilterGraph, renderMix } from '../../../server/lib/audio'
 import { JobsRunner } from '../../../server/lib/jobs-runner'
 import { runRender } from '../../../server/lib/jobs/render'
 import type { JobContext } from '../../../server/lib/jobs-runner'
 import { probe, writeBurstThenSilenceWav, writeSineWav } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
-import { rmsWindow } from '../wav-rms'
+import { rmsWindow, zeroCrossingFrequency } from '../wav-rms'
 
 const TRACK_ID = 't1'
 const TAKE_ID = 'take1'
@@ -176,6 +178,62 @@ describe('runRender', () => {
 
     const baseline = rmsWindow(wav, 0.0, 0.4)
     const duringVocal = rmsWindow(wav, 0.6, 0.9)
+    expect(duringVocal).toBeGreaterThan(baseline * 1.2)
+  })
+
+  it('shifts the Backing Track by the Mix’s semitones without changing its length', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 4 })
+    writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.1 })
+    insertTrack(t)
+    insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 0, durationMs: 100 })
+    insertMix(t, { mixId: 'm1', jobId: 'j1', pitchSemitones: 5, vocalGain: 0, wavRequested: true })
+    enqueueRender(t, 'm1')
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    const wav = join(dir, 'mixes', 'm1.wav')
+    expect(Math.abs(Number(probe(wav).format.duration) - 4)).toBeLessThan(0.05)
+    expect(zeroCrossingFrequency(wav, 1, 3)).toBeCloseTo(220 * 2 ** (5 / 12), -1)
+  })
+
+  it('raises the pitch with the tempo when they are linked', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 3 })
+    writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.1 })
+    insertTrack(t)
+    insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 0, durationMs: 100, tempoPercent: 150 })
+    insertMix(t, { mixId: 'm1', jobId: 'j1', tempoPercent: 150, linked: true, vocalGain: 0, wavRequested: true })
+    enqueueRender(t, 'm1')
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    const wav = join(dir, 'mixes', 'm1.wav')
+    expect(Math.abs(Number(probe(wav).format.duration) - 2)).toBeLessThan(0.05)
+    expect(zeroCrossingFrequency(wav, 0.5, 1.5)).toBeCloseTo(330, -1)
+  })
+
+  it('places the vocal in wall time on a slower, pitch-shifted Mix', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 3 })
+    writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
+    insertTrack(t)
+    insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 1000, durationMs: 500, tempoPercent: 50 })
+    insertMix(t, { mixId: 'm1', jobId: 'j1', tempoPercent: 50, pitchSemitones: -3, wavRequested: true })
+    enqueueRender(t, 'm1')
+
+    await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    const wav = join(dir, 'mixes', 'm1.wav')
+    expect(Math.abs(Number(probe(wav).format.duration) - 6)).toBeLessThan(0.05)
+    const baseline = rmsWindow(wav, 0.5, 1.5)
+    const duringVocal = rmsWindow(wav, 2.1, 2.4)
     expect(duringVocal).toBeGreaterThan(baseline * 1.2)
   })
 
@@ -517,14 +575,14 @@ describe('runRender', () => {
 
 describe('appendEffects', () => {
   it('leaves the filter graph untouched at bypassed values', () => {
-    const segments = ['[0:a]rubberband=tempo=1.0:pitch=1.0[stretched]']
+    const segments = ['[1:a]adelay=500|500[voc]']
 
     const label = appendEffects(segments, {
-      label: 'stretched', prefix: 'bg', reverbAmount: 0, lowpassHz: 20000, impulseLabel: '[2:a]',
+      label: 'voc', prefix: 'voc', reverbAmount: 0, lowpassHz: 20000, impulseLabel: '[2:a]',
     })
 
-    expect(label).toBe('stretched')
-    expect(segments).toEqual(['[0:a]rubberband=tempo=1.0:pitch=1.0[stretched]'])
+    expect(label).toBe('voc')
+    expect(segments).toEqual(['[1:a]adelay=500|500[voc]'])
   })
 
   it('builds reverb first, then the low pass, and hands on the labels', () => {
@@ -542,4 +600,60 @@ describe('appendEffects', () => {
       '[voc_reverbed]lowpass=f=4000[voc_lp]',
     ])
   })
+})
+
+describe('buildMixFilterGraph', () => {
+  const base = {
+    vocalWallMs: 1000, vocalGain: 1, backingGain: 1, targetDurationMs: 4000,
+    reverbAmount: 65, lowpassHz: 4000, effectsTarget: 'both' as const,
+  }
+
+  // ffmpeg receives a Backing Track that is already stretched, so any stock
+  // ffmpeg renders a Mix — including the static arm64 macOS builds, none of
+  // which carry librubberband.
+  it('never asks ffmpeg for its rubberband filter', () => {
+    expect(buildMixFilterGraph(base).filterComplex).not.toContain('rubberband')
+  })
+
+  it('feeds the Backing Track input straight into its Effects', () => {
+    const { filterComplex, wantsImpulseResponse } = buildMixFilterGraph(base)
+
+    expect(filterComplex.startsWith('[2:a]asplit=2[ir_bg][ir_voc];[0:a]asplit=2[bg_dry][bg_wet_in]')).toBe(true)
+    expect(wantsImpulseResponse).toBe(true)
+  })
+
+  it('needs no impulse response when neither side has reverb', () => {
+    expect(buildMixFilterGraph({ ...base, reverbAmount: 0 }).wantsImpulseResponse).toBe(false)
+  })
+})
+
+describe('renderMix', () => {
+  let dir: string | undefined
+
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true })
+    dir = undefined
+  })
+
+  // The stretch is the CPU-heavy half of a render, and the Job runner shares
+  // its process with every API request. Measured here as the event loop's
+  // worst stall across an adjusted render long enough that stretching it in
+  // process would stall it for well over a second.
+  it('keeps the event loop free while it stretches', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'akapela-render-loop-'))
+    writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 60 })
+    writeSineWav(join(dir, 'vocal.wav'), { frequency: 880, seconds: 1 })
+
+    const delay = monitorEventLoopDelay({ resolution: 10 })
+    delay.enable()
+    await renderMix({
+      backing: join(dir, 'backing.wav'), vocal: join(dir, 'vocal.wav'),
+      dstMp3: join(dir, 'mix.mp3'), dstWav: null,
+      tempo: 0.8, pitch: 2 ** (3 / 12), vocalWallMs: 0, vocalGain: 1, backingGain: 1, targetDurationMs: 75000,
+    })
+    delay.disable()
+
+    expect(existsSync(join(dir, 'mix.mp3'))).toBe(true)
+    expect(delay.max / 1e6).toBeLessThan(250)
+  }, 60_000)
 })

@@ -1,10 +1,10 @@
 import { resolve } from 'node:path'
 
 /**
- * Where the four external things Akapela shells out to are found.
+ * Where the external things Akapela shells out to are found.
  *
  * In the compose image and in every development loop the answer is a
- * convention: the Dockerfile installs `ffmpeg`, `ffprobe`, and `yt-dlp` onto
+ * convention: the Dockerfile installs `ffmpeg` and `yt-dlp` onto
  * `PATH`, and copies `separate-cli.ts` to a fixed place under `/app`, which is
  * the cwd. A packaged desktop app has neither a controlled `PATH` nor a
  * meaningful cwd, so it sets an environment override per tool and gets
@@ -22,12 +22,13 @@ function override(name: string): string | undefined {
   return value ? value : undefined
 }
 
-/** The two halves of ffmpeg this app spawns, each with its own override. */
-export type FfmpegTool = 'ffmpeg' | 'ffprobe'
-
-/** `AKAPELA_FFMPEG` or `AKAPELA_FFPROBE`, else the bare name off `PATH`. */
-export function ffmpegToolPath(tool: FfmpegTool): string {
-  return override(tool === 'ffmpeg' ? 'AKAPELA_FFMPEG' : 'AKAPELA_FFPROBE') ?? tool
+/**
+ * `AKAPELA_FFMPEG`, else the bare name off `PATH`. There is no ffprobe: the
+ * only durations the app reads are of WAVs it wrote, and `wavDurationMs` in
+ * `audio.ts` reads those from the header.
+ */
+export function ffmpegPath(): string {
+  return override('AKAPELA_FFMPEG') ?? 'ffmpeg'
 }
 
 /** `AKAPELA_YTDLP`, else the bare name off `PATH`. */
@@ -45,6 +46,26 @@ export function ytDlpPath(): string {
  */
 export function separateCliPath(): string {
   return override('AKAPELA_SEPARATE_CLI') ?? resolve(process.cwd(), 'server/lib/separators/separate-cli.ts')
+}
+
+/**
+ * `AKAPELA_STRETCH_CLI`, else the Mix render's stretch entry point resolved
+ * against `process.cwd()`, for the same reasons as `separateCliPath`.
+ */
+export function stretchCliPath(): string {
+  return override('AKAPELA_STRETCH_CLI') ?? resolve(process.cwd(), 'server/lib/stretch/stretch-cli.ts')
+}
+
+/**
+ * `AKAPELA_RUBBERBAND_WASM`, else the build `rubberband-wasm` installed at the
+ * repo root — the same file the browser engine fetches for the live preview,
+ * which is what makes a Mix sound like the preview (ADR 0003). The compose
+ * image copies it to that same place under `/app`; the desktop shell stages
+ * its own copy and sets the override.
+ */
+export function rubberBandWasmPath(): string {
+  return override('AKAPELA_RUBBERBAND_WASM')
+    ?? resolve(process.cwd(), 'node_modules/rubberband-wasm/dist/rubberband.wasm')
 }
 
 /**

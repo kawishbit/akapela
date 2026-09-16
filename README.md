@@ -29,7 +29,13 @@ Download it, open it, sing. Nothing else to install.
 
 Your library lives in the app's own folder by default. Settings shows you where, and lets you point it somewhere else — including at a folder a server install already built, which opens that library as it is.
 
-**On macOS**, builds are signed and notarized, so the app opens like any other one — an unsigned macOS build would be refused outright rather than warned about, which is why there simply isn't one.
+**On macOS**, the app is for Apple Silicon Macs (M1 and later); there is no Intel build. It isn't signed or notarized yet, so the first time you open it, macOS says **"Akapela" is damaged and can't be opened** and offers to move it to the Bin. It isn't damaged — that's how macOS treats any unsigned app downloaded from the internet. Choose **Cancel**, drag Akapela into Applications, then run this once in Terminal:
+
+```
+xattr -dr com.apple.quarantine /Applications/Akapela.app
+```
+
+That clears the flag macOS put on the download, and after that it opens like any other app. Right-click → **Open** doesn't get past this message, which is why the Terminal step is needed.
 
 **On Windows**, the installer isn't signed yet. SmartScreen will show a blue "Windows protected your PC" box the first time; choose **More info**, then **Run anyway**. That's the whole of it, and it only happens once.
 
@@ -108,7 +114,7 @@ You'll need:
 - **Node 22.19+, 24.11+, or 26+** (Nuxt's supported range, which skips 23 and 25) and **pnpm** — run `corepack enable` and pnpm's pinned version in `package.json` takes care of the rest.
 - **The [Aspire CLI](https://aspire.dev)**, for local development.
 - **Docker**, only if you're changing the Dockerfile or `docker-compose.yml` and want to confirm the shipped build still works.
-- **`ffmpeg` and `ffprobe`** on your PATH — the app calls them for every import and every Mix. The AppHost checks for both at startup and flags the app as unhealthy in the Dashboard if either is missing, naming exactly what's missing so you catch it immediately rather than an hour in.
+- **`ffmpeg`** on your PATH — the app calls it for every import and every Mix. The AppHost checks for it at startup and flags the app as unhealthy in the Dashboard if it's missing, so you catch it immediately rather than an hour in. The test suite also uses `ffprobe`, which every ffmpeg package ships alongside it.
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp#installation)** on your PATH, for YouTube imports. Missing, the app still starts — only YouTube imports are affected, and the Dashboard will say so; uploading a file directly is unaffected either way.
 
 Node also doubles as the JavaScript runtime yt-dlp needs to get past YouTube's player checks. Without it, YouTube imports still work but with fewer format options, and the Dashboard will let you know.

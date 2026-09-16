@@ -27,13 +27,22 @@ describe('packagedLayout', () => {
     expect(layout.migrationsDir).toContain('migrations')
   })
 
-  it('points at the bundled ffmpeg and ffprobe rather than anything on the PATH', () => {
+  it('points at the bundled ffmpeg rather than anything on the PATH', () => {
     expect(layout.ffmpeg).toContain(join('bin', 'ffmpeg'))
-    expect(layout.ffprobe).toContain(join('bin', 'ffprobe'))
+  })
+
+  // Durations are read from the WAV header, so no installer carries ffprobe.
+  it('names no ffprobe', () => {
+    expect(Object.keys(layout)).not.toContain('ffprobe')
   })
 
   it('points at the separation CLI compiled to JavaScript, not the TypeScript source', () => {
     expect(layout.separateCli.endsWith('separate-cli.js')).toBe(true)
+  })
+
+  it('points at the Mix render’s stretch CLI compiled to JavaScript, and the Rubber Band build it loads', () => {
+    expect(layout.stretchCli.endsWith(join('stretch', 'server', 'lib', 'stretch', 'stretch-cli.js'))).toBe(true)
+    expect(layout.rubberBandWasm.endsWith(join('stretch', 'rubberband.wasm'))).toBe(true)
   })
 
   // The Mix render reads the reverb impulse response off disk, and the server
@@ -61,6 +70,11 @@ describe('developmentLayout', () => {
 
   it('runs the TypeScript separation CLI, the same file compose and `pnpm dev` run', () => {
     expect(layout.separateCli).toBe(join(repoRoot, 'server', 'lib', 'separators', 'separate-cli.ts'))
+  })
+
+  it('runs the TypeScript stretch CLI against the Rubber Band build the root install carries', () => {
+    expect(layout.stretchCli).toBe(join(repoRoot, 'server', 'lib', 'stretch', 'stretch-cli.ts'))
+    expect(layout.rubberBandWasm).toBe(join(repoRoot, 'node_modules', 'rubberband-wasm', 'dist', 'rubberband.wasm'))
   })
 
   it('takes its binaries from the vendor directory the fetch script fills', () => {

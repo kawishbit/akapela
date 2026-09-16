@@ -1,26 +1,25 @@
-# Cuts a release, then builds the desktop installers on the tag it creates and
-# publishes them to a GitHub Release with checksums.
+# Cuts a release, builds the desktop installers, and publishes them to a
+# GitHub Release with checksums (ADR 0011 and its amendments).
 #
-# Three steps (ADR 0011, amended twice — see the ADR for both):
-#   1. `workflow_dispatch`, by hand: the `version` job computes the next
-#      semver (or takes the input's override), commits it into both
-#      `package.json` files on a new `release/vX.Y.Z` branch, and opens a PR
-#      to `main`. It does not merge it — `main` requires every change go
-#      through a PR, same as any other change to it.
-#   2. Merging that PR (by hand) is what actually lands the version bump.
-#   3. The `tag` job, on that PR's merge, tags the resulting commit and
-#      pushes it. That push does *not* retrigger this workflow — a push made
-#      with the default GITHUB_TOKEN never does, a deliberate GitHub Actions
-#      anti-recursion guard, found out by a real `v1.0.1` tag that got
-#      pushed and then never built. So `build` and `publish` are chained
-#      directly off the same merged-PR run instead of waiting on a tag push
-#      that was never going to arrive; `push: tags` stays as a fallback for
-#      a tag pushed by an actual human with their own credentials, which
-#      *does* trigger normally.
+#   1. `workflow_dispatch`, by hand: `version` computes the next semver (or
+#      takes the input's override), commits it into both `package.json`
+#      files on `release/vX.Y.Z`, and opens a PR to `main`. `main` only takes
+#      changes through a PR, so this stops there.
+#   2. Merging that PR (by hand) lands the bump. That merge event runs `tag`,
+#      then `build`, then `publish`, all in the same workflow run. They can't
+#      wait on the tag push instead: a push made with GITHUB_TOKEN never
+#      triggers another workflow run.
+#
+# `dry_run` on the dispatch skips all of that and just runs `build` across
+# the matrix from whatever ref was dispatched — nothing is versioned, tagged,
+# or published. Use it to prove the installers still build before cutting a
+# release, since a broken leg otherwise only shows up mid-release.
+#
+# `push: tags` remains for a tag pushed by a person with their own
+# credentials, which does trigger normally: `build` and `publish` run on it.
 #
 # `build` is a matrix rather than something run from a development machine
-# because a macOS DMG has to be built and notarized on a macOS runner — that
-# is the forcing function, not a preference.
+# because a macOS DMG has to be built on a macOS runner.
 name: Desktop release
 
 on:
@@ -35,22 +34,21 @@ on:
           Leave blank to auto-bump from the PRs merged since the previous tag
           (bump:major/minor/patch labels, highest wins, defaults to patch).
           Or give "major"/"minor"/"patch" to force that bump, or an explicit
-          "X.Y.Z" to override the computed version entirely. Opens a PR to
-          main rather than tagging directly — merge it to actually cut the
-          release (see the `tag` job).
+          "X.Y.Z" to override the computed version entirely. Opens a release
+          PR to main — merge it to actually cut the release.
         required: false
+      dry_run:
+        description: Only build the installers from this ref. No version bump, tag, or release.
+        type: boolean
+        default: false
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  # Only what workflow_dispatch triggers: compute/accept the version, commit
-  # it to a release branch, and open a PR. Never runs on the other two
-  # triggers — a tag push means this already happened for that tag, and a
-  # closed PR is what the `tag` job below is for.
   version:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,16 +59,15 @@ jobs:
         id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT: ${{ github.event.inputs.version }}
+          INPUT: ${{ inputs.version }}
         run: |
           set -eo pipefail
 
           # The tag is what "since the previous release" means, below — but
           # the version to bump *from* has to be at least package.json's
-          # current value too. A release-bump PR can merge (advancing
-          # package.json) and still not finish tagging/building if something
-          # after the merge fails or the tag gets deleted to retry — the
-          # tag alone would then propose a version already spent.
+          # current value too. A release PR can merge (advancing package.json)
+          # without the release ever finishing, and the tag alone would then
+          # propose a version already spent.
           prev_tag=$(git tag --list 'v*' --sort=-v:refname | head -n1)
           tag_version=${prev_tag#v}
           [ -z "$tag_version" ] && tag_version="0.0.0"
@@ -88,8 +85,7 @@ jobs:
             exit 1
           else
             # Auto: the highest-precedence bump:* label on any PR merged since
-            # the previous tag, defaulting to patch — including for any commit
-            # that landed straight on main with no PR at all.
+            # the previous tag, defaulting to patch.
             if [ -n "$prev_tag" ]; then
               since=$(git log -1 --format=%aI "$prev_tag")
             else
@@ -113,6 +109,15 @@ jobs:
             esac
           fi
 
+          # An explicit X.Y.Z override is the one way to land at or below
+          # what already exists; refuse it here rather than fail later with
+          # "nothing to commit" or a tag collision.
+          if [ "$new_version" = "$prev_version" ] \
+            || [ "$(printf '%s\n%s\n' "$new_version" "$prev_version" | sort -V | tail -n1)" != "$new_version" ]; then
+            echo "::error::v$new_version is not newer than v$prev_version (latest tag v$tag_version, package.json $pkg_version)" >&2
+            exit 1
+          fi
+
           echo "tag=v$new_version" >> "$GITHUB_OUTPUT"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
@@ -121,24 +126,34 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
+          BASE: ${{ github.ref_name }}
         run: |
           set -eo pipefail
-          git checkout -b "release/$TAG"
+          branch="release/$TAG"
+          git checkout -b "$branch"
           npm pkg set version="$VERSION"
           (cd desktop && npm pkg set version="$VERSION")
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json desktop/package.json
           git commit -m "chore(release): $TAG"
-          git push origin "release/$TAG"
-          gh pr create --repo "$GITHUB_REPOSITORY" \
-            --base "${{ github.ref_name }}" --head "release/$TAG" \
-            --title "chore(release): $TAG" \
-            --body "Merging this cuts $TAG: the \`tag\`, \`build\`, and \`publish\` jobs run on the merge itself and publish the release."
+          # release/* branches belong to this job. One left over from an
+          # earlier attempt at the same version (a release PR closed without
+          # merging, or a run that failed after pushing) is replaced rather
+          # than merged with. Only main/master/dev/prod are rule-protected.
+          git push --force origin "$branch"
+          open_pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$open_pr" ]; then
+            echo "Release PR #$open_pr was already open for $branch; its branch is now updated."
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE" --head "$branch" \
+              --title "chore(release): $TAG" \
+              --body "Merging this cuts $TAG: tag, build, and publish run on the merge itself."
+          fi
 
-  # On a release PR's merge — never on an ordinary PR's merge, and never on
-  # the push or dispatch triggers (a tag push has nothing to tag; a dispatch
-  # is what opens the PR this reacts to, not what merges it).
+  # Only on a merged release/v* PR. Tags the exact merge commit, not whatever
+  # main has moved on to by the time this runs.
   tag:
     if: >-
       github.event_name == 'pull_request' && github.event.pull_request.merged == true
@@ -146,10 +161,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.tag.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Tag the merge commit and push it
         id: tag
@@ -158,18 +174,61 @@ jobs:
         run: |
           set -eo pipefail
           tag="${BRANCH#release/}"
-          git tag "$tag"
-          git push origin "$tag"
+          sha=$(git rev-parse HEAD)
+          existing=$(git ls-remote origin "refs/tags/$tag" | cut -f1)
+          if [ -z "$existing" ]; then
+            git tag "$tag"
+            git push origin "refs/tags/$tag"
+          elif [ "$existing" != "$sha" ]; then
+            echo "::error::$tag already exists at $existing, not this merge commit $sha" >&2
+            exit 1
+          else
+            echo "$tag already points at $sha; building and publishing it again."
+          fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  # Lint, typecheck, and the test suite, once, before any installer is built.
+  # The tests are platform-independent but shell out to a real ffmpeg for
+  # their audio fixtures and the Mix render, which the runner image doesn't
+  # carry. Any stock ffmpeg with libmp3lame will do: the render stretches with
+  # Rubber Band WebAssembly, not ffmpeg's rubberband filter (ADR 0003).
+  checks:
+    needs: tag
+    # always() so a skipped `tag` (every path except a merged release PR)
+    # doesn't skip this through the usual needs propagation; the conditions
+    # below decide instead.
+    if: >-
+      always() && !cancelled() && (
+        github.event_name == 'push'
+        || needs.tag.result == 'success'
+        || (github.event_name == 'workflow_dispatch' && inputs.dry_run)
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.sha || github.sha }}
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
 
   build:
-    needs: tag
-    # always() so a skipped `tag` (the plain push:tags fallback path, where
-    # `tag`'s own `if` is false) doesn't skip this by the usual propagation —
-    # each branch of the `||` covers one of the two ways in.
-    if: >-
-      always() && !cancelled() &&
-      (github.event_name == 'push' || needs.tag.result == 'success')
+    needs: [tag, checks]
+    if: always() && !cancelled() && needs.checks.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -177,18 +236,12 @@ jobs:
           - os: windows-latest
             platform: win32
             arch: x64
-          # darwin-arm64 is deliberately absent, and putting it back needs one
-          # thing first: `desktop/scripts/binaries.json` has no Apple Silicon
-          # ffmpeg pinned, because no publisher has been found that ships one
-          # confirmed to carry librubberband — and an ffmpeg without it would
-          # silently lose every Adjustment rather than fail. Matrixing a leg
-          # that always fails would only stop the release from being cut, since
-          # `publish` needs `build`. Pin one, then add it back here and to
-          # `electron-builder.yml`. See ticket 05 of `.scratch/desktop-app/`.
-          - os: macos-13
+          # Apple Silicon only — there is no Intel macOS build. macos-latest
+          # runners are arm64, and this leg's ffmpeg is a pinned static arm64
+          # build like the other two platforms' (desktop/scripts/binaries.json).
+          - os: macos-latest
             platform: darwin
-            arch: x64
-          # Included because it comes free with the others.
+            arch: arm64
           - os: ubuntu-latest
             platform: linux
             arch: x64
@@ -196,11 +249,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # A plain tag push already checks out the right commit via
-          # `github.ref`; the merged-release-PR path doesn't carry a tag ref
-          # at all, so it needs the base branch (now including the merge)
-          # named explicitly instead.
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || github.ref }}
+          # The tagged merge commit on a release merge; otherwise the commit
+          # the event itself points at (the tag on a tag push, the dispatched
+          # ref's head on a dry run).
+          ref: ${{ needs.tag.outputs.sha || github.sha }}
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -209,45 +261,68 @@ jobs:
           cache: pnpm
 
       # The app itself, exactly as it is built for the container. The desktop
-      # shell wraps this; it does not replace any of it (ADR 0009).
+      # shell wraps this; it does not replace any of it (ADR 0009). Installed
+      # per platform, since better-sqlite3 and onnxruntime-node are native.
       - name: Build the app
         run: |
           pnpm install --frozen-lockfile
-          pnpm lint
-          pnpm typecheck
-          pnpm test
           pnpm build
 
       - name: Install the desktop shell
         working-directory: desktop
-        # `desktop/` is installed and run from inside its own directory —
-        # there is no pnpm workspace in this repo, and the root install (the
-        # one the Dockerfile runs) must never see Electron.
+        # `desktop/` is installed from inside its own directory — there is no
+        # pnpm workspace in this repo, and the root install (the one the
+        # Dockerfile runs) must never see Electron.
         run: pnpm install --frozen-lockfile
 
-      - name: Fetch the pinned ffmpeg and ffprobe
+      - name: Fetch the pinned ffmpeg
         working-directory: desktop
         run: pnpm fetch-binaries -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+
+      # Checked here as well as when it was pinned. The macOS build comes from a
+      # different publisher than the other two, so the arm64-only, macOS-only
+      # libraries, and MP3 encoder claims in binaries.json are asserted on a
+      # real Mac rather than trusted.
+      - name: Check the macOS ffmpeg
+        if: matrix.platform == 'darwin'
+        working-directory: desktop/vendor/darwin-arm64
+        run: |
+          set -eo pipefail
+          archs=$(lipo -archs ffmpeg)
+          [ "$archs" = "arm64" ] || { echo "::error::ffmpeg is built for '$archs', not arm64 only" >&2; exit 1; }
+          outside=$(otool -L ffmpeg | tail -n +2 | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/Library/)' || true)
+          [ -z "$outside" ] || { echo "::error::ffmpeg loads libraries outside macOS itself: $outside" >&2; exit 1; }
+          # Not `grep -q`: it exits at the first match, ffmpeg dies of SIGPIPE,
+          # and pipefail fails the step on a build that is fine.
+          ./ffmpeg -hide_banner -encoders | grep libmp3lame >/dev/null \
+            || { echo "::error::this ffmpeg has no libmp3lame encoder; the MP3 export needs it" >&2; exit 1; }
 
       - name: Build the installer
         working-directory: desktop
         env:
           AKAPELA_TARGET_PLATFORM: ${{ matrix.platform }}
           AKAPELA_TARGET_ARCH: ${{ matrix.arch }}
-          # macOS is signed and notarized. An unsigned macOS build is refused
-          # outright — "Akapela is damaged and can't be opened" — not warned
-          # about, and a normal user has no way past it, so this is the
-          # difference between a mac build existing and not existing.
-          # Windows is deliberately unsigned for now: SmartScreen warns and can
-          # be clicked through, which is survivable next to a few hundred
-          # dollars a year for a certificate on a first release nobody has
-          # installed. Revisit if people actually hit it.
+          # Neither platform is signed yet (no Apple Developer account, no
+          # Windows certificate). The credentials are passed through so
+          # signing starts working the day the secrets exist.
           CSC_LINK: ${{ matrix.platform == 'darwin' && secrets.MAC_CERTIFICATE_P12 || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.platform == 'darwin' && secrets.MAC_CERTIFICATE_PASSWORD || '' }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: pnpm pack:app -- --${{ matrix.arch }}
+        shell: bash
+        run: |
+          # An env var set to '' is still set. electron-builder on macOS reads
+          # an empty CSC_LINK as a certificate path, resolves it to the working
+          # directory, and fails with "desktop not a file" — so a missing
+          # secret has to become an unset variable, not an empty one.
+          for var in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!var}" ] || unset "$var"
+          done
+          if [ -z "${CSC_LINK:-}" ]; then
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          pnpm pack:app -- --${{ matrix.arch }}
 
       - name: Checksum the artifacts
         working-directory: desktop/release
@@ -256,13 +331,20 @@ jobs:
           shopt -s nullglob
           # macOS runners have `shasum`, not `sha256sum`.
           sha256() { command -v sha256sum >/dev/null && sha256sum "$1" || shasum -a 256 "$1"; }
-          for file in *.exe *.dmg *.AppImage *.zip; do
+          files=(*.exe *.dmg *.AppImage)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::electron-builder produced no installer in desktop/release" >&2
+            ls -la
+            exit 1
+          fi
+          for file in "${files[@]}"; do
             sha256 "$file" > "$file.sha256"
           done
 
       - uses: actions/upload-artifact@v4
         with:
           name: akapela-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
           path: |
             desktop/release/*.exe
             desktop/release/*.dmg
@@ -271,7 +353,7 @@ jobs:
 
   publish:
     needs: [tag, build]
-    if: always() && needs.build.result == 'success'
+    if: always() && needs.build.result == 'success' && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -281,12 +363,8 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          # `github.ref_name` is right for a plain tag push; the
-          # merged-release-PR path has no tag ref of its own, only what
-          # `tag` computed and pushed.
+          # A plain tag push carries its tag in github.ref_name; a release
+          # merge doesn't, only what `tag` pushed.
           tag_name: ${{ needs.tag.outputs.tag || github.ref_name }}
           files: artifacts/*
-          # No auto-updater: the app checks this release and links here. The
-          # notes say which platforms are signed and what a Windows user will
-          # see the first time.
           generate_release_notes: true

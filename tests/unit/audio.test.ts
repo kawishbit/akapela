@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { AudioError, impulseResponsePath, normalizeToBackingTrack, probeDurationMs } from '../../server/lib/audio'
+import { encodeWav } from '../../app/audio/wav'
+import { AudioError, impulseResponsePath, normalizeToBackingTrack, wavDurationMs } from '../../server/lib/audio'
 import { writeSineWav } from './audio-fixtures'
 
 let dir: string
@@ -72,7 +73,7 @@ describe('normalizeToBackingTrack', () => {
 
     await normalizeToBackingTrack(src, dst)
 
-    const durationMs = await probeDurationMs(dst)
+    const durationMs = await wavDurationMs(dst)
     expect(durationMs).toBeGreaterThan(0)
   })
 
@@ -99,21 +100,56 @@ describe('normalizeToBackingTrack', () => {
   })
 })
 
-describe('probeDurationMs', () => {
-  it('reports the duration of a real file, in milliseconds', async () => {
+describe('wavDurationMs', () => {
+  it('reports the duration of a WAV ffmpeg wrote, in milliseconds', async () => {
     const path = join(dir, 'two-seconds.wav')
     writeSineWav(path, { seconds: 2 })
 
-    const durationMs = await probeDurationMs(path)
+    expect(await wavDurationMs(path)).toBe(2000)
+  })
 
-    expect(durationMs).toBeGreaterThan(1900)
-    expect(durationMs).toBeLessThan(2100)
+  it('reads past the chunks ffmpeg writes ahead of the audio', async () => {
+    const path = join(dir, 'tagged.wav')
+    const result = spawnSync('ffmpeg', [
+      '-y', '-nostdin', '-hide_banner', '-loglevel', 'error',
+      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1.5',
+      '-metadata', 'title=A title long enough to need its own LIST chunk',
+      '-ar', '44100', '-ac', '2', '-c:a', 'pcm_s16le', path,
+    ])
+    expect(result.status).toBe(0)
+
+    expect(await wavDurationMs(path)).toBe(1500)
+  })
+
+  it('reports the duration of a Stem the separation wrote', async () => {
+    const path = join(dir, 'instrumental.wav')
+    const frames = 44100 * 3
+    writeFileSync(path, encodeWav({ channels: [new Float32Array(frames), new Float32Array(frames)], sampleRate: 44100 }))
+
+    expect(await wavDurationMs(path)).toBe(3000)
+  })
+
+  it('agrees with ffprobe, which it replaces', async () => {
+    const path = join(dir, 'odd-length.wav')
+    writeSineWav(path, { seconds: 2.3456, sampleRate: 22050, channels: 1 })
+
+    const probe = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', path])
+    const probedMs = Math.round(Number(JSON.parse(probe.stdout.toString()).format.duration) * 1000)
+
+    expect(await wavDurationMs(path)).toBe(probedMs)
   })
 
   it('rejects with an AudioError for a file with no readable duration', async () => {
     const path = join(dir, 'garbage.wav')
     writeFileSync(path, 'not a wav file at all')
 
-    await expect(probeDurationMs(path)).rejects.toBeInstanceOf(AudioError)
+    await expect(wavDurationMs(path)).rejects.toBeInstanceOf(AudioError)
+  })
+
+  it('rejects with an AudioError for a WAV with no audio chunk', async () => {
+    const path = join(dir, 'header-only.wav')
+    writeFileSync(path, encodeWav({ channels: [new Float32Array(10)], sampleRate: 44100 }).subarray(0, 36))
+
+    await expect(wavDurationMs(path)).rejects.toBeInstanceOf(AudioError)
   })
 })

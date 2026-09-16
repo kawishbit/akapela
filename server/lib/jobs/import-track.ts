@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { normalizeToBackingTrack, probeDurationMs } from '../audio'
+import { normalizeToBackingTrack, wavDurationMs } from '../audio'
 import { ORIGINAL_BASENAME, type ProgressCallback, type SourceFetcher } from '../sources'
 import type { Handler, JobContext } from '../jobs-runner'
 import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir } from './track-paths'
@@ -60,7 +60,7 @@ export function importHandler(fetcher: SourceFetcher): Handler {
       await normalizeToBackingTrack(original, backing)
       ctx.progress(PROGRESS_NORMALIZED)
 
-      const durationMs = await probeDurationMs(backing)
+      const durationMs = await wavDurationMs(backing)
       await ensureNotDeleted(ctx.sqlite, trackId, directory, 'import')
       ctx.sqlite
         .prepare(`UPDATE tracks SET duration_ms = ?, import_state = 'ready', updated_at = ? WHERE id = ?`)

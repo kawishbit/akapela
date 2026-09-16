@@ -19,6 +19,8 @@ extraResources:
     to: migrations
   - from: staging/separators
     to: separators
+  - from: staging/stretch
+    to: stretch
   - from: staging/bin
     to: bin
   - from: staging/licenses
@@ -51,12 +53,10 @@ nsis:
 mac:
   category: public.app-category.music
   target:
-    # x64 only for now: there is no Apple Silicon ffmpeg pinned in
-    # scripts/binaries.json that can be confirmed to carry librubberband, and
-    # Rubber Band is this app's only pitch and tempo engine (ADR 0004). Add
-    # arm64 back here and to the release workflow's matrix once one is pinned.
+    # Apple Silicon only; there is no Intel build. Its ffmpeg is the pinned
+    # static arm64 build in scripts/binaries.json.
     - target: dmg
-      arch: [x64]
+      arch: [arm64]
   # Kept even though the build below is unsigned: if a certificate is ever
   # added, the hardened runtime is where the microphone dies silently without
   # these — this usage description and the audio-input entitlement are what
@@ -72,10 +72,12 @@ mac:
   # credentials — it errors asking for them rather than skipping quietly — and
   # a signing identity that isn't there isn't found either, so electron-builder
   # just ships the .app/.dmg unsigned. The cost lands on whoever opens it
-  # rather than on the build: Gatekeeper refuses it as "from an unidentified
-  # developer" until they right-click → Open (or System Settings → Privacy &
-  # Security → Open Anyway), the mac equivalent of clicking through Windows'
-  # SmartScreen warning below. Revisit if that turns out to be too much friction.
+  # rather than on the build. An unsigned Apple Silicon app downloaded from the
+  # internet is refused as "damaged" rather than "from an unidentified
+  # developer", and right-click → Open does not get past that. The README tells
+  # a Mac user to clear the quarantine flag
+  # (`xattr -dr com.apple.quarantine /Applications/Akapela.app`). That is
+  # documented, not solved, until there is an Apple Developer account.
   notarize: false
 
 dmg:

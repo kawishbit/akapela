@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { childEnv, ffmpegToolPath, separateCliPath, ytDlpPath } from '../../server/lib/tools'
+import { childEnv, ffmpegPath, rubberBandWasmPath, separateCliPath, stretchCliPath, ytDlpPath } from '../../server/lib/tools'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -8,8 +8,7 @@ afterEach(() => {
 
 describe('tool resolvers', () => {
   it('return the bare binary names when nothing is overridden', () => {
-    expect(ffmpegToolPath('ffmpeg')).toBe('ffmpeg')
-    expect(ffmpegToolPath('ffprobe')).toBe('ffprobe')
+    expect(ffmpegPath()).toBe('ffmpeg')
     expect(ytDlpPath()).toBe('yt-dlp')
   })
 
@@ -17,30 +16,37 @@ describe('tool resolvers', () => {
     expect(separateCliPath()).toBe(resolve(process.cwd(), 'server/lib/separators/separate-cli.ts'))
   })
 
+  it('resolve the stretch CLI and the Rubber Band build off the cwd when nothing is overridden', () => {
+    expect(stretchCliPath()).toBe(resolve(process.cwd(), 'server/lib/stretch/stretch-cli.ts'))
+    expect(rubberBandWasmPath()).toBe(resolve(process.cwd(), 'node_modules/rubberband-wasm/dist/rubberband.wasm'))
+  })
+
   it('return the override when one is set', () => {
     vi.stubEnv('AKAPELA_FFMPEG', '/opt/akapela/ffmpeg')
-    vi.stubEnv('AKAPELA_FFPROBE', '/opt/akapela/ffprobe')
     vi.stubEnv('AKAPELA_YTDLP', '/home/singer/.akapela/cache/bin/yt-dlp')
     vi.stubEnv('AKAPELA_SEPARATE_CLI', '/opt/akapela/separate-cli.js')
+    vi.stubEnv('AKAPELA_STRETCH_CLI', '/opt/akapela/stretch-cli.js')
+    vi.stubEnv('AKAPELA_RUBBERBAND_WASM', '/opt/akapela/rubberband.wasm')
 
-    expect(ffmpegToolPath('ffmpeg')).toBe('/opt/akapela/ffmpeg')
-    expect(ffmpegToolPath('ffprobe')).toBe('/opt/akapela/ffprobe')
+    expect(ffmpegPath()).toBe('/opt/akapela/ffmpeg')
     expect(ytDlpPath()).toBe('/home/singer/.akapela/cache/bin/yt-dlp')
     expect(separateCliPath()).toBe('/opt/akapela/separate-cli.js')
+    expect(stretchCliPath()).toBe('/opt/akapela/stretch-cli.js')
+    expect(rubberBandWasmPath()).toBe('/opt/akapela/rubberband.wasm')
   })
 
   it('ignores an override that is empty or only whitespace', () => {
     vi.stubEnv('AKAPELA_FFMPEG', '')
     vi.stubEnv('AKAPELA_YTDLP', '   ')
 
-    expect(ffmpegToolPath('ffmpeg')).toBe('ffmpeg')
+    expect(ffmpegPath()).toBe('ffmpeg')
     expect(ytDlpPath()).toBe('yt-dlp')
   })
 
   it('trims an override, so a stray newline from a config file does not reach spawn', () => {
-    vi.stubEnv('AKAPELA_FFPROBE', ' /opt/akapela/ffprobe\n')
+    vi.stubEnv('AKAPELA_FFMPEG', ' /opt/akapela/ffmpeg\n')
 
-    expect(ffmpegToolPath('ffprobe')).toBe('/opt/akapela/ffprobe')
+    expect(ffmpegPath()).toBe('/opt/akapela/ffmpeg')
   })
 })
 
