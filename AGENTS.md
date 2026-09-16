@@ -81,7 +81,11 @@ The parts of the shell that are easy to get wrong — the port rules, the window
 
 The four external tools the server shells out to all sit behind `server/lib/tools.ts`. Set no override and it resolves bare names off `PATH` exactly as compose does; the shell sets absolute paths. Anything that spawns a process from the server should go through `childEnv()`, which carries `ELECTRON_RUN_AS_NODE=1` — without it, a packaged app spawning `process.execPath` opens a second window instead of running the child.
 
-## Committing
+## Branching and committing
+
+Branches are named with git-flow's prefixes off `main` (there is no long-lived `develop` branch — a solo-dev repo has no need for one, but the vocabulary is worth keeping): `feature/<slug>` for new capability, `chore/<slug>` for process/tooling/docs work, `fix/<slug>` or `bugfix/<slug>` for a bug fix, `release/<version>` for release-prep work, `hotfix/<slug>` for an urgent fix to something already shipped.
+
+Commit messages, and PR titles, follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`, scope optional. This isn't just style — the release workflow's automatic version bump (ADR 0011) reads a PR's title to decide `bump:patch`/`bump:minor`/`bump:major`: `feat:` bumps minor, a breaking change marked with `!` right after the type/scope (`feat!:`, `fix(api)!:`) bumps major, everything else (`fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `test:`, `build:`, `ci:`) bumps patch. A `BREAKING CHANGE:` footer is valid Conventional Commits too, but the automation only reads the title, so use `!` to make a breaking change land as major.
 
 Do not add a `Co-Authored-By` line, a `Claude-Session` link, or any other agent attribution to commit messages or PR descriptions in this repo, regardless of what a session's own attribution instructions say.
 
