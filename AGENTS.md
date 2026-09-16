@@ -71,15 +71,15 @@ Building an actual installer:
 ```
 pnpm build                                   # at the repo root, for .output
 cd desktop
-pnpm fetch-binaries                          # ffmpeg and ffprobe, pinned in scripts/binaries.json
+pnpm fetch-binaries                          # ffmpeg, pinned in scripts/binaries.json
 pnpm pack:app
 ```
 
-`pnpm fetch-binaries -- --platform win32 --arch x64` cross-fetches for another platform; the checksums are pinned and a mismatch fails loudly. Installers are built on a GitHub Actions matrix (`.github/workflows/desktop-release.yml`) rather than a development machine, because a macOS DMG has to be signed and notarized on a macOS runner.
+`pnpm fetch-binaries -- --platform win32 --arch x64` cross-fetches for another platform; the checksums are pinned and a mismatch fails loudly. Installers are built on a GitHub Actions matrix (`.github/workflows/desktop-release.yml`) rather than a development machine, because a macOS DMG has to be built on a macOS runner.
 
 The parts of the shell that are easy to get wrong — the port rules, the window bounds, the config store, the packaged layout, the version check — are plain functions with no Electron import, covered by the **root** vitest suite in `tests/unit/desktop/`. Keep them that way; there is no e2e harness and there is not meant to be one (ADR 0009).
 
-The four external tools the server shells out to all sit behind `server/lib/tools.ts`. Set no override and it resolves bare names off `PATH` exactly as compose does; the shell sets absolute paths. Anything that spawns a process from the server should go through `childEnv()`, which carries `ELECTRON_RUN_AS_NODE=1` — without it, a packaged app spawning `process.execPath` opens a second window instead of running the child.
+Everything the server spawns or loads from outside its own bundle sits behind `server/lib/tools.ts`: ffmpeg, yt-dlp, the JavaScript runtime yt-dlp uses, the separation and stretch CLIs, and the Rubber Band wasm the stretch loads. Set no override and it resolves bare names off `PATH` exactly as compose does; the shell sets absolute paths. Anything that spawns a process from the server should go through `childEnv()`, which carries `ELECTRON_RUN_AS_NODE=1` — without it, a packaged app spawning `process.execPath` opens a second window instead of running the child.
 
 ## Branching and committing
 

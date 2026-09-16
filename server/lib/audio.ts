@@ -92,7 +92,8 @@ export async function normalizeToBackingTrack(src: string, dst: string): Promise
  * ffmpeg's codecs for this one number.
  *
  * Only chunk headers are read, never the audio. A data chunk whose declared
- * size is unset or overruns the file is measured to the end of the file.
+ * size is unset (0xFFFFFFFF, as a streamed write leaves it) or overruns the
+ * file is measured to the end of the file.
  */
 export async function wavDurationMs(path: string): Promise<number> {
   const fail = (why: string) => new AudioError(`could not read the duration of ${path}: ${why}`)
@@ -122,7 +123,7 @@ export async function wavDurationMs(path: string): Promise<number> {
       else if (id === 'data') {
         if (!byteRate) throw fail('its audio comes before its format')
         const remaining = fileBytes - body
-        const dataBytes = size === 0 || size === 0xFFFFFFFF || size > remaining ? remaining : size
+        const dataBytes = size === 0xFFFFFFFF || size > remaining ? remaining : size
         return Math.round((dataBytes / byteRate) * 1000)
       }
       offset = body + size + (size % 2)
@@ -157,20 +158,13 @@ export function impulseResponsePath(): string {
   return existsSync(built) ? built : resolve('public/audio/large-hall-ir.wav')
 }
 
-export interface RenderMixOptions {
+export interface RenderMixOptions extends MixFilterGraphOptions {
   backing: string
   vocal: string
   dstMp3: string
   dstWav: string | null
   tempo: number
   pitch: number
-  vocalWallMs: number
-  vocalGain: number
-  backingGain: number
-  targetDurationMs: number
-  reverbAmount?: number
-  lowpassHz?: number
-  effectsTarget?: EffectsTarget
 }
 
 /**

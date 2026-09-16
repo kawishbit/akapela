@@ -19,6 +19,8 @@
 
 /** Input frames handed to Rubber Band per call, the same bound the worklet uses. */
 const CHUNK = 8192
+/** The fewest input frames per call: the worklet's render quantum, so blocks are sized as they are live. */
+const BLOCK = 128
 
 // RubberBandOptions bit flags (rubberband-c.h).
 const OPTION_PROCESS_REAL_TIME = 0x00000001
@@ -167,7 +169,7 @@ export function stretch(
 
     let read = 0
     do {
-      const required = Math.max(wasm.rb_get_samples_required(state), 1)
+      const required = Math.max(wasm.rb_get_samples_required(state), BLOCK)
       const n = Math.min(length - read, CHUNK, required)
       for (let ch = 0; ch < channelCount; ch++) {
         heap.f32.set(channels[ch]!.subarray(read, read + n), inPtrs[ch]! >> 2)
