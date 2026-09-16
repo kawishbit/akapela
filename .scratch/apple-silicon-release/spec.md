@@ -10,9 +10,9 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | - | ------ | ------ | ---------- |
 | 01 | [Mix render stretches with Rubber Band WebAssembly](issues/01-mix-render-stretches-with-rubber-band-wasm.md) | done | — |
 | 02 | [The Apple Silicon installer bundles a pinned off-the-shelf ffmpeg](issues/02-apple-silicon-bundles-pinned-ffmpeg.md) | done | 01 |
-| 03 | [A dry run builds all three installers, and the pipeline fixes land](issues/03-dry-run-builds-all-three-installers.md) | ready-for-human (dry run and merge left) | 02 |
+| 03 | [A dry run builds all three installers, and the pipeline fixes land](issues/03-dry-run-builds-all-three-installers.md) | ready-for-human (merge left) | 02 |
 | 04 | [Cut v1.0.2 end to end](issues/04-cut-v1-0-2-end-to-end.md) | ready-for-human | 03 |
-| 05 | [A slimmer bundled ffmpeg](issues/05-slimmer-bundled-ffmpeg.md) | ready-for-agent | 02 |
+| 05 | [A slimmer bundled ffmpeg](issues/05-slimmer-bundled-ffmpeg.md) | ready-for-human (open each installer, with 04) | 02 |
 
 ## Problem Statement
 

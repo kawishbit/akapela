@@ -10,11 +10,11 @@ Once Rubber Band is out of ffmpeg (ticket 01), none of that needs GPL-only exter
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] The installer for each platform is measurably smaller than before, with the before and after sizes recorded
+- [x] The installer for each platform is measurably smaller than before, with the before and after sizes recorded
 - [ ] Every upload format, a YouTube import, an Adjusted Mix render, and the MP3 export all still work on every platform
-- [ ] Whatever is dropped or swapped is still pinned by checksum, and the licence notes match what now ships
+- [x] Whatever is dropped or swapped is still pinned by checksum, and the licence notes match what now ships
 
 ## Comments
 
@@ -57,3 +57,17 @@ Not yet measured: the Linux AppImage and the macOS DMG. They drop a 164 MB (linu
 - No installer was opened. Running a YouTube import and a Mix on each platform is part of ticket 04's per-platform check.
 
 Status stays `ready-for-agent` until the Linux and macOS installer sizes are recorded from the dry run.
+
+**Installer sizes from the dry run** ([run 35132941183](https://github.com/kawishbit/akapela/actions/runs/35132941183)):
+
+| installer | with ffprobe | without | change |
+|---|---|---|---|
+| Windows NSIS | 233,683,701 B (local pack of identical staging) | 187,918,981 B | −45.8 MB, −19.6% |
+| Linux AppImage | 471,594,169 B (dry run 35128137128, at `59cc62b`) | 402,927,134 B | −68.7 MB, −14.6% |
+| macOS arm64 DMG | none: no macOS installer was ever built with ffprobe | 193,045,612 B | 66 MB of uncompressed ffprobe never shipped |
+
+The CI Windows installer (187,918,981 B) is within 28 bytes of the local pack without ffprobe, which confirms that measurement.
+
+The Linux AppImage is still twice the size of the other two. That is not ffmpeg. It is worth its own look.
+
+Status is `ready-for-human`. The remaining box, every format, a YouTube import, and an Adjusted Mix working in each installer, can only be checked by opening them. That is ticket 04's per-platform check, and this box closes with it.

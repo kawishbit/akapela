@@ -17,8 +17,8 @@ This ticket is where macOS joins them and the whole set is proven together.
 
 **Status:** ready-for-human
 
-- [ ] A `dry_run` dispatch completes with `checks` and all three build legs green, and uploads all three installers with `.sha256` files
-- [ ] `version`, `tag`, and `publish` are skipped on a dry run; nothing new appears in tags, branches, or releases
+- [x] A `dry_run` dispatch completes with `checks` and all three build legs green, and uploads all three installers with `.sha256` files
+- [x] `version`, `tag`, and `publish` are skipped on a dry run; nothing new appears in tags, branches, or releases
 - [ ] The branch merges to `main` through a PR whose title passes the PR title check
 - [x] The README tells a Mac user how to open the unsigned Apple Silicon build, which macOS refuses as "damaged" until its quarantine flag is cleared
 - [x] ADR 0011 and the release-automation tickets record what the dry runs found and how each was fixed
@@ -36,3 +36,15 @@ Left, in order:
 2. `gh workflow run desktop-release.yml --ref fix/release-pipeline-end-to-end -f dry_run=true`. The macOS leg's new "Check the macOS ffmpeg" step is the first time the pinned arm64 build runs on a Mac.
 3. Confirm `checks` and all three `build` legs are green. Confirm the run's artifacts hold a `.exe`, a `.dmg`, and an `.AppImage`, each with a `.sha256`. Confirm `version`, `tag`, and `publish` were skipped.
 4. Open the PR, e.g. `gh pr create --base main --title "fix(release): build all three installers, Apple Silicon included"`, and merge it once the PR title check passes.
+
+**Dry run passed** ([run 35132941183](https://github.com/kawishbit/akapela/actions/runs/35132941183), dispatched at `31cacc9`). `checks` and all three build legs are green, and `version`, `tag`, and `publish` were skipped. The macOS leg's "Check the macOS ffmpeg" step passed, so the pinned arm64 build is now checked on a real Mac as well as statically. The run uploaded:
+
+| artifact | installer | bytes |
+| -------- | --------- | ----- |
+| akapela-win32-x64 | `Akapela Setup 1.0.1.exe` | 187,918,981 |
+| akapela-linux-x64 | `Akapela-1.0.1.AppImage` | 402,927,134 |
+| akapela-darwin-arm64 | `Akapela-1.0.1-arm64.dmg` | 193,045,612 |
+
+Each came with a `.sha256` file, and all three checksums verify against the downloaded installers. The dry run tags, branches, and releases nothing: none of those jobs ran.
+
+What's left is the last box: merging the PR to `main`. That needs a human.
