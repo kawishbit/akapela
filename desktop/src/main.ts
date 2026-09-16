@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
-import { existsSync } from 'node:fs'
+import { appendFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { restoreBounds, MIN_WINDOW_SIZE, type Bounds } from './bounds.js'
@@ -47,6 +47,8 @@ const layout: Layout = app.isPackaged
 let mainWindow: BrowserWindow | undefined
 let server: AkapelaServer | undefined
 let availableUpdate: DesktopUpdate | null = null
+/** Where `showApp` last pointed the window, so a crashed renderer can be reloaded back onto it. */
+let currentOrigin: string | undefined
 
 /** The library folder in use: what the singer chose, else `userData/data`. */
 function libraryDir(): string {
@@ -170,12 +172,26 @@ async function createWindow(origin: string): Promise<BrowserWindow> {
     if (/^https?:\/\//.test(target)) void shell.openExternal(target)
   })
 
+  // A renderer crash (OOM, a GPU crash) otherwise leaves a blank, frozen
+  // window while the server keeps running underneath it, unseen and
+  // unreachable. `clean-exit` is a deliberate close, not a crash, and needs
+  // no recovery; anything else gets reloaded back onto the app, or onto an
+  // error page if there was nowhere yet to reload onto.
+  created.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit' || created.isDestroyed()) return
+    void created.loadURL(currentOrigin ?? errorPage(
+      'Akapela crashed',
+      `The window's process ended unexpectedly (${details.reason}). Close and reopen the app to try again.`,
+    ))
+  })
+
   return created
 }
 
 /** Points the window at the app itself. */
 async function showApp(origin: string): Promise<void> {
   if (!mainWindow || mainWindow.isDestroyed()) return
+  currentOrigin = origin
   await mainWindow.loadURL(origin)
 }
 
@@ -310,6 +326,22 @@ app.on('will-quit', (event) => {
   const stopping = server
   server = undefined
   void stopping.stop().finally(() => app.quit())
+})
+
+// Node's default for an uncaught exception is to crash silently: no window,
+// no log entry, nothing a bug report could quote. Everything else in this
+// file that can fail does so through `errorPage`; anything reaching here is a
+// bug rather than a handled condition, so it gets the same log file the
+// server's own output goes to before the app gives up.
+process.on('uncaughtException', (error) => {
+  try {
+    appendFileSync(serverLogFile(), `\n[akapela] main process crashed: ${error.stack ?? error}\n`)
+  }
+  catch { /* best effort; the dialog below still tells the singer something broke */ }
+  dialog.showErrorBox('Akapela crashed', `${error.message}\n\nDetails were written to ${serverLogFile()}.`)
+  const stopping = server
+  server = undefined
+  void (stopping ? stopping.stop() : Promise.resolve()).finally(() => app.exit(1))
 })
 
 void app.whenReady().then(async () => {

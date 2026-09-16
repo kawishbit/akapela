@@ -101,3 +101,7 @@ _Avoid_: Console, admin, control panel
 **Trace**:
 One request followed through everything it caused: the API route that served it, and any Job it enqueued. Carried from the request to the Job as the `traceparent` stored on the Job. Development only, like the AppHost that collects it (ADR 0007).
 _Avoid_: Log, span tree, transaction
+
+**Release**:
+A tagged, published version of Akapela: a `vMAJOR.MINOR.PATCH` git tag with a GitHub Release carrying the Windows, macOS, and Linux Desktop App installers. What the Desktop App's update check compares against (ADR 0011).
+_Avoid_: Version, build, artifact

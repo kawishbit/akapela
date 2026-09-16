@@ -1,7 +1,15 @@
-# Builds the desktop installers on a tag and publishes them to a GitHub
-# Release with checksums.
+# Cuts a release, then builds the desktop installers on the tag it creates and
+# publishes them to a GitHub Release with checksums.
 #
-# This is a matrix rather than something run from a development machine
+# Two ways in (ADR 0011):
+#   - `workflow_dispatch`, by hand: the `version` job below computes the next
+#     semver (or takes the input's override), commits it into both
+#     `package.json` files, and pushes a `vX.Y.Z` tag. That push is itself a
+#     `push: tags` event, so it re-triggers this workflow — which is how
+#     `build` and `publish` end up running on a tag, not on the dispatch.
+#   - `push: tags: ['v*']`: whatever pushed the tag, `build` and `publish` run.
+#
+# `build` is a matrix rather than something run from a development machine
 # because a macOS DMG has to be built and notarized on a macOS runner — that
 # is the forcing function, not a preference.
 name: Desktop release
@@ -10,12 +18,98 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Leave blank to auto-bump from the PRs merged since the previous tag
+          (bump:major/minor/patch labels, highest wins, defaults to patch).
+          Or give "major"/"minor"/"patch" to force that bump, or an explicit
+          "X.Y.Z" to override the computed version entirely.
+        required: false
 
 permissions:
   contents: write
 
 jobs:
+  # Only what workflow_dispatch triggers: compute/accept the version, commit
+  # it, and tag it. Never runs on the push-tag trigger — a tag push already
+  # means this job already did its job for that tag.
+  version:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute the release version
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT: ${{ github.event.inputs.version }}
+        run: |
+          set -eo pipefail
+
+          prev_tag=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          prev_version=${prev_tag#v}
+          [ -z "$prev_version" ] && prev_version="0.0.0"
+
+          new_version=""
+          bump=""
+          if [[ "$INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            new_version="$INPUT"
+          elif [[ "$INPUT" == "major" || "$INPUT" == "minor" || "$INPUT" == "patch" ]]; then
+            bump="$INPUT"
+          elif [ -n "$INPUT" ]; then
+            echo "::error::version input '$INPUT' is neither X.Y.Z nor major/minor/patch" >&2
+            exit 1
+          else
+            # Auto: the highest-precedence bump:* label on any PR merged since
+            # the previous tag, defaulting to patch — including for any commit
+            # that landed straight on main with no PR at all.
+            if [ -n "$prev_tag" ]; then
+              since=$(git log -1 --format=%aI "$prev_tag")
+            else
+              since="1970-01-01T00:00:00Z"
+            fi
+            labels=$(gh pr list --repo "$GITHUB_REPOSITORY" --state merged \
+              --search "merged:>$since" --json labels --limit 200 \
+              --jq '[.[].labels[].name] | join(",")')
+            if echo "$labels" | grep -q "bump:major"; then bump="major"
+            elif echo "$labels" | grep -q "bump:minor"; then bump="minor"
+            else bump="patch"
+            fi
+          fi
+
+          if [ -z "$new_version" ]; then
+            IFS='.' read -r major minor patch <<< "$prev_version"
+            case "$bump" in
+              major) new_version="$((major + 1)).0.0" ;;
+              minor) new_version="$major.$((minor + 1)).0" ;;
+              patch) new_version="$major.$minor.$((patch + 1))" ;;
+            esac
+          fi
+
+          echo "tag=v$new_version" >> "$GITHUB_OUTPUT"
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Bump both package.json files and tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -eo pipefail
+          npm pkg set version="$VERSION"
+          (cd desktop && npm pkg set version="$VERSION")
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json desktop/package.json
+          git commit -m "chore(release): $TAG"
+          git tag "$TAG"
+          git push origin "HEAD:${{ github.ref }}" --follow-tags
+
   build:
+    if: github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
