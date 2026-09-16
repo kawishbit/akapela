@@ -33,13 +33,12 @@ interface BinarySpec {
 }
 
 interface PlatformSpec {
-  /** `build`: no publisher ships a usable one, so `script` compiles it from pinned sources. */
-  archive: 'zip' | 'tar.xz' | 'zip-per-binary' | 'build'
+  /** `zip-per-binary`: the publisher ships ffmpeg and ffprobe as separate archives, each with its own checksum. */
+  archive: 'zip' | 'tar.xz' | 'zip-per-binary'
   url?: string | null
   sha256?: string | null
   members?: Record<string, string>
   binaries?: Record<string, BinarySpec>
-  script?: string
 }
 
 interface Manifest {
@@ -117,19 +116,6 @@ async function main(): Promise<void> {
     throw new Error(`scripts/binaries.json has no entry for ${key}. Add one, with a checksum.`)
   }
 
-  if (spec.archive === 'build') {
-    if (!spec.script) throw new Error(`scripts/binaries.json marks ${key} as built but names no script.`)
-    if (platform !== process.platform || arch !== process.arch) {
-      throw new Error(
-        `ffmpeg for ${key} is built from source, natively, by ${spec.script} — it can't be fetched from `
-        + `${process.platform}-${process.arch}. Run this on ${key} (the release workflow's macOS runner does).`,
-      )
-    }
-    if (record) throw new Error(`${key} is built, not downloaded; its source checksums are pinned in ${spec.script}.`)
-    execFileSync('bash', [join(desktopRoot, spec.script)], { stdio: 'inherit' })
-    return
-  }
-
   const outDir = join(desktopRoot, 'vendor', key)
   const scratch = join(desktopRoot, 'vendor', `.${key}.tmp`)
   rmSync(scratch, { recursive: true, force: true })
@@ -143,10 +129,7 @@ async function main(): Promise<void> {
     if (spec.archive === 'zip-per-binary') {
       for (const [name, binary] of Object.entries(spec.binaries ?? {})) {
         if (!binary.url) {
-          throw new Error(
-            `scripts/binaries.json has no URL for ${name} on ${key}. See the note on that entry — `
-            + 'this platform still needs a publisher whose build carries librubberband.',
-          )
+          throw new Error(`scripts/binaries.json has no URL for ${name} on ${key}. Pin one, with a checksum.`)
         }
         const bytes = await download(binary.url, `${name} (${key})`)
         recorded[name] = verify(`${name} (${key})`, bytes, binary.sha256, record)

@@ -53,9 +53,8 @@ nsis:
 mac:
   category: public.app-category.music
   target:
-    # Apple Silicon only; there is no Intel build. Its ffmpeg is compiled
-    # from source by scripts/build-ffmpeg-darwin-arm64.sh, since no publisher
-    # ships an arm64 one with librubberband.
+    # Apple Silicon only; there is no Intel build. Its ffmpeg is the pinned
+    # static arm64 build in scripts/binaries.json.
     - target: dmg
       arch: [arm64]
   # Kept even though the build below is unsigned: if a certificate is ever
