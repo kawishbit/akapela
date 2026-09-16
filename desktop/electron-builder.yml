@@ -51,12 +51,11 @@ nsis:
 mac:
   category: public.app-category.music
   target:
-    # x64 only for now: there is no Apple Silicon ffmpeg pinned in
-    # scripts/binaries.json that can be confirmed to carry librubberband, and
-    # Rubber Band is this app's only pitch and tempo engine (ADR 0004). Add
-    # arm64 back here and to the release workflow's matrix once one is pinned.
+    # Apple Silicon only; there is no Intel build. Its ffmpeg is compiled
+    # from source by scripts/build-ffmpeg-darwin-arm64.sh, since no publisher
+    # ships an arm64 one with librubberband.
     - target: dmg
-      arch: [x64]
+      arch: [arm64]
   # Kept even though the build below is unsigned: if a certificate is ever
   # added, the hardened runtime is where the microphone dies silently without
   # these — this usage description and the audio-input entitlement are what

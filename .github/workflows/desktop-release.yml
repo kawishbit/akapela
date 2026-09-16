@@ -237,15 +237,13 @@ jobs:
           - os: windows-latest
             platform: win32
             arch: x64
-          # darwin-arm64 is deliberately absent: `desktop/scripts/binaries.json`
-          # has no Apple Silicon ffmpeg pinned that is confirmed to carry
-          # librubberband. See ticket 05 of `.scratch/desktop-app/`.
-          # macos-15-intel, not macos-13: GitHub retired the macOS 13 image in
-          # December 2025, and macos-15-intel is the last x64 macOS image
-          # (available until August 2027).
-          - os: macos-15-intel
+          # Apple Silicon only — there is no Intel macOS build. macos-latest
+          # runners are arm64, and the ffmpeg for this leg is compiled on them
+          # (scripts/build-ffmpeg-darwin-arm64.sh), since nobody publishes an
+          # arm64 one with librubberband.
+          - os: macos-latest
             platform: darwin
-            arch: x64
+            arch: arm64
           - os: ubuntu-latest
             platform: linux
             arch: x64
@@ -279,7 +277,22 @@ jobs:
         # Dockerfile runs) must never see Electron.
         run: pnpm install --frozen-lockfile
 
+      # The macOS ffmpeg is built from source, which takes a while; it only
+      # changes when the script's pinned versions do, so it's cached on that.
+      - name: Restore the built macOS ffmpeg
+        if: matrix.platform == 'darwin'
+        id: ffmpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: desktop/vendor/darwin-arm64
+          key: ffmpeg-darwin-arm64-${{ hashFiles('desktop/scripts/build-ffmpeg-darwin-arm64.sh') }}
+
+      - name: Install the macOS ffmpeg build tools
+        if: matrix.platform == 'darwin' && steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: brew install meson ninja pkgconf
+
       - name: Fetch the pinned ffmpeg and ffprobe
+        if: matrix.platform != 'darwin' || steps.ffmpeg-cache.outputs.cache-hit != 'true'
         working-directory: desktop
         run: pnpm fetch-binaries -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 

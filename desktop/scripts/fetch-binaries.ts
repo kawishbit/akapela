@@ -33,11 +33,13 @@ interface BinarySpec {
 }
 
 interface PlatformSpec {
-  archive: 'zip' | 'tar.xz' | 'zip-per-binary'
+  /** `build`: no publisher ships a usable one, so `script` compiles it from pinned sources. */
+  archive: 'zip' | 'tar.xz' | 'zip-per-binary' | 'build'
   url?: string | null
   sha256?: string | null
   members?: Record<string, string>
   binaries?: Record<string, BinarySpec>
+  script?: string
 }
 
 interface Manifest {
@@ -113,6 +115,19 @@ async function main(): Promise<void> {
   const spec = manifest.platforms[key]
   if (!spec) {
     throw new Error(`scripts/binaries.json has no entry for ${key}. Add one, with a checksum.`)
+  }
+
+  if (spec.archive === 'build') {
+    if (!spec.script) throw new Error(`scripts/binaries.json marks ${key} as built but names no script.`)
+    if (platform !== process.platform || arch !== process.arch) {
+      throw new Error(
+        `ffmpeg for ${key} is built from source, natively, by ${spec.script} — it can't be fetched from `
+        + `${process.platform}-${process.arch}. Run this on ${key} (the release workflow's macOS runner does).`,
+      )
+    }
+    if (record) throw new Error(`${key} is built, not downloaded; its source checksums are pinned in ${spec.script}.`)
+    execFileSync('bash', [join(desktopRoot, spec.script)], { stdio: 'inherit' })
+    return
   }
 
   const outDir = join(desktopRoot, 'vendor', key)
