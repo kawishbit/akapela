@@ -296,7 +296,19 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: pnpm pack:app -- --${{ matrix.arch }}
+        shell: bash
+        run: |
+          # An env var set to '' is still set. electron-builder on macOS reads
+          # an empty CSC_LINK as a certificate path, resolves it to the working
+          # directory, and fails with "desktop not a file" — so a missing
+          # secret has to become an unset variable, not an empty one.
+          for var in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!var}" ] || unset "$var"
+          done
+          if [ -z "${CSC_LINK:-}" ]; then
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          pnpm pack:app -- --${{ matrix.arch }}
 
       - name: Checksum the artifacts
         working-directory: desktop/release
