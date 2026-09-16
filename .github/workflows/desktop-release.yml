@@ -1,20 +1,22 @@
 # Cuts a release, then builds the desktop installers on the tag it creates and
 # publishes them to a GitHub Release with checksums.
 #
-# Three steps (ADR 0011, amended — `main` turned out to be rule-protected:
-# "Changes must be made through a pull request", discovered the hard way by
-# a `version` job that tried to push straight to it):
+# Three steps (ADR 0011, amended twice — see the ADR for both):
 #   1. `workflow_dispatch`, by hand: the `version` job computes the next
 #      semver (or takes the input's override), commits it into both
 #      `package.json` files on a new `release/vX.Y.Z` branch, and opens a PR
-#      to `main`. It does not merge it — that needs a human, same as any
-#      other change to `main`.
+#      to `main`. It does not merge it — `main` requires every change go
+#      through a PR, same as any other change to it.
 #   2. Merging that PR (by hand) is what actually lands the version bump.
 #   3. The `tag` job, on that PR's merge, tags the resulting commit and
-#      pushes the tag directly — tags aren't rule-protected. That push is a
-#      `push: tags` event, so it re-triggers this workflow, which is how
-#      `build` and `publish` end up running on a tag rather than on either
-#      the dispatch or the merge.
+#      pushes it. That push does *not* retrigger this workflow — a push made
+#      with the default GITHUB_TOKEN never does, a deliberate GitHub Actions
+#      anti-recursion guard, found out by a real `v1.0.1` tag that got
+#      pushed and then never built. So `build` and `publish` are chained
+#      directly off the same merged-PR run instead of waiting on a tag push
+#      that was never going to arrive; `push: tags` stays as a fallback for
+#      a tag pushed by an actual human with their own credentials, which
+#      *does* trigger normally.
 #
 # `build` is a matrix rather than something run from a development machine
 # because a macOS DMG has to be built and notarized on a macOS runner — that
@@ -124,31 +126,42 @@ jobs:
           gh pr create --repo "$GITHUB_REPOSITORY" \
             --base "${{ github.ref_name }}" --head "release/$TAG" \
             --title "chore(release): $TAG" \
-            --body "Merging this cuts $TAG: the \`tag\` job tags the merge commit and pushes it, which triggers \`build\`/\`publish\`."
+            --body "Merging this cuts $TAG: the \`tag\`, \`build\`, and \`publish\` jobs run on the merge itself and publish the release."
 
-  # On a release PR's merge — never on an ordinary PR, and never on the push
-  # or dispatch triggers, which are what this job's own tag push produces.
+  # On a release PR's merge — never on an ordinary PR's merge, and never on
+  # the push or dispatch triggers (a tag push has nothing to tag; a dispatch
+  # is what opens the PR this reacts to, not what merges it).
   tag:
     if: >-
       github.event_name == 'pull_request' && github.event.pull_request.merged == true
       && startsWith(github.event.pull_request.head.ref, 'release/v')
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Tag the merge commit and push it
+        id: tag
         env:
-          TAG: ${{ github.event.pull_request.head.ref }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           set -eo pipefail
-          tag="${TAG#release/}"
+          tag="${BRANCH#release/}"
           git tag "$tag"
           git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   build:
-    if: github.event_name == 'push'
+    needs: tag
+    # always() so a skipped `tag` (the plain push:tags fallback path, where
+    # `tag`'s own `if` is false) doesn't skip this by the usual propagation —
+    # each branch of the `||` covers one of the two ways in.
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name == 'push' || needs.tag.result == 'success')
     strategy:
       fail-fast: false
       matrix:
@@ -174,6 +187,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A plain tag push already checks out the right commit via
+          # `github.ref`; the merged-release-PR path doesn't carry a tag ref
+          # at all, so it needs the base branch (now including the merge)
+          # named explicitly instead.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || github.ref }}
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -243,8 +262,8 @@ jobs:
             desktop/release/*.sha256
 
   publish:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [tag, build]
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -254,6 +273,10 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          # `github.ref_name` is right for a plain tag push; the
+          # merged-release-PR path has no tag ref of its own, only what
+          # `tag` computed and pushed.
+          tag_name: ${{ needs.tag.outputs.tag || github.ref_name }}
           files: artifacts/*
           # No auto-updater: the app checks this release and links here. The
           # notes say which platforms are signed and what a Windows user will
