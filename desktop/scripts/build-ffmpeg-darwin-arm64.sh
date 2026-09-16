@@ -71,8 +71,15 @@ echo "building rubberband $RUBBERBAND_VERSION"
 tar -xjf "$work/rubberband.tar.bz2" -C "$work"
 (
   cd "$work/rubberband-$RUBBERBAND_VERSION"
+  # Rubber Band 4.0.0 uses size_t, the fixed-width ints, memcpy, and INT_MAX in
+  # several files without including their headers, relying on other headers
+  # to drag them in. Xcode 26's libc++ no longer does ("unknown type name
+  # 'size_t'" in mathmisc.cpp). Force-including them fixes the build without
+  # patching the pinned source.
+  forced='-include stddef.h -include stdint.h -include string.h -include limits.h'
   # vDSP is Apple's Accelerate framework, part of macOS itself.
-  meson setup build --prefix="$prefix" --libdir=lib --buildtype=release \
+  CFLAGS="$forced" CXXFLAGS="$forced" \
+    meson setup build --prefix="$prefix" --libdir=lib --buildtype=release \
     -Ddefault_library=static -Dfft=vdsp -Dresampler=builtin \
     -Djni=disabled -Dladspa=disabled -Dlv2=disabled -Dvamp=disabled \
     -Dcmdline=disabled -Dtests=disabled
