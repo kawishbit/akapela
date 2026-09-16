@@ -28,3 +28,17 @@ The `v1.0.1` release exposed a third issue, this time in the automation's own de
 The orphaned `v1.0.1` tag from the previous amendment's bug got deleted to let a clean `v1.0.1` be re-cut. That broke the *next* run instead: `version` computed "next after the latest tag" from git tags alone, so with `v1.0.1` gone it proposed `v1.0.1` again — except `package.json` already said `1.0.1`, from the release-bump PR that had already merged. `npm pkg set` was a no-op, there was nothing to commit, and the job failed outright.
 
 The underlying issue is that merging the release-bump PR is what actually advances `package.json`, and that can happen without the release ever finishing (a later step fails, or — as here — the tag gets deleted to retry). `prev_version` is now the higher of the latest tag and `package.json`'s current version (compared with `sort -V`), so whichever one is ahead is what the next bump computes from.
+
+## Amendment: a dry run proves the installers before a release
+
+The build job had never run when the first release was attempted. Each live release attempt therefore found one failure and stopped there. Rather than keep discovering the build one release at a time, `workflow_dispatch` gained a `dry_run` input. It runs `checks` and the three `build` legs from the dispatched ref, uploads the installers and their `.sha256` files as workflow artifacts, and skips `version`, `tag`, and `publish`. Nothing is versioned, tagged, or released.
+
+The dry runs found, in order:
+
+- **Typecheck failed on `main`.** Three `@types/node` versions (22, 26.4, 26.5) arrived transitively. One is pinned for the whole tree, matching Node 24.
+- **The tests need ffmpeg, and only Ubuntu's runner can get one cheaply.** Lint, typecheck, and tests now run once, in their own `checks` job with apt's ffmpeg. The build legs only install and build. That ffmpeg used to need the `rubberband` filter. Since the render stretches with Rubber Band WebAssembly (ADR 0003 amendment), any stock ffmpeg will do.
+- **The separation CLI's install used whatever pnpm was on `PATH`.** On CI that was pnpm 12, which walked up to `desktop/`'s workspace and failed. `prepack.ts` now runs the pnpm version that package pins, via `npx`.
+- **An empty signing secret is not an absent one.** With no certificate, `CSC_LINK=''` made electron-builder on macOS resolve the working directory as a certificate path. Empty signing variables are unset before the build.
+- **macOS had no ffmpeg to bundle.** No publisher ships a static arm64 macOS ffmpeg with librubberband, and building one from source broke under Xcode 26. The render's stretch moved to Rubber Band WebAssembly, and the macOS leg now fetches a pinned stock arm64 build like the other two platforms. It checks that build on the runner before packaging (`.scratch/apple-silicon-release/`, tickets 01 and 02).
+
+Two release-path fixes landed in the same batch, found by reading what the next live run would hit rather than by a dry run. The `version` job force-pushes its `release/vX.Y.Z` branch, replacing one left by an abandoned attempt, and reuses a release PR that is already open. The `tag` job tags the PR's exact `merge_commit_sha` and treats that tag already existing at that commit as done, so a failed build can be re-run.
