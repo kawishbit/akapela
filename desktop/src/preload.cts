@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AkapelaBridge, DesktopUpdate, LibraryChange } from './bridge.cjs'
+import type { AkapelaBridge, DesktopUpdate, DesktopUpdateCheck, LibraryChange } from './bridge.cjs'
 
 /**
  * The preload script, deliberately CommonJS: preload scripts run in a sandbox
@@ -25,6 +25,9 @@ const CHANNELS = {
   revealLibraryDir: 'akapela:reveal-library-dir',
   update: 'akapela:update',
   skipUpdate: 'akapela:skip-update',
+  checkForUpdateNow: 'akapela:check-for-update',
+  automaticUpdateChecks: 'akapela:automatic-update-checks',
+  setAutomaticUpdateChecks: 'akapela:set-automatic-update-checks',
   openExternal: 'akapela:open-external',
   isWindowMaximized: 'akapela:window-is-maximized',
   minimizeWindow: 'akapela:window-minimize',
@@ -57,6 +60,9 @@ const bridge: AkapelaBridge = {
   revealLibraryDir: () => ipcRenderer.invoke(CHANNELS.revealLibraryDir) as Promise<void>,
   update: () => ipcRenderer.invoke(CHANNELS.update) as Promise<DesktopUpdate | null>,
   skipUpdate: (version: string) => ipcRenderer.invoke(CHANNELS.skipUpdate, version) as Promise<void>,
+  checkForUpdateNow: () => ipcRenderer.invoke(CHANNELS.checkForUpdateNow) as Promise<DesktopUpdateCheck>,
+  automaticUpdateChecks: () => ipcRenderer.invoke(CHANNELS.automaticUpdateChecks) as Promise<boolean>,
+  setAutomaticUpdateChecks: (enabled: boolean) => ipcRenderer.invoke(CHANNELS.setAutomaticUpdateChecks, enabled) as Promise<void>,
   openExternal: (url: string) => ipcRenderer.invoke(CHANNELS.openExternal, url) as Promise<void>,
   isWindowMaximized: () => ipcRenderer.invoke(CHANNELS.isWindowMaximized) as Promise<boolean>,
   minimizeWindow: () => ipcRenderer.invoke(CHANNELS.minimizeWindow) as Promise<void>,

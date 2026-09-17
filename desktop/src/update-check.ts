@@ -9,6 +9,7 @@
  * No Electron import, so the comparison is covered by the root vitest suite.
  */
 import type { DesktopUpdate } from './bridge.cjs'
+import type { DesktopConfig } from './config.js'
 
 export const RELEASES_URL = 'https://github.com/kawishbit/akapela/releases/latest'
 const LATEST_RELEASE_API = 'https://api.github.com/repos/kawishbit/akapela/releases/latest'
@@ -46,6 +47,49 @@ export function offeredUpdate(found: DesktopUpdate | null, skipped: string | und
   return isNewerVersion(found.version, skipped) ? found : null
 }
 
+/** Whether the shell checks at launch. Anything other than a stored `false` means it does. */
+export function automaticChecks(config: DesktopConfig): boolean {
+  return config.automaticUpdateChecks !== false
+}
+
+/**
+ * What the latest Release turned out to be.
+ *
+ * `current` and `failed` are separate answers because **Check now** has to
+ * tell them apart: the singer asked, so "you are on the latest" and "I could
+ * not reach GitHub" cannot look the same. The launch check collapses both to
+ * silence (see `checkForUpdate`).
+ */
+export type UpdateCheck =
+  | { state: 'available', update: DesktopUpdate }
+  | { state: 'current' }
+  | { state: 'failed' }
+
+export async function checkLatestRelease(
+  currentVersion: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<UpdateCheck> {
+  try {
+    const response = await fetchImpl(LATEST_RELEASE_API, {
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'Akapela' },
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    })
+    if (!response.ok) return { state: 'failed' }
+    const release = await response.json() as { tag_name?: string, html_url?: string, draft?: boolean, prerelease?: boolean }
+    // A draft or a prerelease is not something to offer, and not a failure
+    // either: there is simply nothing newer that counts.
+    if (release.draft || release.prerelease || !release.tag_name) return { state: 'current' }
+    if (!isNewerVersion(release.tag_name, currentVersion)) return { state: 'current' }
+    return {
+      state: 'available',
+      update: { version: release.tag_name.replace(/^v/, ''), url: release.html_url ?? RELEASES_URL },
+    }
+  }
+  catch {
+    return { state: 'failed' }
+  }
+}
+
 /**
  * The newer release, or null — including whenever the check itself fails.
  * Nobody is blocked on this answer, so a machine with no network gets silence
@@ -55,18 +99,6 @@ export async function checkForUpdate(
   currentVersion: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<DesktopUpdate | null> {
-  try {
-    const response = await fetchImpl(LATEST_RELEASE_API, {
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'Akapela' },
-      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
-    })
-    if (!response.ok) return null
-    const release = await response.json() as { tag_name?: string, html_url?: string, draft?: boolean, prerelease?: boolean }
-    if (release.draft || release.prerelease || !release.tag_name) return null
-    if (!isNewerVersion(release.tag_name, currentVersion)) return null
-    return { version: release.tag_name.replace(/^v/, ''), url: release.html_url ?? RELEASES_URL }
-  }
-  catch {
-    return null
-  }
+  const checked = await checkLatestRelease(currentVersion, fetchImpl)
+  return checked.state === 'available' ? checked.update : null
 }

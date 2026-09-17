@@ -17,6 +17,16 @@ export interface DesktopUpdate {
   url: string
 }
 
+/**
+ * What a check the singer asked for came back with. A launch check only ever
+ * reports an Update or says nothing; **Check now** has to be able to say "you
+ * are on the latest" and "I could not reach GitHub" as different answers.
+ */
+export type DesktopUpdateCheck =
+  | { state: 'available', update: DesktopUpdate }
+  | { state: 'current' }
+  | { state: 'failed' }
+
 export interface LibraryChange {
   ok: boolean
   /** The folder now in use — unchanged when the singer cancelled or it was refused. */
@@ -39,6 +49,11 @@ export interface AkapelaBridge {
   update: () => Promise<DesktopUpdate | null>
   /** Stops offering this Release, and anything not newer than it, until a newer one appears. */
   skipUpdate: (version: string) => Promise<void>
+  /** Looks for an Update now, whatever the switch says and whatever was skipped. */
+  checkForUpdateNow: () => Promise<DesktopUpdateCheck>
+  /** Whether the shell looks for an Update at launch. */
+  automaticUpdateChecks: () => Promise<boolean>
+  setAutomaticUpdateChecks: (enabled: boolean) => Promise<void>
   openExternal: (url: string) => Promise<void>
   /**
    * The window has no native chrome of its own (`titlebar.ts`), so
@@ -59,6 +74,9 @@ export const BRIDGE_CHANNELS = {
   revealLibraryDir: 'akapela:reveal-library-dir',
   update: 'akapela:update',
   skipUpdate: 'akapela:skip-update',
+  checkForUpdateNow: 'akapela:check-for-update',
+  automaticUpdateChecks: 'akapela:automatic-update-checks',
+  setAutomaticUpdateChecks: 'akapela:set-automatic-update-checks',
   openExternal: 'akapela:open-external',
   isWindowMaximized: 'akapela:window-is-maximized',
   minimizeWindow: 'akapela:window-minimize',

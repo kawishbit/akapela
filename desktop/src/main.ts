@@ -12,7 +12,7 @@ import { choosePort } from './port.js'
 import { AkapelaServer, serverAnswersAt, ServerStartError } from './server.js'
 import { errorPage, loadingPage } from './splash.js'
 import { titleBarWindowOptions } from './titlebar.js'
-import { checkForUpdate, offeredUpdate } from './update-check.js'
+import { automaticChecks, checkForUpdate, checkLatestRelease, offeredUpdate } from './update-check.js'
 
 /**
  * Akapela's desktop shell.
@@ -295,6 +295,17 @@ function registerBridge(): void {
   ipcMain.handle(BRIDGE_CHANNELS.skipUpdate, (_event, version: unknown) => {
     if (typeof version === 'string' && version) store.update({ skippedUpdate: version })
   })
+  // The singer asked, so this ignores both the switch and anything skipped,
+  // and it answers with why it found nothing rather than only whether it did.
+  ipcMain.handle(BRIDGE_CHANNELS.checkForUpdateNow, async () => {
+    const checked = await checkLatestRelease(app.getVersion())
+    if (checked.state === 'available') availableUpdate = checked.update
+    return checked
+  })
+  ipcMain.handle(BRIDGE_CHANNELS.automaticUpdateChecks, () => automaticChecks(store.read()))
+  ipcMain.handle(BRIDGE_CHANNELS.setAutomaticUpdateChecks, (_event, enabled: unknown) => {
+    store.update({ automaticUpdateChecks: enabled !== false })
+  })
   ipcMain.handle(BRIDGE_CHANNELS.openExternal, async (_event, url: unknown) => {
     // Reachable from the page, so only ever a link — never a local path.
     if (typeof url === 'string' && /^https?:\/\//.test(url)) await shell.openExternal(url)
@@ -368,6 +379,7 @@ void app.whenReady().then(async () => {
 
   // Nobody is blocked on this: it settles whenever it settles, and the page
   // asks for the answer when it renders — the Update prompt and the Settings
-  // notice both read it through the bridge.
-  availableUpdate = await checkForUpdate(app.getVersion())
+  // notice both read it through the bridge. Turned off in Settings, it is the
+  // one outgoing request the app makes, and it is not made at all.
+  if (automaticChecks(store.read())) availableUpdate = await checkForUpdate(app.getVersion())
 })

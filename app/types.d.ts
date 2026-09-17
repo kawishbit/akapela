@@ -24,6 +24,11 @@ declare global {
     url: string
   }
 
+  type DesktopUpdateCheck =
+    | { state: 'available', update: DesktopUpdate }
+    | { state: 'current' }
+    | { state: 'failed' }
+
   interface DesktopLibraryChange {
     ok: boolean
     /** The folder now in use — unchanged when the singer cancelled or it was refused. */
@@ -42,6 +47,9 @@ declare global {
     revealLibraryDir: () => Promise<void>
     update: () => Promise<DesktopUpdate | null>
     skipUpdate: (version: string) => Promise<void>
+    checkForUpdateNow: () => Promise<DesktopUpdateCheck>
+    automaticUpdateChecks: () => Promise<boolean>
+    setAutomaticUpdateChecks: (enabled: boolean) => Promise<void>
     openExternal: (url: string) => Promise<void>
     isWindowMaximized: () => Promise<boolean>
     minimizeWindow: () => Promise<void>

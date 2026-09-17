@@ -21,6 +21,8 @@ export interface DesktopConfig {
   libraryDir?: string
   /** The Release the singer chose to skip; nothing newer than it is offered again. */
   skippedUpdate?: string
+  /** Whether to look for an Update at launch. Unset means yes; `false` is the only thing that stops it. */
+  automaticUpdateChecks?: boolean
 }
 
 export const CONFIG_FILENAME = 'desktop.json'

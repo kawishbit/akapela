@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, CloudDownload, CloudUpload, ExternalLink, FolderOpen, Headphones, Loader2, Monitor, Moon, RefreshCw, Settings2, Sun } from 'lucide-vue-next'
+import { ArrowLeft, CloudDownload, CloudUpload, ExternalLink, FolderOpen, Headphones, Loader2, Monitor, Moon, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
 import { LYRICS_PROVIDER_LABELS, type LyricsProviderName } from '~~/shared/lyrics'
 import { THEME_PREFERENCES, THEME_PREFERENCE_LABELS, type ThemePreference } from '~/utils/theme'
 
@@ -16,7 +16,15 @@ const {
   setMonitoringDefault,
 } = useSettings()
 
-const { isDesktop, version: desktopVersion, libraryDir, update, chooseLibraryDir, revealLibraryDir, openExternal } = useDesktop()
+const { isDesktop, version: desktopVersion, libraryDir, chooseLibraryDir, revealLibraryDir, openExternal } = useDesktop()
+const {
+  offer: availableUpdate,
+  checking: checkingForUpdate,
+  lastCheck: updateCheck,
+  automatic: automaticUpdateChecks,
+  checkNow: checkForUpdateNow,
+  setAutomatic: setAutomaticUpdateChecks,
+} = useUpdates()
 
 const { preference: themePreference, setPreference: setThemePreference } = useTheme()
 
@@ -417,19 +425,74 @@ useHead({ title: 'Settings · Akapela' })
           Akapela {{ desktopVersion }}.
         </p>
 
-        <!-- The whole of v1's updating story: a link, never a download. -->
         <p
-          v-if="update"
+          v-if="availableUpdate"
           class="mt-3 text-sm"
         >
-          Akapela {{ update.version }} is available.
+          Akapela {{ availableUpdate.version }} is available.
           <button
             type="button"
             class="font-bold underline underline-offset-2 hover:text-accent"
-            @click="openExternal(update.url)"
+            @click="openExternal(availableUpdate.url)"
           >
-            Open the download page
+            What's new
           </button>
+        </p>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="inline-flex h-12 items-center gap-1.5 rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition disabled:opacity-60"
+            :class="automaticUpdateChecks ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
+            :aria-pressed="automaticUpdateChecks"
+            @click="setAutomaticUpdateChecks(!automaticUpdateChecks)"
+          >
+            <CloudDownload class="size-3.5" />
+            Check on launch {{ automaticUpdateChecks ? 'on' : 'off' }}
+          </button>
+
+          <button
+            type="button"
+            class="inline-flex h-12 items-center gap-2 rounded-pill bg-surface-mid px-5 text-xs font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card disabled:opacity-60"
+            :disabled="checkingForUpdate"
+            @click="checkForUpdateNow"
+          >
+            <Loader2
+              v-if="checkingForUpdate"
+              class="size-3.5 animate-spin"
+            />
+            <Search
+              v-else
+              class="size-3.5"
+            />
+            Check now
+          </button>
+        </div>
+
+        <p class="mt-2 text-sm text-text-muted">
+          With checking off, Akapela never contacts GitHub on its own; Check now still works.
+        </p>
+
+        <p
+          v-if="updateCheck?.state === 'current'"
+          class="mt-3 text-sm text-text-muted"
+          role="status"
+        >
+          You're on the latest release.
+        </p>
+        <p
+          v-else-if="updateCheck?.state === 'failed'"
+          class="mt-3 text-sm text-negative"
+          role="alert"
+        >
+          Akapela couldn't check for updates. Check your connection and try again, or see the
+          <button
+            type="button"
+            class="font-bold underline underline-offset-2 hover:text-accent"
+            @click="openExternal('https://github.com/kawishbit/akapela/releases/latest')"
+          >
+            releases page
+          </button>.
         </p>
       </section>
 

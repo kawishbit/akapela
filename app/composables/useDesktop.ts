@@ -59,6 +59,10 @@ export function useDesktop() {
       await bridge.value?.skipUpdate(version)
       update.value = null
     },
+    /** Looks for an Update now, ignoring the switch and anything skipped. */
+    checkForUpdateNow: () => bridge.value?.checkForUpdateNow(),
+    automaticUpdateChecks: async () => await bridge.value?.automaticUpdateChecks() ?? true,
+    setAutomaticUpdateChecks: (enabled: boolean) => bridge.value?.setAutomaticUpdateChecks(enabled),
     openExternal: (url: string) => bridge.value?.openExternal(url),
     minimizeWindow: () => bridge.value?.minimizeWindow(),
     toggleMaximizeWindow: () => bridge.value?.toggleMaximizeWindow(),
