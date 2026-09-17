@@ -25,6 +25,10 @@ extraResources:
     to: bin
   - from: staging/licenses
     to: licenses
+  # Read by the shell rather than by a child process: only Linux has to hand
+  # its window an icon file (`src/icon.ts`).
+  - from: staging/icon.png
+    to: icon.png
 
 # No auto-updater in v1: the app checks the latest release and links to it.
 # electron-builder writes these anyway; nothing reads them.
@@ -52,6 +56,23 @@ nsis:
 
 mac:
   category: public.app-category.music
+  # The one platform that does not get the full-bleed square `resources/icon.png`
+  # gives Windows and Linux. macOS 26 masks app icons to a squircle itself and
+  # clips what falls outside it, while macOS 15 and earlier mask nothing and
+  # would render that square as a hard tile among rounded neighbours. This one
+  # has its corners already rounded, which both versions read correctly.
+  #
+  # It is deliberately *not* inset. The widely-cited "824x824 body on a 1024
+  # canvas" is not Apple guidance — it is reverse-engineered from Apple's
+  # retired flat-icon templates — and under 26's mask an inset icon renders
+  # visibly smaller than every peer in the Dock. Icon Composer is the real
+  # answer on 26 and is tracked in `.scratch/mac-signing/`; both files come
+  # from `pnpm icons:generate` at the repo root (`scripts/icon-shapes.ts`).
+  #
+  # Named relative to `buildResources` above, which is where electron-builder
+  # looks first — the same lookup that finds `icon.png` for the other two
+  # platforms without any key at all.
+  icon: icon-mac.png
   target:
     # Apple Silicon only; there is no Intel build. Its ffmpeg is the pinned
     # static arm64 build in scripts/binaries.json.

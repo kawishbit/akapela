@@ -10,8 +10,8 @@ import { join, resolve } from 'node:path'
  *
  * The packaged tree is what `scripts/prepack.ts` stages and electron-builder
  * copies in as `extraResources` — outside the asar deliberately, because
- * every path here is either spawned as a process or read by one, and neither
- * can see inside an archive:
+ * almost every path here is either spawned as a process or read by one, and
+ * neither can see inside an archive:
  *
  *   <resources>/output/server/index.mjs   the built Nitro server
  *   <resources>/output/public/…           its static assets, where it expects them
@@ -20,6 +20,7 @@ import { join, resolve } from 'node:path'
  *   <resources>/stretch/…                 the Mix render's stretch CLI, compiled, and its Rubber Band wasm
  *   <resources>/bin/ffmpeg                the pinned static build
  *   <resources>/licenses/                 GPL-3.0 and the bundled binaries' texts
+ *   <resources>/icon.png                  the window's icon, which only Linux needs (`icon.ts`)
  */
 
 export interface Layout {
@@ -41,6 +42,12 @@ export interface Layout {
   /** Handed to the server as `AKAPELA_RUBBERBAND_WASM`: the stretch the Mix render runs, the one the preview runs. */
   rubberBandWasm: string
   licensesDir: string
+  /**
+   * The mark, as a file a window can be handed. Unlike everything above it is
+   * read by the shell rather than by a child process, but it is staged the
+   * same way so that both answers stay in one place.
+   */
+  windowIcon: string
 }
 
 /** `.exe` on Windows and nothing anywhere else. */
@@ -78,6 +85,7 @@ export function packagedLayout(resourcesPath: string, platform: NodeJS.Platform)
     stretchCli: join(resourcesPath, 'stretch', 'server', 'lib', 'stretch', 'stretch-cli.js'),
     rubberBandWasm: join(resourcesPath, 'stretch', 'rubberband.wasm'),
     licensesDir: join(resourcesPath, 'licenses'),
+    windowIcon: join(resourcesPath, 'icon.png'),
   }
 }
 
@@ -98,5 +106,6 @@ export function developmentLayout(desktopRoot: string, platform: NodeJS.Platform
     stretchCli: join(repoRoot, 'server', 'lib', 'stretch', 'stretch-cli.ts'),
     rubberBandWasm: join(repoRoot, 'node_modules', 'rubberband-wasm', 'dist', 'rubberband.wasm'),
     licensesDir: join(desktopRoot, 'resources', 'licenses'),
+    windowIcon: join(desktopRoot, 'resources', 'icon.png'),
   }
 }
