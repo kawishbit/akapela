@@ -399,4 +399,11 @@ jobs:
           # merge doesn't, only what `tag` pushed.
           tag_name: ${{ needs.tag.outputs.tag || github.ref_name }}
           files: artifacts/*
+          # Stands above the generated notes on every release, and stays true
+          # for all of them: an install from 1.0.2 or older has no in-place
+          # updater in it, so it takes one manual update to get one.
+          body: |
+            Akapela offers updates from inside the app, and installs them itself on Windows and the Linux AppImage. macOS links to the download until the build is signed.
+
+            **Updating from 1.0.2 or older?** Install this release by hand, once. After that, Akapela can update itself.
           generate_release_notes: true
