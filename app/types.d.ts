@@ -2,6 +2,8 @@ declare module '#app' {
   interface PageMeta {
     /** Whether the persistent player bar belongs on this page. Defaults to true. */
     playerBar?: boolean
+    /** Whether the Desktop App may ask about an Update here. Defaults to true; false holds the prompt back until the singer leaves. */
+    updatePrompt?: boolean
   }
 }
 
@@ -22,6 +24,19 @@ declare global {
     url: string
   }
 
+  type DesktopUpdateCheck =
+    | { state: 'available', update: DesktopUpdate }
+    | { state: 'current' }
+    | { state: 'failed' }
+
+  type DesktopUpdateInstallMode = 'in-place' | 'link'
+
+  type DesktopUpdateInstallState =
+    | { state: 'idle' }
+    | { state: 'downloading', percent: number }
+    | { state: 'ready', version: string }
+    | { state: 'failed', message: string }
+
   interface DesktopLibraryChange {
     ok: boolean
     /** The folder now in use — unchanged when the singer cancelled or it was refused. */
@@ -39,6 +54,15 @@ declare global {
     chooseLibraryDir: () => Promise<DesktopLibraryChange>
     revealLibraryDir: () => Promise<void>
     update: () => Promise<DesktopUpdate | null>
+    skipUpdate: (version: string) => Promise<void>
+    checkForUpdateNow: () => Promise<DesktopUpdateCheck>
+    automaticUpdateChecks: () => Promise<boolean>
+    setAutomaticUpdateChecks: (enabled: boolean) => Promise<void>
+    updateInstallMode: () => Promise<DesktopUpdateInstallMode>
+    installUpdate: () => Promise<void>
+    restartToUpdate: () => Promise<void>
+    updateInstallState: () => Promise<DesktopUpdateInstallState>
+    onUpdateInstallStateChange: (listener: (state: DesktopUpdateInstallState) => void) => () => void
     openExternal: (url: string) => Promise<void>
     isWindowMaximized: () => Promise<boolean>
     minimizeWindow: () => Promise<void>

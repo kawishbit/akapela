@@ -62,6 +62,25 @@ describe('jobs', () => {
     expect(api.jobTraceParent(track.job.id)).toBe(TRACEPARENT)
   })
 
+  test('nothing is busy on a quiet library', async () => {
+    const res = await api.get('/api/jobs/busy')
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ busy: false })
+  })
+
+  test('a queued or running job makes the library busy', async () => {
+    // What the Desktop App asks before restarting into an Update: a Separation
+    // is minutes of work, and restarting would throw it away.
+    const job = await (await api.post('/api/jobs', { type: 'noop' })).json()
+
+    expect(await (await api.get('/api/jobs/busy')).json()).toEqual({ busy: true })
+
+    api.finishJob(job.id, 'succeeded')
+
+    expect(await (await api.get('/api/jobs/busy')).json()).toEqual({ busy: false })
+  })
+
   test('a job finished by the worker is reported with its final state', async () => {
     const created = await api.post('/api/jobs', { type: 'noop' })
     const job = await created.json()

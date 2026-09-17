@@ -54,6 +54,22 @@ export function useDesktop() {
     maximized,
     chooseLibraryDir,
     revealLibraryDir: () => bridge.value?.revealLibraryDir(),
+    /** Stops offering an Update the singer skipped. The shell remembers it across launches. */
+    async skipUpdate(version: string) {
+      await bridge.value?.skipUpdate(version)
+      update.value = null
+    },
+    /** Looks for an Update now, ignoring the switch and anything skipped. */
+    checkForUpdateNow: () => bridge.value?.checkForUpdateNow(),
+    automaticUpdateChecks: async () => await bridge.value?.automaticUpdateChecks() ?? true,
+    setAutomaticUpdateChecks: (enabled: boolean) => bridge.value?.setAutomaticUpdateChecks(enabled),
+    /** How this build takes an Update: installs it itself, or opens the download page. */
+    updateInstallMode: async () => await bridge.value?.updateInstallMode() ?? 'link',
+    installUpdate: () => bridge.value?.installUpdate(),
+    restartToUpdate: () => bridge.value?.restartToUpdate(),
+    updateInstallState: async () => await bridge.value?.updateInstallState() ?? { state: 'idle' } as DesktopUpdateInstallState,
+    onUpdateInstallStateChange: (listener: (state: DesktopUpdateInstallState) => void) =>
+      bridge.value?.onUpdateInstallStateChange(listener),
     openExternal: (url: string) => bridge.value?.openExternal(url),
     minimizeWindow: () => bridge.value?.minimizeWindow(),
     toggleMaximizeWindow: () => bridge.value?.toggleMaximizeWindow(),

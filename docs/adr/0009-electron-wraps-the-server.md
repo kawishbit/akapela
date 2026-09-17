@@ -18,3 +18,19 @@ So the shell is thin on purpose, and staying thin is the point (spec user story 
 - **Both paths read the same data directory and the same `akapela.db`**, so a backup archive moves between the Desktop App and a compose instance in either direction, and a Desktop App can be pointed straight at a folder a compose instance built.
 - **No e2e harness.** The logic worth testing is pure and lives in the root vitest suite — the port rules, the window bounds, the config store, the packaged layout, the version check — none of which import Electron. What is left is thinner than a Playwright rig would be.
 - **Native audio stays out of scope.** No ASIO/WASAPI/CoreAudio path and no second audio engine outside the renderer. Recording latency is already handled by the Review screen's nudge (ADR 0006), and automatic latency calibration is its own roadmap line.
+
+## Amendment: the Desktop App installs its own Updates where the platform allows it
+
+v1 shipped with no updater, on purpose: `update-check.ts` looked at the latest Release and Settings linked to it. That was the right call before anyone had installed a Release, and it stops being enough once people have. A link means finding the right installer and running it by hand, every time. So the Desktop App now asks at launch whether to take an Update, and on Windows and Linux it installs that Update itself with `electron-updater`.
+
+macOS is the exception, and a future reader will ask why. The macOS updater (Squirrel.Mac) will not apply an update to an unsigned app, and there is no Apple Developer account behind the macOS build. macOS gets the same prompt, but its **Update now** opens the Release page. When the build is signed, macOS switches to the real updater and the prompt stays as it is. The unsigned Windows installer is fine, because `electron-updater` only checks signatures when a publisher is configured.
+
+The shell gets a little thicker, and the choices below keep that as small as possible:
+
+- **`update-check.ts` still decides whether there is an Update**, on every platform. `electron-updater` only downloads and installs. That leaves one tested answer that "Skip this version" and the Settings switch act on. It also means the lookup runs twice when the singer takes an Update. If the two disagree, that counts as a failed install.
+- **The prompt belongs to the Nuxt app, not a native dialog.** A native dialog appears whenever the check finishes, which could be in the middle of a Take. The in-app prompt waits while the singer is on Sing or Take Review.
+- **Nothing downloads until the singer asks.** After the download they choose **Restart now** or **Install when I quit**. **Restart now** is disabled while a Job is running, so an Update they asked for doesn't throw away a Separation. Quitting on its own is still not guarded, as above.
+- **Every failure falls back to the Release page link.** That includes a missing `latest.yml`, a checksum mismatch, a lost connection, and an AppImage that wasn't launched as one. Nothing retries on its own.
+- **The release job now publishes the update metadata** (`latest.yml`, `latest-linux.yml`, and the blockmaps) next to the installers. Without them there is nothing to install from.
+
+Considered: letting `electron-updater` do the check on Windows and Linux too, and keeping `update-check.ts` for macOS only. Rejected, because two checks would disagree about skipped versions and the off switch. Also considered: waiting to sign macOS before building any of this. Rejected, because it would keep the two platforms that can update in place waiting on the one that can't.

@@ -21,5 +21,6 @@ useHead(() => ({
     <TitleBar />
     <NuxtPage />
     <PlayerBar v-if="showPlayerBar" />
+    <UpdatePrompt />
   </div>
 </template>

@@ -7,7 +7,8 @@ import { VOLUME_MAX, VOLUME_MIN } from '~/audio/volume'
 
 // The Lyrics fill the screen here; the persistent player bar would only steal
 // room from them, so this page carries its own transport.
-definePageMeta({ playerBar: false })
+// Nothing interrupts a Take: an Update waits until the singer leaves this page.
+definePageMeta({ playerBar: false, updatePrompt: false })
 
 const SAVE_DEBOUNCE_MS = 400
 

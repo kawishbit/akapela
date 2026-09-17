@@ -39,7 +39,13 @@ That clears the flag macOS put on the download, and after that it opens like any
 
 **On Windows**, the installer isn't signed yet. SmartScreen will show a blue "Windows protected your PC" box the first time; choose **More info**, then **Run anyway**. That's the whole of it, and it only happens once.
 
-**Updates** aren't automatic. The app checks for a newer release when it starts and says so quietly in Settings with a link to the download page.
+**Updates.** The app checks for a newer release when it starts, and asks whether you want it. It never interrupts you mid-song: if you're on the Sing or Take screen, the question waits until you leave. You can take it, be asked again next time, or skip that release for good.
+
+On **Windows** and on the **Linux AppImage**, saying yes downloads the update and installs it for you — you choose whether to restart straight away or have it installed the next time you quit. A restart waits while a Job is still running, so an update never throws away a separation that's halfway done.
+
+On **macOS**, saying yes opens the download page instead, because macOS refuses to update an app that isn't signed, and this one isn't yet. Anything that goes wrong on the other two platforms ends the same way: a link to the release, and your library untouched.
+
+Settings has a **Check on launch** switch (on by default — turned off, Akapela never contacts GitHub on its own) and a **Check now** button. If you're on **1.0.2 or older**, install the first release that has this by hand, once; after that, updates install themselves.
 
 ### Run it on a server
 

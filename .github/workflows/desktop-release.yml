@@ -341,6 +341,39 @@ jobs:
             sha256 "$file" > "$file.sha256"
           done
 
+      # An installed app updates itself from this metadata (ADR 0009's
+      # amendment on Updates). A Release carrying installers but no metadata
+      # looks perfectly fine and only fails months later, on someone else's
+      # machine, so a missing file fails the build here instead.
+      - name: Check the update metadata
+        working-directory: desktop/release
+        shell: bash
+        run: |
+          set -eo pipefail
+          missing=()
+          case "${{ matrix.platform }}" in
+            win32)
+              [ -f latest.yml ] || missing+=(latest.yml)
+              compgen -G "*.exe.blockmap" >/dev/null || missing+=("*.exe.blockmap")
+              ;;
+            linux)
+              # No blockmap file to look for: an AppImage carries its blockmap
+              # inside itself (app-builder-lib appends it), unlike the NSIS
+              # installer, which gets one beside it.
+              [ -f latest-linux.yml ] || missing+=(latest-linux.yml)
+              ;;
+            darwin)
+              # macOS cannot install an Update in place while the build is
+              # unsigned, so a Release must not carry metadata promising it can.
+              rm -f latest-mac.yml
+              ;;
+          esac
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::electron-builder produced no ${missing[*]} in desktop/release; an installed app could not update from this Release" >&2
+            ls -la
+            exit 1
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: akapela-${{ matrix.platform }}-${{ matrix.arch }}
@@ -350,6 +383,8 @@ jobs:
             desktop/release/*.dmg
             desktop/release/*.AppImage
             desktop/release/*.sha256
+            desktop/release/latest*.yml
+            desktop/release/*.blockmap
 
   publish:
     needs: [tag, build]
@@ -367,4 +402,9 @@ jobs:
           # merge doesn't, only what `tag` pushed.
           tag_name: ${{ needs.tag.outputs.tag || github.ref_name }}
           files: artifacts/*
+          # Stands above the generated notes on every release, and stays true
+          # for all of them: an install from 1.0.2 or older has no in-place
+          # updater in it, so it takes one manual update to get one.
+          body: |
+            **Updating from 1.0.2 or older?** Install this release by hand, once — those builds have no in-place updater in them. After that, Akapela offers updates from inside the app.
           generate_release_notes: true

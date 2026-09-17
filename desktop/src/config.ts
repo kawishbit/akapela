@@ -5,9 +5,10 @@ import type { Bounds } from './bounds.js'
 /**
  * The handful of things the shell itself remembers, in one JSON file beside
  * the app's own data: the window's last bounds, the loopback port (see
- * `port.ts` for why that has to be stable), and which library folder is open.
+ * `port.ts` for why that has to be stable), which library folder is open, and
+ * what the singer has decided about Updates.
  *
- * Deliberately not `electron-store`: this is three fields and a file, and
+ * Deliberately not `electron-store`: this is a few fields and a file, and
  * keeping it Electron-free is what lets the root vitest suite cover the parts
  * that are easy to get wrong — a config file someone hand-edited into
  * nonsense, and a first run with no file at all.
@@ -18,6 +19,10 @@ export interface DesktopConfig {
   port?: number
   /** Absolute path to the data directory; unset means the default under `userData`. */
   libraryDir?: string
+  /** The Release the singer chose to skip; nothing newer than it is offered again. */
+  skippedUpdate?: string
+  /** Whether to look for an Update at launch. Unset means yes; `false` is the only thing that stops it. */
+  automaticUpdateChecks?: boolean
 }
 
 export const CONFIG_FILENAME = 'desktop.json'

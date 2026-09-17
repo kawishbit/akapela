@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AkapelaBridge, DesktopUpdate, LibraryChange } from './bridge.cjs'
+import type { AkapelaBridge, DesktopUpdate, DesktopUpdateCheck, DesktopUpdateInstallMode, DesktopUpdateInstallState, LibraryChange } from './bridge.cjs'
 
 /**
  * The preload script, deliberately CommonJS: preload scripts run in a sandbox
@@ -24,6 +24,15 @@ const CHANNELS = {
   chooseLibraryDir: 'akapela:choose-library-dir',
   revealLibraryDir: 'akapela:reveal-library-dir',
   update: 'akapela:update',
+  skipUpdate: 'akapela:skip-update',
+  checkForUpdateNow: 'akapela:check-for-update',
+  automaticUpdateChecks: 'akapela:automatic-update-checks',
+  setAutomaticUpdateChecks: 'akapela:set-automatic-update-checks',
+  updateInstallMode: 'akapela:update-install-mode',
+  installUpdate: 'akapela:install-update',
+  restartToUpdate: 'akapela:restart-to-update',
+  updateInstallState: 'akapela:update-install-state',
+  updateInstallStateChanged: 'akapela:update-install-state-changed',
   openExternal: 'akapela:open-external',
   isWindowMaximized: 'akapela:window-is-maximized',
   minimizeWindow: 'akapela:window-minimize',
@@ -55,6 +64,19 @@ const bridge: AkapelaBridge = {
   chooseLibraryDir: () => ipcRenderer.invoke(CHANNELS.chooseLibraryDir) as Promise<LibraryChange>,
   revealLibraryDir: () => ipcRenderer.invoke(CHANNELS.revealLibraryDir) as Promise<void>,
   update: () => ipcRenderer.invoke(CHANNELS.update) as Promise<DesktopUpdate | null>,
+  skipUpdate: (version: string) => ipcRenderer.invoke(CHANNELS.skipUpdate, version) as Promise<void>,
+  checkForUpdateNow: () => ipcRenderer.invoke(CHANNELS.checkForUpdateNow) as Promise<DesktopUpdateCheck>,
+  automaticUpdateChecks: () => ipcRenderer.invoke(CHANNELS.automaticUpdateChecks) as Promise<boolean>,
+  setAutomaticUpdateChecks: (enabled: boolean) => ipcRenderer.invoke(CHANNELS.setAutomaticUpdateChecks, enabled) as Promise<void>,
+  updateInstallMode: () => ipcRenderer.invoke(CHANNELS.updateInstallMode) as Promise<DesktopUpdateInstallMode>,
+  installUpdate: () => ipcRenderer.invoke(CHANNELS.installUpdate) as Promise<void>,
+  restartToUpdate: () => ipcRenderer.invoke(CHANNELS.restartToUpdate) as Promise<void>,
+  updateInstallState: () => ipcRenderer.invoke(CHANNELS.updateInstallState) as Promise<DesktopUpdateInstallState>,
+  onUpdateInstallStateChange: (listener) => {
+    const handler = (_event: IpcRendererEvent, state: DesktopUpdateInstallState) => listener(state)
+    ipcRenderer.on(CHANNELS.updateInstallStateChanged, handler)
+    return () => ipcRenderer.removeListener(CHANNELS.updateInstallStateChanged, handler)
+  },
   openExternal: (url: string) => ipcRenderer.invoke(CHANNELS.openExternal, url) as Promise<void>,
   isWindowMaximized: () => ipcRenderer.invoke(CHANNELS.isWindowMaximized) as Promise<boolean>,
   minimizeWindow: () => ipcRenderer.invoke(CHANNELS.minimizeWindow) as Promise<void>,
