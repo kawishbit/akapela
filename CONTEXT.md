@@ -105,3 +105,7 @@ _Avoid_: Log, span tree, transaction
 **Release**:
 A tagged, published version of Akapela: a `vMAJOR.MINOR.PATCH` git tag with a GitHub Release carrying the Windows, macOS, and Linux Desktop App installers. What the Desktop App's update check compares against (ADR 0011).
 _Avoid_: Version, build, artifact
+
+**Update**:
+A Release newer than the running Desktop App, offered to the singer when it launches. They can take it now, be asked again next launch, or skip that Release until a newer one appears. There is one stream of Releases, so there is no choice of what to be offered. A compose install is never offered an Update; it is rebuilt from newer source.
+_Avoid_: Update channel, upgrade, patch
