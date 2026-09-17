@@ -36,6 +36,14 @@ describe('ConfigStore', () => {
     })
   })
 
+  it('remembers a skipped Release alongside everything else', () => {
+    const store = new ConfigStore(file)
+    store.update({ port: 54_321 })
+    store.update({ skippedUpdate: '1.1.0' })
+
+    expect(new ConfigStore(file).read()).toEqual({ port: 54_321, skippedUpdate: '1.1.0' })
+  })
+
   it('merges rather than replacing, so remembering the bounds does not forget the port', () => {
     const store = new ConfigStore(file)
     store.update({ port: 54_321 })

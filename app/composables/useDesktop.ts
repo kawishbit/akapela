@@ -54,6 +54,11 @@ export function useDesktop() {
     maximized,
     chooseLibraryDir,
     revealLibraryDir: () => bridge.value?.revealLibraryDir(),
+    /** Stops offering an Update the singer skipped. The shell remembers it across launches. */
+    async skipUpdate(version: string) {
+      await bridge.value?.skipUpdate(version)
+      update.value = null
+    },
     openExternal: (url: string) => bridge.value?.openExternal(url),
     minimizeWindow: () => bridge.value?.minimizeWindow(),
     toggleMaximizeWindow: () => bridge.value?.toggleMaximizeWindow(),

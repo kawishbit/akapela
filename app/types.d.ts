@@ -2,6 +2,8 @@ declare module '#app' {
   interface PageMeta {
     /** Whether the persistent player bar belongs on this page. Defaults to true. */
     playerBar?: boolean
+    /** Whether the Desktop App may ask about an Update here. Defaults to true; false holds the prompt back until the singer leaves. */
+    updatePrompt?: boolean
   }
 }
 
@@ -39,6 +41,7 @@ declare global {
     chooseLibraryDir: () => Promise<DesktopLibraryChange>
     revealLibraryDir: () => Promise<void>
     update: () => Promise<DesktopUpdate | null>
+    skipUpdate: (version: string) => Promise<void>
     openExternal: (url: string) => Promise<void>
     isWindowMaximized: () => Promise<boolean>
     minimizeWindow: () => Promise<void>

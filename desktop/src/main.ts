@@ -12,7 +12,7 @@ import { choosePort } from './port.js'
 import { AkapelaServer, serverAnswersAt, ServerStartError } from './server.js'
 import { errorPage, loadingPage } from './splash.js'
 import { titleBarWindowOptions } from './titlebar.js'
-import { checkForUpdate } from './update-check.js'
+import { checkForUpdate, offeredUpdate } from './update-check.js'
 
 /**
  * Akapela's desktop shell.
@@ -291,7 +291,10 @@ function registerBridge(): void {
   ipcMain.handle(BRIDGE_CHANNELS.libraryDir, () => libraryDir())
   ipcMain.handle(BRIDGE_CHANNELS.chooseLibraryDir, () => chooseLibrary())
   ipcMain.handle(BRIDGE_CHANNELS.revealLibraryDir, () => shell.openPath(libraryDir()))
-  ipcMain.handle(BRIDGE_CHANNELS.update, () => availableUpdate)
+  ipcMain.handle(BRIDGE_CHANNELS.update, () => offeredUpdate(availableUpdate, store.read().skippedUpdate))
+  ipcMain.handle(BRIDGE_CHANNELS.skipUpdate, (_event, version: unknown) => {
+    if (typeof version === 'string' && version) store.update({ skippedUpdate: version })
+  })
   ipcMain.handle(BRIDGE_CHANNELS.openExternal, async (_event, url: unknown) => {
     // Reachable from the page, so only ever a link — never a local path.
     if (typeof url === 'string' && /^https?:\/\//.test(url)) await shell.openExternal(url)
@@ -363,7 +366,8 @@ void app.whenReady().then(async () => {
   if (attachedUrl) await startAttached(attachedUrl)
   else await startSupervised()
 
-  // Nobody is blocked on this: it settles whenever it settles, and the
-  // Settings page asks for the answer when it renders.
+  // Nobody is blocked on this: it settles whenever it settles, and the page
+  // asks for the answer when it renders — the Update prompt and the Settings
+  // notice both read it through the bridge.
   availableUpdate = await checkForUpdate(app.getVersion())
 })

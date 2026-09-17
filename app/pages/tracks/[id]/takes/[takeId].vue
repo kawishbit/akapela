@@ -18,7 +18,8 @@ import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '
 
 // This screen carries its own playback (the Take over the Backing Track); the
 // persistent player bar would only conflict with it.
-definePageMeta({ playerBar: false })
+// Reviewing a Take is playback the singer is listening to; an Update waits.
+definePageMeta({ playerBar: false, updatePrompt: false })
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))

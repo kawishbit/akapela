@@ -32,6 +32,21 @@ export function isNewerVersion(candidate: string, current: string): boolean {
 }
 
 /**
+ * What to actually offer the singer, given what they last chose to skip.
+ *
+ * A skip covers that Release and anything not newer than it, so skipping is
+ * "stop asking" rather than "ask me again next launch" — `Later` is the choice
+ * that means the latter. A config value that is not a version at all (edited
+ * by hand, written by an older build) reads as nothing skipped, the way the
+ * rest of the config treats what it cannot understand.
+ */
+export function offeredUpdate(found: DesktopUpdate | null, skipped: string | undefined): DesktopUpdate | null {
+  if (!found) return null
+  if (typeof skipped !== 'string' || !/^v?\d+(\.\d+)*/.test(skipped)) return found
+  return isNewerVersion(found.version, skipped) ? found : null
+}
+
+/**
  * The newer release, or null — including whenever the check itself fails.
  * Nobody is blocked on this answer, so a machine with no network gets silence
  * rather than an error.

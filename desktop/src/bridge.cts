@@ -35,8 +35,10 @@ export interface AkapelaBridge {
   libraryDir: () => Promise<string>
   chooseLibraryDir: () => Promise<LibraryChange>
   revealLibraryDir: () => Promise<void>
-  /** The newer release if the startup check found one, else null. */
+  /** The Update waiting for an answer, else null — already filtered by what the singer skipped. */
   update: () => Promise<DesktopUpdate | null>
+  /** Stops offering this Release, and anything not newer than it, until a newer one appears. */
+  skipUpdate: (version: string) => Promise<void>
   openExternal: (url: string) => Promise<void>
   /**
    * The window has no native chrome of its own (`titlebar.ts`), so
@@ -56,6 +58,7 @@ export const BRIDGE_CHANNELS = {
   chooseLibraryDir: 'akapela:choose-library-dir',
   revealLibraryDir: 'akapela:reveal-library-dir',
   update: 'akapela:update',
+  skipUpdate: 'akapela:skip-update',
   openExternal: 'akapela:open-external',
   isWindowMaximized: 'akapela:window-is-maximized',
   minimizeWindow: 'akapela:window-minimize',
