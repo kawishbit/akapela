@@ -8,7 +8,7 @@ Every failure has the same outcome: the prompt says it couldn't update and offer
 
 **Blocked by:** 01 (Prompt the singer about an Update at launch), 04 (Publish the update metadata with every Release)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] On Windows, an installed older Release updates to the latest one through **Update now** → **Restart now**, and relaunches on the new version with its library, port, and window bounds intact
 - [ ] On Linux, a launched older AppImage does the same
@@ -16,6 +16,10 @@ Every failure has the same outcome: the prompt says it couldn't update and offer
 - [ ] macOS, and an AppImage not launched as one, get **Update now** → the Release page, as in ticket 01
 - [ ] A forced failure (e.g. a Release with no metadata) shows the fallback link and writes the error to the server log
 - [ ] Unpackaged or attached runs never start a download
-- [ ] Which path a platform takes (install in place, or link) is a plain function covered by the root vitest suite
+- [x] Which path a platform takes (install in place, or link) is a plain function covered by the root vitest suite
 
 ## Comments
+
+Built. `desktop/src/updater.ts` wraps `electron-updater` (a new production dependency of `desktop/`); `updateInstallMode` picks the platform's path and is unit-tested. The server is stopped before `quitAndInstall` rather than left to race the installer.
+
+**None of the install paths have been run for real**: that needs a packaged build of two different versions and a Release with metadata on it. The platform routing, the failure fallback and the prompt's states are covered by unit tests; the install itself is not, and cannot be without a real installer.

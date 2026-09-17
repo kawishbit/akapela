@@ -4,11 +4,13 @@
 
 **Blocked by:** 01 (Prompt the singer about an Update at launch)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] After **Skip this version**, relaunching with the same latest Release shows no prompt
-- [ ] When a Release newer than the skipped one appears, the launch prompt comes back
-- [ ] The skipped version survives a restart, and a missing or corrupt config value behaves as "nothing skipped"
-- [ ] The rule deciding whether a skip suppresses an Update, and the config store's handling of the new field, are covered by the root vitest suite with no Electron import
+- [x] After **Skip this version**, relaunching with the same latest Release shows no prompt
+- [x] When a Release newer than the skipped one appears, the launch prompt comes back
+- [x] The skipped version survives a restart, and a missing or corrupt config value behaves as "nothing skipped"
+- [x] The rule deciding whether a skip suppresses an Update, and the config store's handling of the new field, are covered by the root vitest suite with no Electron import
 
 ## Comments
+
+Built. `offeredUpdate` in `desktop/src/update-check.ts` decides it, the shell stores `skippedUpdate` in its config, and the prompt's third button calls it through the bridge. A skip covers anything not newer than the skipped Release.

@@ -7,12 +7,14 @@
 
 **Blocked by:** 02 (Skip this version)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Turning the switch off stops the next launch from checking (no request to GitHub), and turning it on resumes checking
-- [ ] **Check now** opens the prompt for a newer Release even if it was skipped, and even with the switch off
-- [ ] **Check now** says clearly when the app is up to date and when the check failed, and never fails silently
-- [ ] The switch's stored default and fallback are covered by the root vitest suite
-- [ ] Neither control appears when the app is served to a browser
+- [x] Turning the switch off stops the next launch from checking (no request to GitHub), and turning it on resumes checking
+- [x] **Check now** opens the prompt for a newer Release even if it was skipped, and even with the switch off
+- [x] **Check now** says clearly when the app is up to date and when the check failed, and never fails silently
+- [x] The switch's stored default and fallback are covered by the root vitest suite
+- [x] Neither control appears when the app is served to a browser
 
 ## Comments
+
+Built. `automaticChecks` gates the launch check in `main.ts`, so with the switch off the shell makes no request at all. **Check now** goes through `checkLatestRelease`, which reports up-to-date and failed as different answers, and it clears `answered` so a skipped Release still opens the prompt.

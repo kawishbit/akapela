@@ -8,12 +8,16 @@ The existing launch check stays the one thing that decides whether an Update exi
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] An older packaged build, launched while a newer Release exists, shows the prompt with both versions and a working "What's new" link
-- [ ] **Update now** opens the Release page in the browser, and **Later** closes the prompt until the next launch
-- [ ] Launching straight into Sing or Take Review, or reaching them before the check finishes, holds the prompt back until the singer navigates elsewhere
-- [ ] No prompt when there is no newer Release, when the check fails or is offline, or when the app is served to a browser (compose, `pnpm dev`)
-- [ ] The rule for when the prompt may show (the route, and whether an Update is waiting) is a plain function covered by the root vitest suite
+- [ ] An older packaged build, launched while a newer Release exists, shows the prompt with both versions and a working "What's new" link (needs a packaged build)
+- [x] **Update now** opens the Release page in the browser, and **Later** closes the prompt until the next launch
+- [x] Launching straight into Sing or Take Review, or reaching them before the check finishes, holds the prompt back until the singer navigates elsewhere
+- [x] No prompt when there is no newer Release, when the check fails or is offline, or when the app is served to a browser (compose, `pnpm dev`)
+- [x] The rule for when the prompt may show (the route, and whether an Update is waiting) is a plain function covered by the root vitest suite
 
 ## Comments
+
+Built. The prompt is `app/components/UpdatePrompt.vue` over `useUpdates()`; the rule is `promptShows` in `app/utils/update-prompt.ts`, and the pages that hold it back carry `updatePrompt: false`.
+
+The first criterion (an older packaged build seeing it) needs a packaged build against a newer Release, so it is unticked until someone runs one.
