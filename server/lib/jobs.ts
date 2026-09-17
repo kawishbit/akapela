@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { JOB_TYPES, jobs, type Job, type JobType } from '../db/schema'
 import { currentTraceParent } from './request-trace'
 import type { Akapela } from './akapela'
@@ -26,6 +26,23 @@ export function enqueueJob(akapela: Akapela, input: { type: JobType, targetId?: 
   }
   akapela.db.insert(jobs).values(job).run()
   return job
+}
+
+/**
+ * Whether any Job is queued or running.
+ *
+ * `inArray` rather than two queries so the answer is one moment in time: a
+ * Job moving from `queued` to `running` between them would otherwise read as
+ * nothing happening at all.
+ */
+export function jobsBusy(akapela: Akapela): boolean {
+  const active = akapela.db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(inArray(jobs.state, ['queued', 'running']))
+    .limit(1)
+    .get()
+  return active !== undefined
 }
 
 export function getJob(akapela: Akapela, id: string): Job | undefined {

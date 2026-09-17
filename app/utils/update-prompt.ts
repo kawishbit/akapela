@@ -46,6 +46,12 @@ export interface PromptOffer {
   dismissable: boolean
   /** Download progress to draw, or null when there is nothing being downloaded. */
   progress: number | null
+  /**
+   * Whether restarting has to wait. True only with an Update ready and a Job
+   * still running: the restart would requeue it and start it from nothing, so
+   * the singer is left with installing on quit instead.
+   */
+  restartBlocked: boolean
 }
 
 /**
@@ -56,16 +62,18 @@ export interface PromptOffer {
  * makes every failure end where macOS always ends (ADR 0009's amendment on
  * Updates): the singer can always get the Release by hand.
  */
-export function promptOffers(input: { mode: UpdateInstallMode, install: UpdateInstallState }): PromptOffer {
-  const { mode, install } = input
+export function promptOffers(
+  input: { mode: UpdateInstallMode, install: UpdateInstallState, jobsBusy: boolean },
+): PromptOffer {
+  const { mode, install, jobsBusy } = input
   if (install.state === 'downloading') {
-    return { act: 'downloading', dismissable: false, progress: install.percent }
+    return { act: 'downloading', dismissable: false, progress: install.percent, restartBlocked: false }
   }
   if (install.state === 'ready') {
-    return { act: 'restart', dismissable: true, progress: 100 }
+    return { act: 'restart', dismissable: true, progress: 100, restartBlocked: jobsBusy }
   }
   if (install.state === 'failed' || mode === 'link') {
-    return { act: 'download-page', dismissable: true, progress: null }
+    return { act: 'download-page', dismissable: true, progress: null, restartBlocked: false }
   }
-  return { act: 'install', dismissable: true, progress: null }
+  return { act: 'install', dismissable: true, progress: null, restartBlocked: false }
 }

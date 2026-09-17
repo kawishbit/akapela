@@ -1,5 +1,7 @@
 import { promptOffers, promptShows, type UpdateOffer } from '~/utils/update-prompt'
 
+const JOBS_BUSY_POLL_MS = 3_000
+
 /**
  * The Update the Desktop App is offering, shared by the prompt and Settings.
  *
@@ -22,7 +24,10 @@ export function useUpdates() {
   const automatic = useState<boolean>('akapela-update-automatic', () => true)
   const mode = useState<DesktopUpdateInstallMode>('akapela-update-mode', () => 'link')
   const install = useState<DesktopUpdateInstallState>('akapela-update-install', () => ({ state: 'idle' }))
+  /** Whether a Job is queued or running, which is what holds a restart back. */
+  const jobsBusy = useState<boolean>('akapela-update-jobs-busy', () => false)
   let unsubscribeInstall: (() => void) | undefined
+  let busyPoll: ReturnType<typeof setInterval> | undefined
 
   // What the launch check found, once the bridge has answered.
   watch(desktop.update, (found) => { if (found) offer.value = found }, { immediate: true })
@@ -37,7 +42,35 @@ export function useUpdates() {
     unsubscribeInstall = desktop.onUpdateInstallStateChange((state) => { install.value = state })
   })
 
-  onUnmounted(() => unsubscribeInstall?.())
+  onUnmounted(() => {
+    unsubscribeInstall?.()
+    if (busyPoll) clearInterval(busyPoll)
+  })
+
+  async function readJobsBusy() {
+    try {
+      const { busy } = await $fetch<{ busy: boolean }>('/api/jobs/busy')
+      jobsBusy.value = busy
+    }
+    catch {
+      // A restart the singer asked for is not worth refusing over a failed
+      // poll, so an unanswered question reads as nothing running.
+      jobsBusy.value = false
+    }
+  }
+
+  /**
+   * Only asked once there is something to restart into, and only until the
+   * queue clears: the answer is needed for one button, and polling it from
+   * launch would be a request every few seconds for nothing.
+   */
+  watch(() => install.value.state === 'ready', async (ready) => {
+    if (busyPoll) clearInterval(busyPoll)
+    busyPoll = undefined
+    if (!ready) return
+    await readJobsBusy()
+    busyPoll = setInterval(() => { void readJobsBusy() }, JOBS_BUSY_POLL_MS)
+  })
 
   const promptOpen = computed(() => promptShows(
     { offer: offer.value, answered: answered.value },
@@ -45,7 +78,11 @@ export function useUpdates() {
   ))
 
   /** What the prompt offers right now: install, restart, or the download page. */
-  const offers = computed(() => promptOffers({ mode: mode.value, install: install.value }))
+  const offers = computed(() => promptOffers({
+    mode: mode.value,
+    install: install.value,
+    jobsBusy: jobsBusy.value,
+  }))
 
   /**
    * Closes the prompt for this launch without remembering anything. A
@@ -64,8 +101,9 @@ export function useUpdates() {
     await desktop.installUpdate()
   }
 
-  /** Installs what was downloaded and relaunches. */
+  /** Installs what was downloaded and relaunches, unless a Job is still running. */
   async function restartToUpdate() {
+    if (offers.value.restartBlocked) return
     await desktop.restartToUpdate()
   }
 
@@ -114,6 +152,7 @@ export function useUpdates() {
     offer,
     promptOpen,
     offers,
+    jobsBusy,
     mode,
     install,
     installNow,

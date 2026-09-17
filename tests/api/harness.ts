@@ -8,6 +8,7 @@ import { traceRequestAs } from '../../server/lib/request-trace'
 import type { SongMatch } from '../../server/lyrics/provider'
 import type { BrowserLogEntry } from '../../shared/browser-log'
 import jobsPost from '../../server/api/jobs.post'
+import jobsBusyGet from '../../server/api/jobs/busy.get'
 import jobsIdGet from '../../server/api/jobs/[id].get'
 import tracksPost from '../../server/api/tracks.post'
 import tracksGet from '../../server/api/tracks.get'
@@ -114,6 +115,7 @@ export async function createTestApi() {
   }))
   const router = createRouter()
   router.post('/api/jobs', jobsPost)
+  router.get('/api/jobs/busy', jobsBusyGet)
   router.get('/api/jobs/:id', jobsIdGet)
   router.post('/api/tracks', tracksPost)
   router.get('/api/tracks', tracksGet)

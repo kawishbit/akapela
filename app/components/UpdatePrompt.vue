@@ -80,6 +80,15 @@ function dismiss() {
           </button>
         </p>
 
+        <p
+          v-if="offers.restartBlocked"
+          class="mt-2 text-sm text-text-muted"
+          role="status"
+        >
+          A Job is still running — restarting would start it over. You can install on quit, or wait
+          for it to finish.
+        </p>
+
         <!-- A determinate bar: electron-updater reports real bytes, so there is
              no reason to show a spinner and hope. -->
         <div
@@ -109,7 +118,8 @@ function dismiss() {
             </button>
             <button
               type="button"
-              class="rounded-pill bg-text px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-90"
+              class="rounded-pill bg-text px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-90 disabled:opacity-60 disabled:hover:brightness-100"
+              :disabled="offers.restartBlocked"
               @click="restartToUpdate"
             >
               Restart now
