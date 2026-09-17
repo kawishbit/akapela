@@ -29,6 +29,14 @@ declare global {
     | { state: 'current' }
     | { state: 'failed' }
 
+  type DesktopUpdateInstallMode = 'in-place' | 'link'
+
+  type DesktopUpdateInstallState =
+    | { state: 'idle' }
+    | { state: 'downloading', percent: number }
+    | { state: 'ready', version: string }
+    | { state: 'failed', message: string }
+
   interface DesktopLibraryChange {
     ok: boolean
     /** The folder now in use — unchanged when the singer cancelled or it was refused. */
@@ -50,6 +58,11 @@ declare global {
     checkForUpdateNow: () => Promise<DesktopUpdateCheck>
     automaticUpdateChecks: () => Promise<boolean>
     setAutomaticUpdateChecks: (enabled: boolean) => Promise<void>
+    updateInstallMode: () => Promise<DesktopUpdateInstallMode>
+    installUpdate: () => Promise<void>
+    restartToUpdate: () => Promise<void>
+    updateInstallState: () => Promise<DesktopUpdateInstallState>
+    onUpdateInstallStateChange: (listener: (state: DesktopUpdateInstallState) => void) => () => void
     openExternal: (url: string) => Promise<void>
     isWindowMaximized: () => Promise<boolean>
     minimizeWindow: () => Promise<void>

@@ -3,7 +3,7 @@ import { appendFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { restoreBounds, MIN_WINDOW_SIZE, type Bounds } from './bounds.js'
-import { BRIDGE_CHANNELS, type DesktopUpdate, type LibraryChange } from './bridge.cjs'
+import { BRIDGE_CHANNELS, type DesktopUpdate, type DesktopUpdateInstallState, type LibraryChange } from './bridge.cjs'
 import { ConfigStore, configPath } from './config.js'
 import { developmentLayout, managedYtDlpPath, packagedLayout, type Layout } from './layout.js'
 import { checkLibraryDir, defaultLibraryDir, LibraryDirError } from './library.js'
@@ -12,7 +12,8 @@ import { choosePort } from './port.js'
 import { AkapelaServer, serverAnswersAt, ServerStartError } from './server.js'
 import { errorPage, loadingPage } from './splash.js'
 import { titleBarWindowOptions } from './titlebar.js'
-import { automaticChecks, checkForUpdate, checkLatestRelease, offeredUpdate } from './update-check.js'
+import { automaticChecks, checkForUpdate, checkLatestRelease, offeredUpdate, updateInstallMode } from './update-check.js'
+import { UpdateInstaller } from './updater.js'
 
 /**
  * Akapela's desktop shell.
@@ -47,6 +48,36 @@ const layout: Layout = app.isPackaged
 let mainWindow: BrowserWindow | undefined
 let server: AkapelaServer | undefined
 let availableUpdate: DesktopUpdate | null = null
+
+/**
+ * Whether the window is pointed at a server someone else is running. Read here
+ * rather than inside `whenReady`, because how this build takes an Update
+ * depends on it: a contributor's window has no installer under it.
+ */
+const attachedServerUrl = process.env.AKAPELA_SERVER_URL?.trim()
+
+/** How an Update is taken on this platform, in this build (ADR 0009's amendment on Updates). */
+const installMode = updateInstallMode(process.platform, {
+  packaged: app.isPackaged,
+  attached: Boolean(attachedServerUrl),
+  appImage: process.env.APPIMAGE,
+})
+
+const installer = new UpdateInstaller({
+  expected: () => availableUpdate,
+  onState: (state: DesktopUpdateInstallState) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(BRIDGE_CHANNELS.updateInstallStateChanged, state)
+    }
+  },
+  log: (line) => {
+    try {
+      appendFileSync(serverLogFile(), `${line}
+`)
+    }
+    catch { /* best effort; the prompt still tells the singer it could not update */ }
+  },
+})
 /** Where `showApp` last pointed the window, so a crashed renderer can be reloaded back onto it. */
 let currentOrigin: string | undefined
 
@@ -303,6 +334,23 @@ function registerBridge(): void {
     return checked
   })
   ipcMain.handle(BRIDGE_CHANNELS.automaticUpdateChecks, () => automaticChecks(store.read()))
+  ipcMain.handle(BRIDGE_CHANNELS.updateInstallMode, () => installMode)
+  ipcMain.handle(BRIDGE_CHANNELS.updateInstallState, () => installer.current())
+  ipcMain.handle(BRIDGE_CHANNELS.installUpdate, async () => {
+    if (installMode !== 'in-place') return
+    await installer.download()
+  })
+  ipcMain.handle(BRIDGE_CHANNELS.restartToUpdate, async () => {
+    if (installMode !== 'in-place') return
+    // The server is stopped here rather than by the installer: it is holding
+    // the database, and `will-quit` would otherwise be racing the installer
+    // that is already replacing files.
+    await installer.restart(async () => {
+      const stopping = server
+      server = undefined
+      await stopping?.stop()
+    })
+  })
   ipcMain.handle(BRIDGE_CHANNELS.setAutomaticUpdateChecks, (_event, enabled: unknown) => {
     store.update({ automaticUpdateChecks: enabled !== false })
   })
@@ -364,7 +412,7 @@ process.on('uncaughtException', (error) => {
 void app.whenReady().then(async () => {
   registerBridge()
 
-  const attachedUrl = process.env.AKAPELA_SERVER_URL?.trim()
+  const attachedUrl = attachedServerUrl
   mainWindow = await createWindow(attachedUrl || 'http://127.0.0.1')
   mainWindow.on('closed', () => { mainWindow = undefined })
 

@@ -1,4 +1,4 @@
-import { promptShows, type UpdateOffer } from '~/utils/update-prompt'
+import { promptOffers, promptShows, type UpdateOffer } from '~/utils/update-prompt'
 
 /**
  * The Update the Desktop App is offering, shared by the prompt and Settings.
@@ -20,6 +20,9 @@ export function useUpdates() {
   /** What the last check the singer asked for came back with; null until they ask. */
   const lastCheck = useState<DesktopUpdateCheck | null>('akapela-update-last-check', () => null)
   const automatic = useState<boolean>('akapela-update-automatic', () => true)
+  const mode = useState<DesktopUpdateInstallMode>('akapela-update-mode', () => 'link')
+  const install = useState<DesktopUpdateInstallState>('akapela-update-install', () => ({ state: 'idle' }))
+  let unsubscribeInstall: (() => void) | undefined
 
   // What the launch check found, once the bridge has answered.
   watch(desktop.update, (found) => { if (found) offer.value = found }, { immediate: true })
@@ -27,16 +30,43 @@ export function useUpdates() {
   onMounted(async () => {
     if (!desktop.isDesktop.value) return
     automatic.value = await desktop.automaticUpdateChecks()
+    mode.value = await desktop.updateInstallMode()
+    install.value = await desktop.updateInstallState()
+    // The download outlives any one component: the shell reports where it got
+    // to, and the prompt follows it.
+    unsubscribeInstall = desktop.onUpdateInstallStateChange((state) => { install.value = state })
   })
+
+  onUnmounted(() => unsubscribeInstall?.())
 
   const promptOpen = computed(() => promptShows(
     { offer: offer.value, answered: answered.value },
     { pageAllowsPrompt: route.meta.updatePrompt !== false },
   ))
 
-  /** Closes the prompt for this launch without remembering anything. */
+  /** What the prompt offers right now: install, restart, or the download page. */
+  const offers = computed(() => promptOffers({ mode: mode.value, install: install.value }))
+
+  /**
+   * Closes the prompt for this launch without remembering anything. A
+   * downloaded Update still installs when the singer quits, which is what
+   * makes this "Install when I quit" once there is something to install.
+   */
   function later() {
     answered.value = true
+  }
+
+  /**
+   * Downloads the Update. Nothing is fetched before this: an installer is well
+   * over a hundred megabytes, and the singer has to ask for it.
+   */
+  async function installNow() {
+    await desktop.installUpdate()
+  }
+
+  /** Installs what was downloaded and relaunches. */
+  async function restartToUpdate() {
+    await desktop.restartToUpdate()
   }
 
   /** Closes it for good: this Release, and anything not newer, stops being offered. */
@@ -83,6 +113,11 @@ export function useUpdates() {
   return {
     offer,
     promptOpen,
+    offers,
+    mode,
+    install,
+    installNow,
+    restartToUpdate,
     checking,
     lastCheck,
     automatic,

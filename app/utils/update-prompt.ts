@@ -28,3 +28,44 @@ export function promptShows(state: UpdatePromptState, page: { pageAllowsPrompt: 
   if (!state.offer || state.answered) return false
   return page.pageAllowsPrompt
 }
+
+/** How this build can take an Update, as the shell reports it. */
+export type UpdateInstallMode = 'in-place' | 'link'
+
+/** Where an in-place install has got to. Always `idle` where the mode is `link`. */
+export type UpdateInstallState =
+  | { state: 'idle' }
+  | { state: 'downloading', percent: number }
+  | { state: 'ready', version: string }
+  | { state: 'failed', message: string }
+
+export interface PromptOffer {
+  /** The one thing the main button does now. */
+  act: 'download-page' | 'install' | 'downloading' | 'restart'
+  /** Whether Later and Skip belong here: a download in flight has nothing to defer to. */
+  dismissable: boolean
+  /** Download progress to draw, or null when there is nothing being downloaded. */
+  progress: number | null
+}
+
+/**
+ * What the prompt offers, given how this platform updates and how far an
+ * install has got.
+ *
+ * A failed install offers the download page rather than a retry, which is what
+ * makes every failure end where macOS always ends (ADR 0009's amendment on
+ * Updates): the singer can always get the Release by hand.
+ */
+export function promptOffers(input: { mode: UpdateInstallMode, install: UpdateInstallState }): PromptOffer {
+  const { mode, install } = input
+  if (install.state === 'downloading') {
+    return { act: 'downloading', dismissable: false, progress: install.percent }
+  }
+  if (install.state === 'ready') {
+    return { act: 'restart', dismissable: true, progress: 100 }
+  }
+  if (install.state === 'failed' || mode === 'link') {
+    return { act: 'download-page', dismissable: true, progress: null }
+  }
+  return { act: 'install', dismissable: true, progress: null }
+}

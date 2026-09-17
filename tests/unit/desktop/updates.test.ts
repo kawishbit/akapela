@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { automaticChecks, checkLatestRelease, offeredUpdate } from '../../../desktop/src/update-check'
+import { automaticChecks, checkLatestRelease, offeredUpdate, updateInstallMode } from '../../../desktop/src/update-check'
 
 const found = { version: '1.1.0', url: 'https://example.invalid/1.1.0' }
 
@@ -81,5 +81,35 @@ describe('automaticChecks', () => {
 
   it('falls back to checking when the stored value is nonsense', () => {
     expect(automaticChecks({ automaticUpdateChecks: 'yes' as never })).toBe(true)
+  })
+})
+
+describe('updateInstallMode', () => {
+  const packaged = { packaged: true, attached: false, appImage: undefined }
+
+  it('installs in place on Windows', () => {
+    expect(updateInstallMode('win32', packaged)).toBe('in-place')
+  })
+
+  it('installs in place for a launched AppImage', () => {
+    expect(updateInstallMode('linux', { ...packaged, appImage: '/home/singer/Akapela.AppImage' })).toBe('in-place')
+  })
+
+  it('only links for a Linux build that was not launched as an AppImage', () => {
+    // Extracted, or run from an unpacked directory: there is no single file to
+    // replace, so electron-updater has nothing to install into.
+    expect(updateInstallMode('linux', packaged)).toBe('link')
+  })
+
+  it('only links on macOS, which will not update an unsigned app', () => {
+    expect(updateInstallMode('darwin', packaged)).toBe('link')
+  })
+
+  it('only links when the app is not packaged', () => {
+    expect(updateInstallMode('win32', { ...packaged, packaged: false })).toBe('link')
+  })
+
+  it('only links when the window is attached to a dev server someone else is running', () => {
+    expect(updateInstallMode('win32', { ...packaged, attached: true })).toBe('link')
   })
 })

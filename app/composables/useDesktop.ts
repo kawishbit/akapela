@@ -63,6 +63,13 @@ export function useDesktop() {
     checkForUpdateNow: () => bridge.value?.checkForUpdateNow(),
     automaticUpdateChecks: async () => await bridge.value?.automaticUpdateChecks() ?? true,
     setAutomaticUpdateChecks: (enabled: boolean) => bridge.value?.setAutomaticUpdateChecks(enabled),
+    /** How this build takes an Update: installs it itself, or opens the download page. */
+    updateInstallMode: async () => await bridge.value?.updateInstallMode() ?? 'link',
+    installUpdate: () => bridge.value?.installUpdate(),
+    restartToUpdate: () => bridge.value?.restartToUpdate(),
+    updateInstallState: async () => await bridge.value?.updateInstallState() ?? { state: 'idle' } as DesktopUpdateInstallState,
+    onUpdateInstallStateChange: (listener: (state: DesktopUpdateInstallState) => void) =>
+      bridge.value?.onUpdateInstallStateChange(listener),
     openExternal: (url: string) => bridge.value?.openExternal(url),
     minimizeWindow: () => bridge.value?.minimizeWindow(),
     toggleMaximizeWindow: () => bridge.value?.toggleMaximizeWindow(),

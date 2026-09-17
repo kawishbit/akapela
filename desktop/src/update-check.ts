@@ -1,12 +1,17 @@
 /**
- * The whole of v1's updating story: a look at the latest GitHub release and a
- * link if it is newer than what is running.
+ * Deciding what there is to update to, and how this build could take it.
  *
- * No downloading, no installing, no electron-updater — that is real machinery
- * with real failure modes for a first release nobody has installed yet. A
- * notice with a link is honest and costs nothing to get wrong.
+ * This file answers the questions with a right answer: is there a newer
+ * Release, has the singer skipped it, do they want to be asked at all, and can
+ * this platform install for itself. `updater.ts` is the part that actually
+ * downloads and installs, and it stays separate because it cannot be tested
+ * without a real installer and a real Release.
  *
- * No Electron import, so the comparison is covered by the root vitest suite.
+ * The lookup is still GitHub's own API rather than electron-updater's
+ * metadata: it is the one answer macOS can act on too, and it is the same
+ * answer on every platform (ADR 0009's amendment on Updates).
+ *
+ * No Electron import, so all of it is covered by the root vitest suite.
  */
 import type { DesktopUpdate } from './bridge.cjs'
 import type { DesktopConfig } from './config.js'
@@ -45,6 +50,31 @@ export function offeredUpdate(found: DesktopUpdate | null, skipped: string | und
   if (!found) return null
   if (typeof skipped !== 'string' || !/^v?\d+(\.\d+)*/.test(skipped)) return found
   return isNewerVersion(found.version, skipped) ? found : null
+}
+
+/**
+ * How this build can take an Update: install it itself, or send the singer to
+ * the download page (ADR 0009's amendment on Updates).
+ *
+ * macOS always links, because Squirrel.Mac refuses to apply an update to an
+ * unsigned app and there is no Apple Developer account behind the build. When
+ * there is, this returns 'in-place' for darwin too and nothing else changes.
+ *
+ * Linux only installs in place when it is actually running as an AppImage:
+ * electron-updater replaces that one file, and an extracted or unpacked build
+ * gives it nothing to replace. A checkout and an attached dev-server window
+ * are never updated at all; there is no installer under them.
+ */
+export type UpdateInstallMode = 'in-place' | 'link'
+
+export function updateInstallMode(
+  platform: NodeJS.Platform,
+  where: { packaged: boolean, attached: boolean, appImage: string | undefined },
+): UpdateInstallMode {
+  if (!where.packaged || where.attached) return 'link'
+  if (platform === 'win32') return 'in-place'
+  if (platform === 'linux') return where.appImage ? 'in-place' : 'link'
+  return 'link'
 }
 
 /** Whether the shell checks at launch. Anything other than a stored `false` means it does. */
