@@ -88,3 +88,14 @@ linux:
   target:
     - target: AppImage
       arch: [x64]
+
+# Left unset, mksquashfs compresses with gzip in separate 128KB blocks, so
+# nothing is shared between blocks or files. That is most of why the Linux
+# download came out bigger than the NSIS installer, whose app archive is one
+# LZMA 7z. xz with 1MB blocks cuts the AppImage by roughly a fifth, at the
+# cost of a somewhat slower launch: an AppImage decompresses what it reads
+# every time it runs. This is set here and
+# not as the root `compression: maximum`, which would also change the DMG's
+# format and the NSIS settings.
+appImage:
+  compression: xz

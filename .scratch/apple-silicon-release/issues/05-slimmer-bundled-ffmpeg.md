@@ -71,3 +71,33 @@ The CI Windows installer (187,918,981 B) is within 28 bytes of the local pack wi
 The Linux AppImage is still twice the size of the other two. That is not ffmpeg. It is worth its own look.
 
 Status is `ready-for-human`. The remaining box, every format, a YouTube import, and an Adjusted Mix working in each installer, can only be checked by opening them. That is ticket 04's per-platform check, and this box closes with it.
+
+**Why the AppImage was twice the size.** It was not ffmpeg. The v1.0.2 AppImage and DMG were unpacked and every file was compressed the way each format does it. The model came within 1% of the real AppImage and 2% of the DMG. Of the AppImage's 384 MiB:
+- **About 171 MiB was `libonnxruntime_providers_cuda.so`.** onnxruntime-node's postinstall downloads it from NuGet, on linux/x64 only, alongside the TensorRT and shared provider libraries. The separation session only ever asks for the CPU provider. `prepack.ts` had a comment saying `ONNXRUNTIME_NODE_INSTALL=skip` prevented this, but it never passed the variable to the install. The Dockerfile does pass it.
+- **About 40 MiB was compression.** With no setting, the AppImage is squashfs gzip in 128 KB blocks. NSIS puts the app in one LZMA 7z instead.
+
+Changes on `fix/desktop-installer-size`:
+- `prepack.ts` passes `ONNXRUNTIME_NODE_INSTALL=skip` to the install.
+- `pruneOnnxRuntime` now fails the build if any `onnxruntime_providers_*` library is staged.
+- `pruneOnnxRuntime` also drops macOS's `libonnxruntime.1.29.0.dylib`. It is a second full 44 MB copy of `libonnxruntime.1.dylib`, and nothing loads it: the binding and the dylib's own install name both refer to `@rpath/libonnxruntime.1.dylib`.
+- `electron-builder.yml` sets `appImage.compression: xz`. It is not the root `compression: maximum`, which would also change the DMG and NSIS.
+
+Linux build of that branch, run in `node:24-bookworm` Docker with the same steps as the release workflow:
+
+| installer | before (v1.0.2) | after | change |
+|---|---|---|---|
+| Linux AppImage | 402,927,079 B (384.3 MiB) | 176,160,404 B (168.0 MiB) | −56% |
+| macOS arm64 DMG | 193,045,585 B (184.1 MiB) | not built; ≈172 MiB expected (the duplicate dylib is ≈12 MiB zlib-compressed) | |
+| Windows NSIS | 187,918,970 B (179.2 MiB) | unchanged; none of these changes reach it | |
+
+Checked on the built AppImage:
+- The squashfs is XZ with 1 MB blocks.
+- The staged `linux/x64` holds only `libonnxruntime.so.1` and the binding.
+- `onnxruntime-node` imports and creates a tensor from the extracted tree.
+
+Not yet checked:
+- A real separation run in the installed AppImage.
+- The macOS dylib removal on a Mac. That needs the next dry run's DMG, opened.
+- How much slower an xz AppImage takes to launch.
+
+Left alone: Windows ships onnxruntime's `DirectML.dll`, `dxcompiler.dll`, and `dxil.dll` (≈14 MiB compressed). No one has checked whether `onnxruntime.dll` loads without them.
