@@ -1,4 +1,4 @@
-import { autoUpdater } from 'electron-updater'
+import electronUpdater, { type AppUpdater } from 'electron-updater'
 import type { DesktopUpdate, DesktopUpdateInstallState } from './bridge.cjs'
 
 /**
@@ -15,6 +15,20 @@ import type { DesktopUpdate, DesktopUpdateInstallState } from './bridge.cjs'
  * Nothing here runs on macOS. Squirrel.Mac will not apply an update to an
  * unsigned app, and the build has no Apple Developer account behind it.
  */
+
+/**
+ * electron-updater is CommonJS and defines `autoUpdater` behind an arrow-function
+ * getter, which Node's named-export detection cannot see through — an
+ * `import { autoUpdater }` from this ESM shell links to nothing and the main
+ * process dies at launch, on every platform, before a window exists. Reaching
+ * through the default export is the way in that works.
+ *
+ * It stays a function because the getter constructs the platform's updater the
+ * first time it is read, and `wire()` is where that is meant to happen.
+ */
+function autoUpdater(): AppUpdater {
+  return electronUpdater.autoUpdater
+}
 
 export interface UpdateInstallerOptions {
   /** The Update the launch check found, which is what an install is expected to fetch. */
@@ -44,7 +58,7 @@ export class UpdateInstaller {
     this.wire()
     this.moveTo({ state: 'downloading', percent: 0 })
     try {
-      const found = await autoUpdater.checkForUpdates()
+      const found = await autoUpdater().checkForUpdates()
       if (!found) throw new Error('electron-updater found no update metadata on the latest release')
 
       // `checkLatestRelease` already decided what is on offer; if the metadata
@@ -57,7 +71,7 @@ export class UpdateInstaller {
         throw new Error(`the latest release now offers ${offered}, not the ${expected.version} that was offered`)
       }
 
-      await autoUpdater.downloadUpdate(found.cancellationToken)
+      await autoUpdater().downloadUpdate(found.cancellationToken)
     }
     catch (error) {
       this.failed(error)
@@ -75,7 +89,7 @@ export class UpdateInstaller {
       await stopServer()
       // Silent, and relaunch afterwards: the singer asked for a restart, so
       // there is nothing left to ask them.
-      autoUpdater.quitAndInstall(true, true)
+      autoUpdater().quitAndInstall(true, true)
     }
     catch (error) {
       this.failed(error)
@@ -87,24 +101,25 @@ export class UpdateInstaller {
     if (this.wired) return
     this.wired = true
 
-    autoUpdater.autoDownload = false
+    const updater = autoUpdater()
+    updater.autoDownload = false
     // What "Install when I quit" rides on: the downloaded installer runs as
     // the app exits, through the same quit path that stops the server.
-    autoUpdater.autoInstallOnAppQuit = true
-    autoUpdater.logger = {
+    updater.autoInstallOnAppQuit = true
+    updater.logger = {
       info: line => this.options.log(`[updater] ${String(line)}`),
       warn: line => this.options.log(`[updater] ${String(line)}`),
       error: line => this.options.log(`[updater] ${String(line)}`),
       debug: () => {},
     }
 
-    autoUpdater.on('download-progress', (progress: { percent?: number }) => {
+    updater.on('download-progress', (progress: { percent?: number }) => {
       this.moveTo({ state: 'downloading', percent: Math.round(progress.percent ?? 0) })
     })
-    autoUpdater.on('update-downloaded', (info: { version?: string }) => {
+    updater.on('update-downloaded', (info: { version?: string }) => {
       this.moveTo({ state: 'ready', version: info.version ?? this.options.expected()?.version ?? '' })
     })
-    autoUpdater.on('error', error => this.failed(error))
+    updater.on('error', error => this.failed(error))
   }
 
   private failed(error: unknown): void {
