@@ -3,6 +3,16 @@ import { promptOffers, promptShows, type UpdateOffer } from '~/utils/update-prom
 const JOBS_BUSY_POLL_MS = 3_000
 
 /**
+ * Module scope, so these are shared by every component that calls the
+ * composable rather than one set each. Both the prompt (from `app.vue`) and
+ * the Settings page ask for it, and two subscriptions writing one piece of
+ * shared state — and two intervals polling one route — is work for nothing.
+ */
+let subscribers = 0
+let unsubscribeInstall: (() => void) | undefined
+let busyPoll: ReturnType<typeof setInterval> | undefined
+
+/**
  * The Update the Desktop App is offering, shared by the prompt and Settings.
  *
  * Shared through `useState` rather than kept per component, because the two
@@ -26,8 +36,6 @@ export function useUpdates() {
   const install = useState<DesktopUpdateInstallState>('akapela-update-install', () => ({ state: 'idle' }))
   /** Whether a Job is queued or running, which is what holds a restart back. */
   const jobsBusy = useState<boolean>('akapela-update-jobs-busy', () => false)
-  let unsubscribeInstall: (() => void) | undefined
-  let busyPoll: ReturnType<typeof setInterval> | undefined
 
   // What the launch check found, once the bridge has answered.
   watch(desktop.update, (found) => { if (found) offer.value = found }, { immediate: true })
@@ -38,13 +46,19 @@ export function useUpdates() {
     mode.value = await desktop.updateInstallMode()
     install.value = await desktop.updateInstallState()
     // The download outlives any one component: the shell reports where it got
-    // to, and the prompt follows it.
-    unsubscribeInstall = desktop.onUpdateInstallStateChange((state) => { install.value = state })
+    // to, and the prompt follows it. Subscribed once however many components
+    // are asking.
+    subscribers += 1
+    unsubscribeInstall ??= desktop.onUpdateInstallStateChange((state) => { install.value = state })
   })
 
   onUnmounted(() => {
+    subscribers = Math.max(0, subscribers - 1)
+    if (subscribers > 0) return
     unsubscribeInstall?.()
+    unsubscribeInstall = undefined
     if (busyPoll) clearInterval(busyPoll)
+    busyPoll = undefined
   })
 
   async function readJobsBusy() {
@@ -53,9 +67,9 @@ export function useUpdates() {
       jobsBusy.value = busy
     }
     catch {
-      // A restart the singer asked for is not worth refusing over a failed
-      // poll, so an unanswered question reads as nothing running.
-      jobsBusy.value = false
+      // Left as it was rather than cleared: an unanswered question is not an
+      // answer, and guessing "nothing is running" would hand back the restart
+      // this exists to hold, over a single dropped request.
     }
   }
 
@@ -101,8 +115,12 @@ export function useUpdates() {
     await desktop.installUpdate()
   }
 
-  /** Installs what was downloaded and relaunches, unless a Job is still running. */
-  async function restartToUpdate() {
+  /**
+   * Installs what was downloaded and relaunches, unless a Job is still
+   * running. Named apart from the bridge call it wraps, which has no such
+   * guard on it.
+   */
+  async function restartNow() {
     if (offers.value.restartBlocked) return
     await desktop.restartToUpdate()
   }
@@ -136,6 +154,10 @@ export function useUpdates() {
       if (checked?.state === 'available') {
         offer.value = checked.update
         answered.value = false
+        // A failed install earlier in this session was about the Release that
+        // was on offer then. Left in place it would show this new Update as
+        // already broken, with only the download link.
+        if (install.value.state === 'failed') install.value = { state: 'idle' }
       }
     }
     finally {
@@ -156,7 +178,7 @@ export function useUpdates() {
     mode,
     install,
     installNow,
-    restartToUpdate,
+    restartNow,
     checking,
     lastCheck,
     automatic,

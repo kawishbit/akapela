@@ -57,10 +57,11 @@ describe('promptOffers', () => {
     })
   })
 
-  it('offers the restart once the Update is ready', () => {
+  it('offers the restart once the Update is ready, and takes an explicit answer', () => {
+    // Clicking the backdrop must not quietly commit "install when I quit".
     expect(promptOffers({ mode: 'in-place', install: { state: 'ready', version: '1.1.0' }, jobsBusy: false })).toEqual({
       act: 'restart',
-      dismissable: true,
+      dismissable: false,
       progress: 100,
       restartBlocked: false,
     })
@@ -83,7 +84,7 @@ describe('promptOffers while a Job is running', () => {
     // over; quitting later is still the singer's to choose.
     expect(promptOffers({ mode: 'in-place', install: { state: 'ready', version: '1.1.0' }, jobsBusy: true })).toEqual({
       act: 'restart',
-      dismissable: true,
+      dismissable: false,
       progress: 100,
       restartBlocked: true,
     })
@@ -94,5 +95,14 @@ describe('promptOffers while a Job is running', () => {
       act: 'install',
       restartBlocked: false,
     })
+  })
+})
+
+describe('promptOffers after a failed install', () => {
+  it('still lets the singer skip the Release', () => {
+    // The failure is about this machine, not about the Release: refusing it is
+    // still an answer the singer is allowed to give.
+    expect(promptOffers({ mode: 'in-place', install: { state: 'failed', message: 'nope' }, jobsBusy: false }))
+      .toMatchObject({ act: 'download-page', dismissable: true })
   })
 })

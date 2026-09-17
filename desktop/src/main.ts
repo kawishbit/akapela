@@ -412,8 +412,7 @@ process.on('uncaughtException', (error) => {
 void app.whenReady().then(async () => {
   registerBridge()
 
-  const attachedUrl = attachedServerUrl
-  mainWindow = await createWindow(attachedUrl || 'http://127.0.0.1')
+  mainWindow = await createWindow(attachedServerUrl || 'http://127.0.0.1')
   mainWindow.on('closed', () => { mainWindow = undefined })
 
   buildMenu({
@@ -422,7 +421,7 @@ void app.whenReady().then(async () => {
     showLicenses: () => { void shell.openPath(layout.licensesDir) },
   })
 
-  if (attachedUrl) await startAttached(attachedUrl)
+  if (attachedServerUrl) await startAttached(attachedServerUrl)
   else await startSupervised()
 
   // Nobody is blocked on this: it settles whenever it settles, and the page

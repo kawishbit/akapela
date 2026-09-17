@@ -13,7 +13,7 @@
  *
  * No Electron import, so all of it is covered by the root vitest suite.
  */
-import type { DesktopUpdate } from './bridge.cjs'
+import type { DesktopUpdate, DesktopUpdateCheck, DesktopUpdateInstallMode } from './bridge.cjs'
 import type { DesktopConfig } from './config.js'
 
 export const RELEASES_URL = 'https://github.com/kawishbit/akapela/releases/latest'
@@ -65,12 +65,10 @@ export function offeredUpdate(found: DesktopUpdate | null, skipped: string | und
  * gives it nothing to replace. A checkout and an attached dev-server window
  * are never updated at all; there is no installer under them.
  */
-export type UpdateInstallMode = 'in-place' | 'link'
-
 export function updateInstallMode(
   platform: NodeJS.Platform,
   where: { packaged: boolean, attached: boolean, appImage: string | undefined },
-): UpdateInstallMode {
+): DesktopUpdateInstallMode {
   if (!where.packaged || where.attached) return 'link'
   if (platform === 'win32') return 'in-place'
   if (platform === 'linux') return where.appImage ? 'in-place' : 'link'
@@ -88,17 +86,13 @@ export function automaticChecks(config: DesktopConfig): boolean {
  * `current` and `failed` are separate answers because **Check now** has to
  * tell them apart: the singer asked, so "you are on the latest" and "I could
  * not reach GitHub" cannot look the same. The launch check collapses both to
- * silence (see `checkForUpdate`).
+ * silence (see `checkForUpdate`). The shape itself is `bridge.cts`'s, since
+ * the page is who the distinction is for.
  */
-export type UpdateCheck =
-  | { state: 'available', update: DesktopUpdate }
-  | { state: 'current' }
-  | { state: 'failed' }
-
 export async function checkLatestRelease(
   currentVersion: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<UpdateCheck> {
+): Promise<DesktopUpdateCheck> {
   try {
     const response = await fetchImpl(LATEST_RELEASE_API, {
       headers: { accept: 'application/vnd.github+json', 'user-agent': 'Akapela' },

@@ -11,6 +11,14 @@
  * the same way the player bar keeps off the Sing screen.
  */
 
+/**
+ * Where a singer can always get a Release by hand, whatever else has gone
+ * wrong. `desktop/src/update-check.ts` names the same URL: it is a separate
+ * package with its own install, so it cannot import this one (the same arm's
+ * length the bridge contract is kept at).
+ */
+export const RELEASES_URL = 'https://github.com/kawishbit/akapela/releases/latest'
+
 /** A Release newer than the one running, as the shell reports it. */
 export interface UpdateOffer {
   version: string
@@ -42,7 +50,12 @@ export type UpdateInstallState =
 export interface PromptOffer {
   /** The one thing the main button does now. */
   act: 'download-page' | 'install' | 'downloading' | 'restart'
-  /** Whether Later and Skip belong here: a download in flight has nothing to defer to. */
+  /**
+   * Whether a click outside the dialog, or Escape, counts as "ask me later".
+   * False while a download is in flight, and false once one is ready: both
+   * ways of taking a ready Update are explicit presses, so a stray click
+   * cannot quietly choose one of them.
+   */
   dismissable: boolean
   /** Download progress to draw, or null when there is nothing being downloaded. */
   progress: number | null
@@ -70,7 +83,7 @@ export function promptOffers(
     return { act: 'downloading', dismissable: false, progress: install.percent, restartBlocked: false }
   }
   if (install.state === 'ready') {
-    return { act: 'restart', dismissable: true, progress: 100, restartBlocked: jobsBusy }
+    return { act: 'restart', dismissable: false, progress: 100, restartBlocked: jobsBusy }
   }
   if (install.state === 'failed' || mode === 'link') {
     return { act: 'download-page', dismissable: true, progress: null, restartBlocked: false }

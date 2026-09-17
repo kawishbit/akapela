@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, CloudDownload, CloudUpload, ExternalLink, FolderOpen, Headphones, Loader2, Monitor, Moon, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
 import { LYRICS_PROVIDER_LABELS, type LyricsProviderName } from '~~/shared/lyrics'
+import { RELEASES_URL } from '~/utils/update-prompt'
 import { THEME_PREFERENCES, THEME_PREFERENCE_LABELS, type ThemePreference } from '~/utils/theme'
 
 const {
@@ -437,6 +438,13 @@ useHead({ title: 'Settings · Akapela' })
           >
             What's new
           </button>
+          <button
+            type="button"
+            class="font-bold underline underline-offset-2 hover:text-accent"
+            @click="openExternal(RELEASES_URL)"
+          >
+            Open the download page
+          </button>
         </p>
 
         <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -485,11 +493,11 @@ useHead({ title: 'Settings · Akapela' })
           class="mt-3 text-sm text-negative"
           role="alert"
         >
-          Akapela couldn't check for updates. Check your connection and try again, or see the
+          Akapela couldn't check for an Update. Check your connection and try again, or see the
           <button
             type="button"
             class="font-bold underline underline-offset-2 hover:text-accent"
-            @click="openExternal('https://github.com/kawishbit/akapela/releases/latest')"
+            @click="openExternal(RELEASES_URL)"
           >
             releases page
           </button>.

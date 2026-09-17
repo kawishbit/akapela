@@ -24,7 +24,7 @@ const {
   skip,
   openReleasePage,
   installNow,
-  restartToUpdate,
+  restartNow,
 } = useUpdates()
 
 function dismiss() {
@@ -45,31 +45,14 @@ function dismiss() {
         class="w-full max-w-sm rounded-[8px] bg-card p-6 shadow-[var(--shadow-heavy)]"
         role="alertdialog"
         aria-modal="true"
-        aria-label="An update is available"
+        aria-label="An Update is available"
       >
         <h2 class="flex items-center gap-2 text-lg font-semibold leading-[1.3]">
           <CloudDownload class="size-5 text-accent" />
           Akapela {{ offer.version }} is available
         </h2>
 
-        <p
-          v-if="install.state === 'failed'"
-          class="mt-2 text-sm text-negative"
-          role="alert"
-        >
-          Akapela couldn't install this update ({{ install.message }}). You can download it yourself
-          instead — your library isn't affected either way.
-        </p>
-        <p
-          v-else-if="install.state === 'ready'"
-          class="mt-2 text-sm text-text-muted"
-        >
-          Downloaded and ready. Akapela restarts to finish, or installs it the next time you quit.
-        </p>
-        <p
-          v-else
-          class="mt-2 text-sm text-text-muted"
-        >
+        <p class="mt-2 text-sm text-text-muted">
           You're running {{ version }}.
           <button
             type="button"
@@ -78,6 +61,21 @@ function dismiss() {
           >
             What's new
           </button>
+        </p>
+
+        <p
+          v-if="install.state === 'failed'"
+          class="mt-2 text-sm text-negative"
+          role="alert"
+        >
+          Akapela couldn't install this Update ({{ install.message }}). You can download it yourself
+          instead — your library isn't affected either way.
+        </p>
+        <p
+          v-else-if="install.state === 'ready'"
+          class="mt-2 text-sm text-text-muted"
+        >
+          Downloaded and ready. Akapela restarts to finish, or installs it the next time you quit.
         </p>
 
         <p
@@ -120,7 +118,7 @@ function dismiss() {
               type="button"
               class="rounded-pill bg-text px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-90 disabled:opacity-60 disabled:hover:brightness-100"
               :disabled="offers.restartBlocked"
-              @click="restartToUpdate"
+              @click="restartNow"
             >
               Restart now
             </button>
@@ -138,7 +136,6 @@ function dismiss() {
 
           <template v-else>
             <button
-              v-if="install.state !== 'failed'"
               type="button"
               class="rounded-pill px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
               @click="skip"
