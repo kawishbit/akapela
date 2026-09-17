@@ -22,7 +22,7 @@ const isMac = computed(() => platform.value === 'darwin')
 <template>
   <div
     v-if="isDesktop"
-    class="sticky top-0 z-50 flex h-11 shrink-0 select-none items-center bg-ground [-webkit-app-region:drag]"
+    class="z-50 flex h-11 shrink-0 select-none items-center bg-ground [-webkit-app-region:drag]"
     :class="isMac ? 'pl-24 pr-3' : 'pl-2'"
   >
     <div class="flex h-full items-center gap-2 [-webkit-app-region:no-drag]">
