@@ -41,8 +41,8 @@ function requireDir(path: string, how: string): void {
   if (!existsSync(path)) throw new Error(`${path} is missing. ${how}`)
 }
 
-function run(command: string, args: string[], cwd: string): void {
-  execFileSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' })
+function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): void {
+  execFileSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32', env: { ...process.env, ...env } })
 }
 
 /** `pnpm@<version>` from a package's `packageManager` field, for `npx`. */
@@ -122,7 +122,12 @@ function stageSeparators(): void {
   // switched to it on some machines — on CI it didn't, and pnpm 12 walked up
   // to `desktop/pnpm-workspace.yaml`, looked for this directory in
   // `desktop/pnpm-lock.yaml`, and failed the install.
-  run('npx', ['--yes', pinnedPnpm(separators), 'install', '--prod', '--frozen-lockfile', '--ignore-workspace', '--node-linker=hoisted'], separators)
+  run(
+    'npx',
+    ['--yes', pinnedPnpm(separators), 'install', '--prod', '--frozen-lockfile', '--ignore-workspace', '--node-linker=hoisted'],
+    separators,
+    { ONNXRUNTIME_NODE_INSTALL: 'skip' },
+  )
 
   pruneOnnxRuntime(join(separators, 'node_modules', 'onnxruntime-node', 'bin', 'napi-v6'))
 }
@@ -163,6 +168,19 @@ function stageStretch(): void {
  * which one installs it — over 200MB of platforms this installer will never
  * run on. Keeping only the target's is the difference between an installer
  * that ships every platform and one that ships one.
+ *
+ * Two more things go or fail the build here:
+ *
+ * - A GPU execution provider library. On linux/x64 the postinstall downloads
+ *   the CUDA and TensorRT providers unless `ONNXRUNTIME_NODE_INSTALL=skip`
+ *   reaches it. The CUDA one alone is 230MB, enough to make the AppImage
+ *   twice the size of the other installers. If one is here, the skip stopped working, perhaps because
+ *   onnxruntime renamed the variable, so this fails rather than deletes it
+ *   and a 230MB download on every build doesn't go unnoticed.
+ * - macOS's versioned `libonnxruntime.1.29.0.dylib`. The package ships it as a
+ *   second full copy of `libonnxruntime.1.dylib`, not a symlink. The binding
+ *   loads `@rpath/libonnxruntime.1.dylib`, which is also the dylib's own
+ *   install name, so the versioned copy is 44MB nothing opens.
  */
 function pruneOnnxRuntime(napiDir: string): void {
   if (!existsSync(napiDir)) return
@@ -174,6 +192,22 @@ function pruneOnnxRuntime(napiDir: string): void {
   if (!existsSync(platformDir)) return
   for (const entry of readdirSync(platformDir)) {
     if (entry !== arch) rmSync(join(platformDir, entry), { recursive: true, force: true })
+  }
+
+  const archDir = join(platformDir, arch)
+  if (!existsSync(archDir)) return
+  const files = readdirSync(archDir)
+  const providers = files.filter(file => file.includes('onnxruntime_providers_'))
+  if (providers.length > 0) {
+    throw new Error(
+      `${archDir} has GPU execution providers the app never loads: ${providers.join(', ')}. `
+      + 'ONNXRUNTIME_NODE_INSTALL=skip did not reach onnxruntime-node\'s postinstall.',
+    )
+  }
+  if (files.includes('libonnxruntime.1.dylib')) {
+    for (const file of files) {
+      if (/^libonnxruntime\.\d+\.\d+\.\d+\.dylib$/.test(file)) rmSync(join(archDir, file), { force: true })
+    }
   }
 }
 
