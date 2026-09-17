@@ -26,8 +26,13 @@ extraResources:
   - from: staging/licenses
     to: licenses
 
-# No auto-updater in v1: the app checks the latest release and links to it.
-# electron-builder writes these anyway; nothing reads them.
+# What an installed app updates itself from on Windows and Linux: this is
+# what makes electron-builder write latest.yml / latest-linux.yml and the
+# blockmaps, and app-update.yml into the packaged resources, which is where
+# electron-updater reads the repository from (ADR 0009's amendment on
+# Updates). The release workflow fails if that metadata is missing. macOS
+# gets none of it: Squirrel.Mac refuses to update an unsigned app, so that
+# platform links to the download page instead.
 publish:
   - provider: github
     owner: kawishbit

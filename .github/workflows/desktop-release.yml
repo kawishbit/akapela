@@ -341,6 +341,36 @@ jobs:
             sha256 "$file" > "$file.sha256"
           done
 
+      # An installed app updates itself from this metadata (ADR 0009's
+      # amendment on Updates). A Release carrying installers but no metadata
+      # looks perfectly fine and only fails months later, on someone else's
+      # machine, so a missing file fails the build here instead.
+      - name: Check the update metadata
+        working-directory: desktop/release
+        shell: bash
+        run: |
+          set -eo pipefail
+          missing=()
+          case "${{ matrix.platform }}" in
+            win32)
+              [ -f latest.yml ] || missing+=(latest.yml)
+              compgen -G "*.exe.blockmap" >/dev/null || missing+=("*.exe.blockmap")
+              ;;
+            linux)
+              [ -f latest-linux.yml ] || missing+=(latest-linux.yml)
+              ;;
+            darwin)
+              # macOS cannot install an Update in place while the build is
+              # unsigned, so a Release must not carry metadata promising it can.
+              rm -f latest-mac.yml
+              ;;
+          esac
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::electron-builder produced no ${missing[*]} in desktop/release; an installed app could not update from this Release" >&2
+            ls -la
+            exit 1
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: akapela-${{ matrix.platform }}-${{ matrix.arch }}
@@ -350,6 +380,8 @@ jobs:
             desktop/release/*.dmg
             desktop/release/*.AppImage
             desktop/release/*.sha256
+            desktop/release/latest*.yml
+            desktop/release/*.blockmap
 
   publish:
     needs: [tag, build]
