@@ -6,8 +6,8 @@ import { dirname, join, resolve } from 'node:path'
 /**
  * Stages everything electron-builder copies in as `extraResources`.
  *
- * Outside the asar deliberately: every path staged here is either spawned as a
- * process or read by one, and neither can see inside an archive.
+ * Outside the asar deliberately: almost every path staged here is either
+ * spawned as a process or read by one, and neither can see inside an archive.
  *
  *   staging/output/      the built Nitro server and its public assets, in the
  *                        shape `.output` already has, because `index.mjs`
@@ -17,6 +17,7 @@ import { dirname, join, resolve } from 'node:path'
  *   staging/stretch/     the Mix render's stretch CLI, compiled, and the Rubber Band wasm it loads
  *   staging/bin/         the pinned ffmpeg
  *   staging/licenses/    GPL-3.0 and the bundled binaries' licence texts
+ *   staging/icon.png     the mark, for the window to be handed on Linux
  *
  * The separation CLI is compiled rather than shipped as TypeScript: today
  * `separate-cli.ts` is run directly by Node 24's native type-stripping, and
@@ -37,7 +38,7 @@ function step(message: string): void {
   process.stdout.write(`${message}\n`)
 }
 
-function requireDir(path: string, how: string): void {
+function requirePath(path: string, how: string): void {
   if (!existsSync(path)) throw new Error(`${path} is missing. ${how}`)
 }
 
@@ -55,7 +56,7 @@ function pinnedPnpm(dir: string): string {
 
 function stageServer(): void {
   const output = join(repoRoot, '.output')
-  requireDir(output, 'Run `pnpm build` at the repo root first.')
+  requirePath(output, 'Run `pnpm build` at the repo root first.')
   step('staging the server')
   cpSync(output, join(staging, 'output'), { recursive: true })
 
@@ -213,7 +214,7 @@ function pruneOnnxRuntime(napiDir: string): void {
 
 function stageBinaries(): void {
   const vendor = join(desktopRoot, 'vendor', `${platform}-${arch}`)
-  requireDir(vendor, `Run \`pnpm fetch-binaries -- --platform ${platform} --arch ${arch}\` first.`)
+  requirePath(vendor, `Run \`pnpm fetch-binaries -- --platform ${platform} --arch ${arch}\` first.`)
   step('staging ffmpeg')
   cpSync(vendor, join(staging, 'bin'), { recursive: true })
 }
@@ -231,6 +232,18 @@ function stageLicenses(): void {
   if (existsSync(bundled)) cpSync(bundled, out, { recursive: true })
 }
 
+/**
+ * The window's icon, which only Linux is handed directly (`src/icon.ts`). It
+ * is the same file electron-builder brands the installers from; it ships as a
+ * resource as well so a running window can read it.
+ */
+function stageIcon(): void {
+  step('staging the window icon')
+  const icon = join(desktopRoot, 'resources', 'icon.png')
+  requirePath(icon, 'Run `pnpm icons:generate` at the repo root first.')
+  cpSync(icon, join(staging, 'icon.png'))
+}
+
 function main(): void {
   step(`staging a ${platform}-${arch} build`)
   rmSync(staging, { recursive: true, force: true })
@@ -240,6 +253,7 @@ function main(): void {
   stageStretch()
   stageBinaries()
   stageLicenses()
+  stageIcon()
   step(`\nStaged at ${staging}`)
 }
 

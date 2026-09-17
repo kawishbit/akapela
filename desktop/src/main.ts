@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { restoreBounds, MIN_WINDOW_SIZE, type Bounds } from './bounds.js'
 import { BRIDGE_CHANNELS, type DesktopUpdate, type DesktopUpdateInstallState, type LibraryChange } from './bridge.cjs'
 import { ConfigStore, configPath } from './config.js'
+import { windowIconOptions } from './icon.js'
 import { developmentLayout, managedYtDlpPath, packagedLayout, type Layout } from './layout.js'
 import { checkLibraryDir, defaultLibraryDir, LibraryDirError } from './library.js'
 import { buildMenu } from './menu.js'
@@ -155,6 +156,7 @@ async function createWindow(origin: string): Promise<BrowserWindow> {
     backgroundColor: '#121212',
     title: 'Akapela',
     ...titleBarWindowOptions(process.platform),
+    ...windowIconOptions(process.platform, layout.windowIcon),
     webPreferences: {
       preload: join(here, 'preload.cjs'),
       contextIsolation: true,

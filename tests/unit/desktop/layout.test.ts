@@ -31,6 +31,10 @@ describe('packagedLayout', () => {
     expect(layout.ffmpeg).toContain(join('bin', 'ffmpeg'))
   })
 
+  it('names the window icon beside the other resources, for the platform that needs one', () => {
+    expect(layout.windowIcon.endsWith(join('Resources', 'icon.png'))).toBe(true)
+  })
+
   // Durations are read from the WAV header, so no installer carries ffprobe.
   it('names no ffprobe', () => {
     expect(Object.keys(layout)).not.toContain('ffprobe')
@@ -63,6 +67,10 @@ describe('developmentLayout', () => {
   const desktopRoot = resolve('/repo', 'desktop')
   const repoRoot = resolve('/repo')
   const layout = developmentLayout(desktopRoot, 'linux', 'x64')
+
+  it('finds the window icon in the checkout, where `pnpm icons:generate` writes it', () => {
+    expect(layout.windowIcon).toBe(join(desktopRoot, 'resources', 'icon.png'))
+  })
 
   it('uses what `pnpm build` last produced at the repo root', () => {
     expect(layout.serverEntry).toBe(join(repoRoot, '.output', 'server', 'index.mjs'))
