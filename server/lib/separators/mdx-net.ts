@@ -115,9 +115,17 @@ export class MdxNetModel {
     // minutes. `os.availableParallelism()` is cgroup-aware (Node/libuv read
     // it from `cpu.max` under cgroup v2) and reflects what's actually
     // available, unlike `os.cpus().length`.
+    //
+    // The CPU arena is off because the macOS Desktop App runs this file under
+    // Electron's binary (`ELECTRON_RUN_AS_NODE`), whose allocator traps rather
+    // than returning when the arena extends itself: the first `run` succeeds,
+    // the second grows the arena and the subprocess dies with SIGTRAP ("exited
+    // with code null"). Plain Node is unaffected either way, and without the
+    // arena a separation takes the same time and differs only by float noise.
     this.session ??= await ort.InferenceSession.create(this.modelPath, {
       executionProviders: ['cpu'],
       intraOpNumThreads: Math.max(1, availableParallelism()),
+      enableCpuMemArena: false,
     })
     return this.session
   }

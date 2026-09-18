@@ -320,9 +320,11 @@ jobs:
         env:
           AKAPELA_TARGET_PLATFORM: ${{ matrix.platform }}
           AKAPELA_TARGET_ARCH: ${{ matrix.arch }}
-          # Neither platform is signed yet (no Apple Developer account, no
-          # Windows certificate). The credentials are passed through so
-          # signing starts working the day the secrets exist.
+          # Neither platform is properly signed yet (no Apple Developer
+          # account, no Windows certificate); macOS is ad-hoc signed through
+          # `mac.identity` in electron-builder.yml, which needs no credentials.
+          # These are passed through so signing starts working the day the
+          # secrets exist — along with removing that `identity`.
           CSC_LINK: ${{ matrix.platform == 'darwin' && secrets.MAC_CERTIFICATE_P12 || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.platform == 'darwin' && secrets.MAC_CERTIFICATE_PASSWORD || '' }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
