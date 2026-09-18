@@ -15,6 +15,11 @@ const SAVE_DEBOUNCE_MS = 400
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const player = usePlayer()
+// The page fills the viewport in a browser. In the Desktop App it fills only
+// the space below the title bar instead (`app.vue` makes that space its
+// positioning box): the bar is a row of the page rather than something floating
+// over it, so pinned to the whole window this header would sit under the bar.
+const { isDesktop } = useDesktop()
 const playerState = player.state
 
 const { track, notFound, refresh } = useTrackDetail(id)
@@ -55,9 +60,14 @@ const adjustments = computed(() => (isCurrent.value ? playerState.value.adjustme
 const backingSource = computed(() =>
   isCurrent.value ? playerState.value.backingSource : track.value?.backingSource)
 
+// The confirmed Song reads better than a video title, but a name the singer
+// typed themselves is the one they chose to see.
 const songLabel = computed(() => {
   const current = track.value
   if (!current) return ''
+  if (current.titleEdited || current.artistEdited) {
+    return current.artist ? `${current.artist} · ${current.title}` : current.title
+  }
   return current.songTitle ? `${current.songArtist} · ${current.songTitle}` : current.title
 })
 
@@ -131,7 +141,10 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
 </script>
 
 <template>
-  <main class="fixed inset-0 flex flex-col overflow-hidden bg-ground">
+  <main
+    class="inset-0 flex flex-col overflow-hidden bg-ground"
+    :class="isDesktop ? 'absolute' : 'fixed'"
+  >
     <!-- The cover art is the only colour on the page (DESIGN.md §1). -->
     <div
       v-if="track"
@@ -146,7 +159,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
       <div class="absolute inset-0 bg-gradient-to-b from-ground/60 via-ground/75 to-ground" />
     </div>
 
-    <header class="relative z-10 flex items-center gap-3 px-4 pt-3 sm:px-6 sm:pt-4">
+    <header class="relative z-10 flex items-center gap-3 px-4 pt-4 sm:px-6 sm:pt-6">
       <NuxtLink
         :to="`/tracks/${id}`"
         class="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
@@ -210,8 +223,8 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
     </div>
 
     <footer
-      class="relative z-10 flex flex-col items-center gap-3 px-4 pb-4 pt-2 sm:px-6"
-      style="padding-bottom: max(1rem, env(safe-area-inset-bottom))"
+      class="relative z-10 flex flex-col items-center gap-3 px-4 pt-3 sm:px-6"
+      style="padding-bottom: calc(max(0.5rem, env(safe-area-inset-bottom)) + 1.5rem)"
     >
       <p
         v-if="saveError"
