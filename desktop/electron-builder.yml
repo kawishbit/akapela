@@ -54,6 +54,11 @@ win:
   signAndEditExecutable: true
 
 nsis:
+  # No spaces. Left to its default, `Akapela Setup <version>.exe`, the one file
+  # got three names: GitHub turns spaces into dots on upload, while latest.yml
+  # and electron-updater turn them into dashes — so every in-app install asked
+  # the Release for a file it did not have, and got a 404.
+  artifactName: ${productName}-Setup-${version}.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
