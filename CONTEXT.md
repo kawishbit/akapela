@@ -34,6 +34,20 @@ _Avoid_: Separated audio, layers
 Running vocal removal on one Track: the Job that makes its Stems, and the state the Track carries while it runs, after it fails, and once it has finished. Asked for per Track rather than done on every import, since it costs minutes of CPU and a Track imported from a karaoke video needs none of it.
 _Avoid_: Splitting, extraction, isolation
 
+**Playlist Import**:
+Importing many Tracks at once from a playlist on another service, such as Spotify. Each chosen song becomes its own YouTube Source and Track; the playlist itself is not kept.
+_Avoid_: Bulk import, sync, batch
+
+### Queue
+
+**Queue**:
+The ordered list of Queue Entries waiting to be sung. One per install, shared by every device using it.
+_Avoid_: Playlist, setlist, Job queue (that is Jobs)
+
+**Queue Entry**:
+One place in the Queue: a Track, and optionally the name of who will sing it. The same Track can have several.
+_Avoid_: Request, slot, item
+
 ### Lyrics
 
 **Lyrics**:
@@ -45,7 +59,7 @@ Where Lyrics were fetched from. One of LRCLIB, Genius, Manual.
 _Avoid_: Lyrics source, API
 
 **Lyrics Offset**:
-A per-Track time shift applied to Synced Lyrics so they line up with a Backing Track whose intro differs from the studio version.
+A per-Track time shift applied to Synced Lyrics so they line up with a Backing Track whose intro differs from the studio version. Either set by the singer or detected by the app; a detected one never replaces one the singer set.
 _Avoid_: Delay, sync correction
 
 ### Performance
@@ -81,8 +95,12 @@ _Avoid_: Playback, feedback, loopback
 ### Background work
 
 **Job**:
-A unit of long-running work the app runs itself, such as an import or producing a Mix. Moves through queued, running, and then succeeded or failed. Jobs run one at a time, in the order they were created.
+A unit of long-running work the app runs itself, such as an import or producing a Mix. Moves through queued, running, and then succeeded or failed. Jobs run one at a time per Lane, in the order they were created.
 _Avoid_: Task, process, operation
+
+**Lane**:
+One of the two lines Jobs wait in, which run side by side: the heavy Lane for Separations, and the light Lane for everything else (ADR 0012).
+_Avoid_: Worker, queue, channel
 
 ### Development
 

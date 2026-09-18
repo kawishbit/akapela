@@ -24,7 +24,7 @@ Agents working without a terminal to sit in: `aspire start` runs it in the backg
 
 `pnpm dev` runs the app on its own the same way, without the Dashboard.
 
-`README.md` carries the full prerequisite list for both paths. The app also shells out to `ffmpeg` and `yt-dlp`, and to `node` for the JavaScript yt-dlp runs against YouTube. It never runs `ffprobe`: durations come from the headers of the WAVs it writes, and only the test suite uses ffprobe. The AppHost checks the PATH for all of these and says so in the Dashboard: the app goes unhealthy without ffmpeg, and degraded without yt-dlp or Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
+`CONTRIBUTING.md` carries the development prerequisites, and `README.md` with `docs/self-hosting.md` what a self-hoster needs. The app also shells out to `ffmpeg` and `yt-dlp`, and to `node` for the JavaScript yt-dlp runs against YouTube. It never runs `ffprobe`: durations come from the headers of the WAVs it writes, and only the test suite uses ffprobe. The AppHost checks the PATH for all of these and says so in the Dashboard: the app goes unhealthy without ffmpeg, and degraded without yt-dlp or Node, each naming what is missing and how to install it. It reports rather than refuses to start, so everything that does not need the missing tool keeps working.
 
 ### Following a failure
 

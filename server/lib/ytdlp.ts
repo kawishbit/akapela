@@ -9,7 +9,7 @@ import { childEnv, ytDlpIsManaged, ytDlpPath } from './tools'
  * own yt-dlp.
  *
  * yt-dlp is not like ffmpeg. It chases a site that changes without warning and
- * breaks every few months by design, and the README's answer —
+ * breaks every few months by design, and the troubleshooting doc's answer —
  * `git pull && docker compose up -d --build` — only exists for someone who
  * cloned a repo. So on the desktop it is not bundled: it is fetched on first
  * use into `<dataDir>/cache/bin/`, the same shape as the separation model
