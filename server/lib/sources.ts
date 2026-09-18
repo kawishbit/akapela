@@ -31,14 +31,22 @@ export interface SourceMetadata {
 /** Receives the fraction (0 to 1) of the audio downloaded so far. */
 export type ProgressCallback = (fraction: number) => void
 
+export interface MetadataOptions {
+  /**
+   * Leave the Source's artwork alone: writing it would replace the cover
+   * files in `directory`, and a cover the singer supplied is theirs.
+   */
+  keepCover?: boolean
+}
+
 export interface SourceFetcher {
-  fetchMetadata(url: string, directory: string): Promise<SourceMetadata>
+  fetchMetadata(url: string, directory: string, options?: MetadataOptions): Promise<SourceMetadata>
   downloadAudio(url: string, directory: string, onProgress: ProgressCallback): Promise<string>
 }
 
 /** The real thing: the standalone yt-dlp binary, with its progress parsed off stdout. */
 export class YtDlpFetcher implements SourceFetcher {
-  async fetchMetadata(url: string, directory: string): Promise<SourceMetadata> {
+  async fetchMetadata(url: string, directory: string, options: MetadataOptions = {}): Promise<SourceMetadata> {
     await mkdir(directory, { recursive: true })
     // Desktop only, and only the first time: the app owns its yt-dlp there and
     // fetches it when an import needs it. Inert everywhere else.
@@ -61,7 +69,9 @@ export class YtDlpFetcher implements SourceFetcher {
     return {
       title: typeof info.title === 'string' && info.title ? info.title : url,
       durationMs: duration === null ? null : Math.round(duration * 1000),
-      coverFile: await downloadThumbnail(typeof info.thumbnail === 'string' ? info.thumbnail : null, directory),
+      coverFile: options.keepCover
+        ? null
+        : await downloadThumbnail(typeof info.thumbnail === 'string' ? info.thumbnail : null, directory),
     }
   }
 

@@ -118,6 +118,16 @@ export const tracks = sqliteTable('tracks', {
    * Lyrics leaves it alone.
    */
   lyricsOffsetMs: integer('lyrics_offset_ms').notNull().default(0),
+  /**
+   * Whether the singer has typed this Track's title, artist, or supplied its
+   * cover themselves. What they set is theirs: a later import retry, a Song
+   * confirmed afterwards, or its album art never writes over it. Each is set
+   * only when that one thing actually changed, so saving an artist unchanged
+   * still leaves it for a Song to fill in.
+   */
+  titleEdited: integer('title_edited', { mode: 'boolean' }).notNull().default(false),
+  artistEdited: integer('artist_edited', { mode: 'boolean' }).notNull().default(false),
+  coverEdited: integer('cover_edited', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })

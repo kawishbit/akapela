@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Loader2, Mic2, Pause, Play, XCircle } from 'lucide-vue-next'
+import { ArrowLeft, Loader2, Mic2, Pause, Pencil, Play, XCircle } from 'lucide-vue-next'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -69,6 +69,12 @@ async function retry() {
   }
 }
 
+const editing = ref(false)
+async function onEdited() {
+  editing.value = false
+  await refresh()
+}
+
 useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akapela' }))
 </script>
 
@@ -126,9 +132,20 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
           <p class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
             Track
           </p>
-          <h1 class="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
-            {{ track.title }}
-          </h1>
+          <div class="mt-1 flex items-start justify-center gap-2 sm:justify-start">
+            <h1 class="min-w-0 break-words text-2xl font-bold tracking-tight sm:text-3xl">
+              {{ track.title }}
+            </h1>
+            <button
+              type="button"
+              class="flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
+              aria-label="Edit title, artist, and cover art"
+              title="Edit"
+              @click="editing = true"
+            >
+              <Pencil class="size-4" />
+            </button>
+          </div>
           <p class="mt-1 text-sm text-text-muted">
             <span>{{ track.artist ?? 'Unknown artist' }}</span>
             <span v-if="track.importState === 'ready'"> · {{ formatDuration(track.durationMs) }}</span>
@@ -249,6 +266,14 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
       >
         Adjustments could not be saved: {{ playerState.saveError }}
       </p>
+
+      <TrackEditDialog
+        :open="editing"
+        :track="track"
+        @saved="onEdited"
+        @changed="refresh()"
+        @cancel="editing = false"
+      />
     </template>
 
     <p

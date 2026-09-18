@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 import { importHandler } from '../../../server/lib/jobs/import-track'
 import { BACKING_TRACK_FILE, trackDir } from '../../../server/lib/jobs/track-paths'
 import type { JobContext } from '../../../server/lib/jobs-runner'
-import { SourceError, YtDlpFetcher, type ProgressCallback, type SourceFetcher, type SourceMetadata } from '../../../server/lib/sources'
+import { SourceError, YtDlpFetcher, type MetadataOptions, type ProgressCallback, type SourceFetcher, type SourceMetadata } from '../../../server/lib/sources'
 import { probe, writeSineMp3 } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
 
@@ -76,9 +76,12 @@ class FakeFetcher implements SourceFetcher {
     } = {},
   ) {}
 
-  async fetchMetadata(_url: string, directory: string): Promise<SourceMetadata> {
+  metadataOptions: MetadataOptions | undefined
+
+  async fetchMetadata(_url: string, directory: string, options?: MetadataOptions): Promise<SourceMetadata> {
+    this.metadataOptions = options
     if (this.options.metadataError) throw new SourceError(this.options.metadataError)
-    const metadata = this.options.metadata!
+    const metadata = options?.keepCover ? { ...this.options.metadata!, coverFile: null } : this.options.metadata!
     if (metadata.coverFile) {
       mkdirSync(directory, { recursive: true })
       writeFileSync(join(directory, metadata.coverFile), this.options.coverBytes ?? new Uint8Array([1, 2, 3]))
@@ -244,6 +247,27 @@ describe('importHandler (youtube)', () => {
     expect(seen?.duration_ms).toBe(213_000)
     expect(seen?.import_state).toBe('importing')
     expect(seenProgress).toBeGreaterThan(0)
+  })
+
+  it('keeps a title and cover the singer set, without fetching the thumbnail over it', async () => {
+    const t = setup()
+    insertTrack(t, { sourceKind: 'youtube', sourceRef: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', title: 'My title' })
+    const directory = trackDir(t.dataDir, TRACK_ID)
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'cover.jpg'), new Uint8Array([9, 9, 9]))
+    t.akapela.sqlite
+      .prepare(`UPDATE tracks SET title_edited = 1, cover_edited = 1, cover_path = 'cover.jpg' WHERE id = ?`)
+      .run(TRACK_ID)
+    const fetcher = new FakeFetcher({ metadata: CANNED })
+
+    await importHandler(fetcher)(buildCtx(t, 'j1'))
+
+    expect(fetcher.metadataOptions).toEqual({ keepCover: true })
+    const track = getTrack(t)
+    expect(track.import_state).toBe('ready')
+    expect(track.title).toBe('My title')
+    expect(track.cover_path).toBe('cover.jpg')
+    expect(new Uint8Array(readFileSync(join(directory, 'cover.jpg')))).toEqual(new Uint8Array([9, 9, 9]))
   })
 
   it('keeps the placeholder cover when the video has no thumbnail', async () => {
