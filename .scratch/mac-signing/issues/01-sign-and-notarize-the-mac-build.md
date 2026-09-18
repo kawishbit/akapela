@@ -1,10 +1,10 @@
 # 01: Sign and notarize the macOS build
 
 **What to build:** A singer downloads the macOS DMG and opens it normally.
-Today macOS calls the app "damaged" — how it treats any unsigned app from the
-internet — and the README talks them through clearing the quarantine flag by
-hand. Signing and notarizing removes that step, and the README paragraph with
-it.
+Today the build is only ad-hoc signed, so macOS says it "could not verify"
+the app and the README talks them through Privacy & Security's **Open
+Anyway**. Signing and notarizing removes that step, and the README paragraph
+with it.
 
 Most of the plumbing is already there: the release workflow passes `CSC_LINK`
 and `CSC_KEY_PASSWORD` from repository secrets on the darwin leg, and
@@ -36,7 +36,9 @@ start or be verified without them.
       as repository secrets and reach the darwin leg
 - [ ] `notarize: true`, and a tagged release produces a DMG that passes
       `spctl --assess` and opens on a clean Mac with no quarantine warning
-- [ ] The README's `xattr -dr com.apple.quarantine` paragraph is removed
+- [ ] `identity: "-"` is removed from `electron-builder.yml`, so the
+      Developer ID certificate is what signs
+- [ ] The README's **Open Anyway** paragraph is removed
 - [ ] ADR 0009's amendment on Updates is revisited: either macOS gains
       in-place updates, or the ADR records why it still does not
 

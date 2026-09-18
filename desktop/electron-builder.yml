@@ -83,7 +83,7 @@ mac:
     # static arm64 build in scripts/binaries.json.
     - target: dmg
       arch: [arm64]
-  # Kept even though the build below is unsigned: if a certificate is ever
+  # Kept even though the build below is only ad-hoc signed: if a certificate is ever
   # added, the hardened runtime is where the microphone dies silently without
   # these — this usage description and the audio-input entitlement are what
   # keep getUserMedia from failing at the exact moment someone presses record,
@@ -94,16 +94,28 @@ mac:
   extendInfo:
     NSMicrophoneUsageDescription: Akapela records your singing over a backing track.
   # No Apple Developer Program membership ($99/year) behind this build, so no
-  # signing and no notarization: `notarize: true` fails outright without Apple
-  # credentials — it errors asking for them rather than skipping quietly — and
-  # a signing identity that isn't there isn't found either, so electron-builder
-  # just ships the .app/.dmg unsigned. The cost lands on whoever opens it
-  # rather than on the build. An unsigned Apple Silicon app downloaded from the
-  # internet is refused as "damaged" rather than "from an unidentified
-  # developer", and right-click → Open does not get past that. The README tells
-  # a Mac user to clear the quarantine flag
-  # (`xattr -dr com.apple.quarantine /Applications/Akapela.app`). That is
-  # documented, not solved, until there is an Apple Developer account.
+  # Developer ID and no notarization: `notarize: true` fails outright without
+  # Apple credentials — it errors asking for them rather than skipping quietly.
+  #
+  # It is ad-hoc signed instead (`identity: "-"`), and that is not optional.
+  # Left unsigned, electron-builder still renames and rewrites the Electron
+  # bundle it started from, which breaks the signature Electron shipped with;
+  # a downloaded Apple Silicon app with a broken signature is refused as
+  # "damaged" with only Move to Bin on offer, and nothing short of
+  # `xattr -dr com.apple.quarantine` gets past it. An intact ad-hoc signature
+  # turns that into "Apple could not verify …", which Privacy & Security's
+  # **Open Anyway** gets past once — the README's route.
+  #
+  # Ad-hoc plus the hardened runtime above needs
+  # `com.apple.security.cs.disable-library-validation`, which the entitlements
+  # already carry: without it, library validation rejects the Electron
+  # frameworks and the app does not launch.
+  #
+  # Remove `identity` the day a Developer ID certificate exists (CSC_LINK in
+  # the release workflow). "-" is not a fallback for when there is none: it is
+  # a qualifier, matched against the keychain's certificate names first, so
+  # with a real certificate present what gets signed with becomes an accident.
+  identity: "-"
   notarize: false
 
 dmg:
