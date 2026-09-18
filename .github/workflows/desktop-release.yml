@@ -330,6 +330,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # A release is built on the merge of its release PR, and
+          # electron-builder skips *all* macOS signing — ad-hoc included —
+          # when it sees a pull_request event, leaving the bundle with the
+          # broken signature macOS calls "damaged". That guard is against
+          # signing a fork's code; this job only builds a merged release PR,
+          # a tag push, or a dispatch, never an open PR.
+          CSC_FOR_PULL_REQUEST: 'true'
         shell: bash
         run: |
           # An env var set to '' is still set. electron-builder on macOS reads
@@ -343,6 +350,17 @@ jobs:
             export CSC_IDENTITY_AUTO_DISCOVERY=false
           fi
           pnpm pack:app -- --${{ matrix.arch }}
+
+      # A skipped signature is a warning in electron-builder's log, not an
+      # error, and the DMG it produces looks fine until someone downloads it
+      # and macOS calls it "damaged". v1.2.1 shipped that way.
+      - name: Check the macOS signature
+        if: matrix.platform == 'darwin'
+        working-directory: desktop/release/mac-arm64
+        run: |
+          set -eo pipefail
+          codesign --verify --deep --strict --verbose=2 Akapela.app \
+            || { echo "::error::Akapela.app is not validly signed; macOS will refuse it as damaged" >&2; exit 1; }
 
       - name: Checksum the artifacts
         working-directory: desktop/release
