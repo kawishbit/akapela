@@ -87,11 +87,19 @@ async function fetchFromSource(
   url: string,
   directory: string,
 ): Promise<string> {
-  const metadata = await fetcher.fetchMetadata(url, directory)
+  const edited = ctx.sqlite.prepare(`SELECT cover_edited FROM tracks WHERE id = ?`).get(trackId) as
+    { cover_edited: number } | undefined
+  const metadata = await fetcher.fetchMetadata(url, directory, edited?.cover_edited ? { keepCover: true } : undefined)
   await ensureNotDeleted(ctx.sqlite, trackId, directory, 'import')
+  // A title or cover the singer set survives a retried import.
   ctx.sqlite
     .prepare(
-      `UPDATE tracks SET title = ?, duration_ms = ?, cover_path = coalesce(?, cover_path), updated_at = ? WHERE id = ?`,
+      `UPDATE tracks SET
+         title = CASE WHEN title_edited THEN title ELSE ? END,
+         duration_ms = ?,
+         cover_path = CASE WHEN cover_edited THEN cover_path ELSE coalesce(?, cover_path) END,
+         updated_at = ?
+       WHERE id = ?`,
     )
     .run(metadata.title, metadata.durationMs, metadata.coverFile, Date.now(), trackId)
   ctx.progress(PROGRESS_SOURCE_KNOWN)

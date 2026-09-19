@@ -22,6 +22,7 @@ import {
   youtubeVideoId,
 } from '../../shared/youtube'
 import type { Song } from '../../shared/song'
+import type { TrackDetails } from '../../shared/track-details'
 import type { LyricsProviderName } from '../../shared/lyrics'
 import { COVER_BASENAME, coverExtension, placeholderCoverSvg } from './cover'
 import { enqueueJob } from './jobs'
@@ -164,6 +165,9 @@ function startImport(
     // New Tracks start where the singer said Lyrics should come from.
     lyricsProvider: getSettings(akapela).defaultLyricsProvider,
     lyricsOffsetMs: 0,
+    titleEdited: false,
+    artistEdited: false,
+    coverEdited: false,
     createdAt: now,
     updatedAt: now,
   }
@@ -258,7 +262,7 @@ export function confirmedSong(track: Track): Song | null {
 /**
  * Confirms the Song a Track represents. The Song's artist becomes the Track's
  * too, since confirming one is what gives a Track the artist the library
- * lists it by.
+ * lists it by — unless the singer has typed an artist themselves.
  */
 export function saveSong(akapela: Akapela, track: TrackWithJob, song: Song): TrackWithJob {
   const saved = {
@@ -266,15 +270,61 @@ export function saveSong(akapela: Akapela, track: TrackWithJob, song: Song): Tra
     songTitle: song.title,
     songProviderIds: song.providerIds,
     songAlbumArtUrl: song.albumArtUrl,
-    artist: song.artist,
+    artist: track.artistEdited ? track.artist : song.artist,
     updatedAt: Date.now(),
   }
   akapela.db.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
   return { ...track, ...saved }
 }
 
+/**
+ * Renames a Track: the title and artist the library lists it by. The confirmed
+ * Song is left alone. Whatever actually changed is marked as the singer's, so
+ * nothing automatic writes over it later (see `titleEdited` in the schema).
+ *
+ * A Track still on its generated placeholder cover gets it redrawn, since the
+ * placeholder shows the title's first letter.
+ */
+export function saveTrackDetails(akapela: Akapela, track: TrackWithJob, details: TrackDetails): TrackWithJob {
+  const saved = {
+    title: details.title,
+    artist: details.artist,
+    titleEdited: track.titleEdited || details.title !== track.title,
+    artistEdited: track.artistEdited || details.artist !== track.artist,
+    updatedAt: Date.now(),
+  }
+  akapela.db.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
+  if (!track.coverEdited && track.coverPath === `${COVER_BASENAME}.svg`) {
+    writeFileSync(join(trackDir(akapela, track.id), track.coverPath), placeholderCoverSvg(details.title))
+  }
+  return { ...track, ...saved }
+}
+
 /** Larger than any album cover, so a body this big is not one. */
-const MAX_COVER_BYTES = 8 * 1024 * 1024
+export const MAX_COVER_BYTES = 8 * 1024 * 1024
+
+/**
+ * An import writes the Source's artwork into the same files, so a cover
+ * uploaded mid-import could be overwritten on disk before the import sees it.
+ */
+export const COVER_WHILE_IMPORTING_MESSAGE = 'Cover art can be changed once the Track has finished importing'
+
+export const COVER_TOO_LARGE_MESSAGE
+  = `That image is too large for cover art (${MAX_COVER_BYTES / 1024 / 1024} MB at most)`
+
+/**
+ * Replaces a Track's cover art with an image the singer uploaded. The caller
+ * has already checked it is one (`uploadedCoverExtension`). From then on the
+ * cover is theirs, and album art from a Song confirmed later does not replace it.
+ */
+export function replaceCoverWithUpload(
+  akapela: Akapela,
+  track: TrackWithJob,
+  bytes: Uint8Array,
+  ext: string,
+): TrackWithJob {
+  return writeCover(akapela, track, bytes, ext, true)
+}
 
 /**
  * Replaces a Track's cover art with the album art of the Song confirmed on it.
@@ -291,6 +341,8 @@ export async function replaceCoverWithAlbumArt(
   track: TrackWithJob,
   albumArtUrl: string,
 ): Promise<TrackWithJob> {
+  // A cover the singer picked outranks any provider's.
+  if (track.coverEdited) return track
   let bytes: Uint8Array
   let ext: string | undefined
   try {
@@ -306,7 +358,20 @@ export async function replaceCoverWithAlbumArt(
     return track
   }
   if (!ext) return track
+  // Asked again after the fetch: the singer may have uploaded a cover while it ran.
+  if (getTrack(akapela, track.id)?.coverEdited) return track
+  return writeCover(akapela, track, bytes, ext, false)
+}
 
+/** Puts new cover art in place of the Track's current cover, whatever type either is. */
+function writeCover(
+  akapela: Akapela,
+  track: TrackWithJob,
+  bytes: Uint8Array,
+  ext: string,
+  /** Whether the singer supplied this cover, which protects it from being replaced automatically. */
+  coverEdited: boolean,
+): TrackWithJob {
   const dir = trackDir(akapela, track.id)
   const coverPath = `${COVER_BASENAME}.${ext}`
   // Written beside the old cover and moved into place, so a half-written file
@@ -319,9 +384,9 @@ export async function replaceCoverWithAlbumArt(
     if (name.startsWith(`${COVER_BASENAME}.`) && name !== coverPath) rmSync(join(dir, name), { force: true })
   }
 
-  const updatedAt = Date.now()
-  akapela.db.update(tracks).set({ coverPath, updatedAt }).where(eq(tracks.id, track.id)).run()
-  return { ...track, coverPath, updatedAt }
+  const saved = { coverPath, coverEdited: coverEdited || track.coverEdited, updatedAt: Date.now() }
+  akapela.db.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
+  return { ...track, ...saved }
 }
 
 /**

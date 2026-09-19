@@ -411,6 +411,21 @@ jobs:
             ls -la
             exit 1
           fi
+          # The metadata must name the files exactly as they are uploaded: an
+          # updater asks the Release for that name and nothing else. A file
+          # name with a space in it is what broke this before — GitHub stores
+          # it with dots, the metadata with dashes.
+          for meta in latest.yml latest-linux.yml; do
+            [ -f "$meta" ] || continue
+            while IFS= read -r name; do
+              [ -f "$name" ] || missing+=("$name (named in $meta)")
+            done < <(sed -nE 's/^[[:space:]-]*(url|path):[[:space:]]*//p' "$meta" | tr -d "'\"")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::update metadata names files this Release will not carry: ${missing[*]}" >&2
+            ls -la
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v7
         with:

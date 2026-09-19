@@ -36,7 +36,7 @@ useHead(() => ({
     <TitleBar />
     <div
       ref="scroller"
-      :class="isDesktop ? 'min-h-0 flex-1 overflow-y-auto' : 'contents'"
+      :class="isDesktop ? 'relative min-h-0 flex-1 overflow-y-auto' : 'contents'"
     >
       <NuxtPage />
     </div>

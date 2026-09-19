@@ -39,6 +39,32 @@ export function coverExtension(contentType: string, url: string): string | undef
   return ext in COVER_TYPES && ext !== 'jpeg' ? ext : undefined
 }
 
+/** What the Track screen says when a file the singer picked will not do as cover art. */
+export const UNSUPPORTED_COVER_MESSAGE = 'Cover art must be a PNG, JPEG, or WebP image'
+
+/** Each image type a singer can upload, by the bytes it starts with. */
+const UPLOAD_SIGNATURES: { ext: string, matches: (bytes: Uint8Array) => boolean }[] = [
+  { ext: 'png', matches: b => startsWith(b, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) },
+  { ext: 'jpg', matches: b => startsWith(b, [0xFF, 0xD8, 0xFF]) },
+  // RIFF, a four-byte length, then WEBP.
+  { ext: 'webp', matches: b => startsWith(b, [0x52, 0x49, 0x46, 0x46]) && startsWith(b.subarray(8), [0x57, 0x45, 0x42, 0x50]) },
+]
+
+/**
+ * The extension an uploaded cover is stored under, or undefined when the file
+ * is not one. Judged by the bytes rather than the name or the type the
+ * browser sent, since the stored extension is what the cover is later served
+ * as. SVG is deliberately absent even though generated placeholders are SVG:
+ * one from outside can carry script, and the app would be serving it as its own.
+ */
+export function uploadedCoverExtension(bytes: Uint8Array): string | undefined {
+  return UPLOAD_SIGNATURES.find(signature => signature.matches(bytes))?.ext
+}
+
+function startsWith(bytes: Uint8Array, prefix: number[]): boolean {
+  return bytes.length >= prefix.length && prefix.every((byte, i) => bytes[i] === byte)
+}
+
 /**
  * Generated placeholder cover art for Tracks that have no artwork yet. Achromatic
  * by design (DESIGN.md §8): a charcoal tile whose shade is derived from the title,
