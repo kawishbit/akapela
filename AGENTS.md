@@ -83,7 +83,7 @@ Everything the server spawns or loads from outside its own bundle sits behind `s
 
 ## The website
 
-`site/` is the **Website** (see `CONTEXT.md`): the one static page at `akapela.kawishbit.com` where a singer downloads the Desktop App. It is built with Astro and is not the app — nothing in it serves, reimplements, or talks to any part of Akapela. Like `desktop/`, it is installed and run **from inside its own directory**, and the root install, lint, typecheck, and test never see it.
+`site/` is the **Website** (see `CONTEXT.md`): the one static page at `akapela.kawishbit.com` where a singer downloads the Desktop App. It is built with Astro and is not the app — nothing in it serves, reimplements, or talks to any part of Akapela. Like `desktop/`, it is installed and run **from inside its own directory**, and the root install never sees it. The root checks see exactly one part of it, `site/src/lib/` (below), and never build the page.
 
 ```
 cd site && pnpm install

@@ -5,15 +5,21 @@
 
 export type Platform = 'windows' | 'mac' | 'linux'
 
+export const REPO = 'https://github.com/kawishbit/akapela'
+
 /** Every button's link before, and whenever, the Release can't be read. */
-export const RELEASE_PAGE = 'https://github.com/kawishbit/akapela/releases/latest'
+export const RELEASE_PAGE = `${REPO}/releases/latest`
 
 /** Asked from the browser: CORS-enabled, 60 unauthenticated calls an hour per visitor IP. */
 export const LATEST_RELEASE_API = 'https://api.github.com/repos/kawishbit/akapela/releases/latest'
 
-const DOWNLOAD_PREFIX = 'https://github.com/kawishbit/akapela/releases/download/'
+const DOWNLOAD_PREFIX = `${REPO}/releases/download/`
 
 const PLATFORMS: readonly Platform[] = ['windows', 'mac', 'linux']
+
+export function isPlatform(value: unknown): value is Platform {
+  return PLATFORMS.includes(value as Platform)
+}
 
 /**
  * What the release workflow uploads for each platform. Checksums, update
@@ -67,14 +73,17 @@ export function detectPlatform(client: Client): Platform | null {
   const ua = client.userAgent
   if (client.mobile || /Android|iPhone|iPad|iPod|Mobile|CrOS/i.test(ua)) return null
 
-  const hint = `${client.platform ?? ''} ${ua}`
-  if (/Mac/i.test(hint)) {
-    // iPadOS asks for the desktop site and reports itself as a Mac; its touch
-    // points give it away.
-    return (client.maxTouchPoints ?? 0) > 1 ? null : 'mac'
-  }
-  if (/Win/i.test(hint)) return 'windows'
-  if (/Linux|X11/i.test(hint)) return 'linux'
+  const platform = platformNamedIn(client.platform ?? '') ?? platformNamedIn(ua)
+  // iPadOS asks for the desktop site and reports itself as a Mac; its touch
+  // points give it away.
+  if (platform === 'mac' && (client.maxTouchPoints ?? 0) > 1) return null
+  return platform
+}
+
+function platformNamedIn(text: string): Platform | null {
+  if (/Mac/i.test(text)) return 'mac'
+  if (/Win/i.test(text)) return 'windows'
+  if (/Linux|X11/i.test(text)) return 'linux'
   return null
 }
 

@@ -1,13 +1,11 @@
 ---
 import '../styles/site.css'
-import { RELEASE_PAGE, type Platform } from '../lib/downloads'
+import { RELEASE_PAGE, REPO as repo, type Platform } from '../lib/downloads'
 
 const title = 'Akapela — self-hosted karaoke'
 const description = 'Import a song from YouTube or a file, remove the vocals, sing along to synced lyrics with the pitch and tempo you like, and keep the recording. Everything stays on your machine.'
 const url = new URL('/', Astro.site).href
 const image = new URL('/og.png', Astro.site).href
-
-const repo = 'https://github.com/kawishbit/akapela'
 
 // In the order shown when the visitor's platform is unknown. The script
 // reorders both lists once it knows it; without the script, this is the page.
@@ -18,11 +16,11 @@ const installers: { platform: Platform, name: string, detail: string }[] = [
 ]
 
 const features = [
-  { verb: 'Import', text: 'from a YouTube link or an mp3, m4a, wav, flac, or ogg file.' },
-  { verb: 'Remove the vocals', text: 'to get an instrumental.' },
-  { verb: 'Get lyrics', text: 'from LRCLIB or Genius, or paste your own. Synced lyrics scroll as you sing.' },
-  { verb: 'Change pitch and tempo', text: 'and add reverb.' },
-  { verb: 'Sing and record', text: 'then line your voice up, set the levels, and download the result as MP3 or WAV.' },
+  { verb: 'Import', text: ' from a YouTube link or an mp3, m4a, wav, flac, or ogg file.' },
+  { verb: 'Remove the vocals', text: ' to get an instrumental.' },
+  { verb: 'Get lyrics', text: ' from LRCLIB or Genius, or paste your own. Synced lyrics scroll as you sing.' },
+  { verb: 'Change pitch and tempo', text: ', and add reverb.' },
+  { verb: 'Sing and record', text: ', then line your voice up, set the levels, and download the result as MP3 or WAV.' },
 ]
 
 const commands = `git clone https://github.com/kawishbit/akapela.git
@@ -94,7 +92,7 @@ docker compose up -d`
     <main>
       <section class="hero wrap" aria-labelledby="pitch">
         <div class="hero__text">
-          <h1 id="pitch">Karaoke that stays at home.</h1>
+          <h1 id="pitch">Self-hosted karaoke.</h1>
           <p class="lede">
             Import a song from YouTube or a file, remove the vocals, sing along to synced lyrics with the pitch and tempo you like, and keep the recording.
           </p>
@@ -136,24 +134,20 @@ docker compose up -d`
             poster="/demo-poster.webp"
             width="1440"
             height="1080"
-            aria-label="Akapela demo video"
+            aria-label="Akapela demo: importing a Track from YouTube, separating its vocals into Stems, singing to synced Lyrics and recording a Take, then reviewing it and rendering a Mix"
           >
             <source src="/demo.mp4" type="video/mp4" />
           </video>
-          <figcaption>
-            Two minutes of Akapela: a song imported from YouTube, its vocals removed, sung to synced lyrics and recorded, then mixed down.
-          </figcaption>
         </figure>
       </section>
 
       <section class="section wrap" aria-labelledby="what">
         <div class="section__head">
           <h2 id="what">What it does</h2>
-          <p>A karaoke night from any song you have, start to finish, on your own computer.</p>
         </div>
         <ul class="features">
           {features.map(({ verb, text }) => (
-            <li class="feature"><strong>{verb}</strong> {text}</li>
+            <li class="feature"><strong>{verb}</strong>{text}</li>
           ))}
         </ul>
       </section>
@@ -174,8 +168,10 @@ docker compose up -d`
             <p>Anyone who can reach the port can see and use your library. Keep it on your own network, or put it behind a VPN or a reverse proxy with authentication.</p>
           </div>
           <p>
-            For the port, the data folder, the Genius token, updating, and backups, read
-            <a class="more" href={`${repo}/blob/main/docs/self-hosting.md`}>the self-hosting guide</a>.
+            For the port, the data folder, the Genius token, updating, and backups, see
+            <a class="more" href={`${repo}/blob/main/docs/self-hosting.md`}>Self-hosting</a>.
+            If something breaks, see
+            <a class="more" href={`${repo}/blob/main/docs/troubleshooting.md`}>Troubleshooting</a>.
           </p>
         </div>
       </section>
@@ -185,11 +181,10 @@ docker compose up -d`
       <span class="foot__mark">Akapela</span>
       <a href={repo}>Source on GitHub</a>
       <a href={`${repo}/blob/main/LICENSE`}>GPL-3.0</a>
-      <span class="foot__credit">No analytics, no cookies.</span>
     </footer>
 
     <script>
-      import { LATEST_RELEASE_API, planDownloads, type Client, type Downloads } from '../lib/downloads'
+      import { isPlatform, LATEST_RELEASE_API, planDownloads, type Client, type Downloads } from '../lib/downloads'
 
       interface UserAgentData { platform?: string, mobile?: boolean }
 
@@ -222,7 +217,8 @@ docker compose up -d`
         }
 
         for (const item of document.querySelectorAll<HTMLElement>('.installer')) {
-          const platform = item.dataset.platform as keyof Downloads['installers']
+          const platform = item.dataset.platform
+          if (!isPlatform(platform)) continue
           const installer = plan.installers[platform]
           item.classList.toggle('is-primary', platform === plan.primary)
 

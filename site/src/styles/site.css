@@ -48,8 +48,7 @@ body {
 }
 
 h1,
-h2,
-h3 {
+h2 {
   margin: 0;
   font-style: normal;
   line-height: 1.1;
@@ -384,10 +383,6 @@ pre {
   background: var(--color-surface);
   box-shadow: var(--shadow-heavy);
 }
-.demo figcaption {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
 
 /* ── Sections below the fold (split: heading | body) ────────────────────── */
 
@@ -532,9 +527,6 @@ pre {
 }
 .foot a {
   white-space: nowrap;
-}
-.foot__credit {
-  margin-inline-start: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

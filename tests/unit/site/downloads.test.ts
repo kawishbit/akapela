@@ -38,8 +38,16 @@ describe('detectPlatform', () => {
     expect(detectPlatform({ userAgent })).toBe(platform)
   })
 
-  it('prefers the client hint over the user agent', () => {
-    expect(detectPlatform({ userAgent: UA.windows, platform: 'macOS' })).toBe('mac')
+  it.each([
+    ['mac', UA.windows, 'macOS'],
+    ['windows', UA.mac, 'Windows'],
+    ['linux', UA.windows, 'Linux'],
+  ] as const)('prefers the client hint over the user agent (%s)', (platform, userAgent, hint) => {
+    expect(detectPlatform({ userAgent, platform: hint })).toBe(platform)
+  })
+
+  it('falls back to the user agent when the hint names nothing it knows', () => {
+    expect(detectPlatform({ userAgent: UA.linux, platform: '' })).toBe('linux')
   })
 
   it.each([
