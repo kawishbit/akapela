@@ -1,0 +1,19 @@
+{
+  "name": "akapela-site",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "description": "The Website: the one static page where a singer downloads the Desktop App.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^7.3.3"
+  }
+}
