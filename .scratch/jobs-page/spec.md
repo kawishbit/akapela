@@ -1,6 +1,6 @@
 # Spec: Jobs page — one place to see what the app is doing
 
-Status: ready-for-agent
+Status: done
 
 `ROADMAP.md`, item 1. Capitalised terms (Job, Lane, Track, Separation, Mix, Take) are defined in `CONTEXT.md`.
 

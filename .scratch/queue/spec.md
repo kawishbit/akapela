@@ -10,7 +10,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 
 | # | Ticket | Status | Blocked by |
 | - | ------ | ------ | ---------- |
-| 01 | [The Queue table and its API](issues/01-queue-table-and-api.md) | ready-for-agent | — |
+| 01 | [The Queue table and its API](issues/01-queue-table-and-api.md) | done | — |
 | 02 | [The Queue page](issues/02-the-queue-page.md) | ready-for-agent | 01 |
 | 03 | [Add to queue, with the singer's name](issues/03-add-to-queue.md) | ready-for-agent | 01 |
 | 04 | [Reorder, Play next, rename](issues/04-reorder-and-play-next.md) | ready-for-agent | 02 |

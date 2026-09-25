@@ -15,17 +15,17 @@ The domain functions live in `server/lib/queue.ts`, the way `tracks.ts` and `job
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A migration adds `queue_entries`; an existing database upgrades cleanly
-- [ ] `POST /api/queue` appends, returns the entry, and accepts a missing or empty name as no name
-- [ ] Two concurrent adds produce two entries with different positions
-- [ ] `GET /api/queue` returns entries in order with the Track fields a row needs, in one query
-- [ ] The same Track can be queued several times, and each entry is independent
-- [ ] Deleting a Track removes its entries
-- [ ] `DELETE /api/queue/:id` on an entry that is already gone is a clean 404 or no-op, not a 500
-- [ ] A restored backup brings its Queue with it (no special handling; just confirm nothing breaks)
-- [ ] Tests cover appending, ordering, the cascade, and clear
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] A migration adds `queue_entries`; an existing database upgrades cleanly
+- [x] `POST /api/queue` appends, returns the entry, and accepts a missing or empty name as no name
+- [x] Two concurrent adds produce two entries with different positions
+- [x] `GET /api/queue` returns entries in order with the Track fields a row needs, in one query
+- [x] The same Track can be queued several times, and each entry is independent
+- [x] Deleting a Track removes its entries
+- [x] `DELETE /api/queue/:id` on an entry that is already gone is a clean 404 or no-op, not a 500
+- [x] A restored backup brings its Queue with it (no special handling; just confirm nothing breaks)
+- [x] Tests cover appending, ordering, the cascade, and clear
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

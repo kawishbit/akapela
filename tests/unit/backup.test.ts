@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { applyStagedRestore, BackupError, createBackupArchive, hasLibraryData, stageRestore } from '../../server/lib/backup'
 import { createAkapela, type Akapela } from '../../server/lib/akapela'
+import { addToQueue, listQueue } from '../../server/lib/queue'
 
 const MIGRATIONS_DIR = join(process.cwd(), 'server/db/migrations')
 
@@ -73,6 +74,20 @@ describe('backup and restore round trip', () => {
     expect(trackTitles(reopened)).toEqual(['Track One', 'Track Two'])
     expect(readFileSync(join(target.dataDir, 'tracks', 't1', 'backing.wav'), 'utf8'))
       .toBe('not really audio, just bytes to move')
+  })
+
+  it('brings the Queue along with everything else', async () => {
+    const source = open()
+    insertTrack(source, 't1', 'Track One')
+    addToQueue(source, { trackId: 't1', singerName: 'Sara' })
+    const archivePath = await createBackupArchive(source)
+
+    const target = open()
+    await stageRestore(target, archivePath)
+    await applyStagedRestore(target)
+
+    const reopened = open(target.dataDir)
+    expect(listQueue(reopened).map(entry => [entry.trackId, entry.singerName])).toEqual([['t1', 'Sara']])
   })
 
   it('excludes cache/ from the backup', async () => {
