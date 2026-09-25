@@ -54,6 +54,7 @@ const isMac = computed(() => platform.value === 'darwin')
     <div class="flex-1" />
 
     <div class="flex h-full items-center gap-2 [-webkit-app-region:no-drag]">
+      <JobsLink size="sm" />
       <NuxtLink
         to="/settings"
         class="flex size-9 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"

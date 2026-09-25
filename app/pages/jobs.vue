@@ -8,6 +8,20 @@ const { jobs, loaded, error, cancel, retry, clearFinished } = useJobs()
 
 const sections = computed(() => jobSections(jobs.value))
 
+/**
+ * Arriving from a Library card's chip at `/jobs#<jobId>`: scroll to that row
+ * and highlight it, once the list has loaded and the row exists.
+ */
+const route = useRoute()
+const highlightedId = computed(() => decodeURIComponent(route.hash.slice(1)) || null)
+const scrolledTo = ref<string | null>(null)
+watch([highlightedId, loaded, jobs], async ([id]) => {
+  if (!id || scrolledTo.value === id || !jobs.value.some(job => job.id === id)) return
+  scrolledTo.value = id
+  await nextTick()
+  document.getElementById(id)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}, { immediate: true })
+
 const busyId = ref<string | null>(null)
 const clearing = ref(false)
 const actionError = ref<string | null>(null)
@@ -105,6 +119,7 @@ async function onClearFinished() {
             :key="job.id"
             :job="job"
             :busy="busyId === job.id"
+            :highlighted="highlightedId === job.id"
             @cancel="act(job, cancel)"
           />
         </ul>
@@ -127,6 +142,7 @@ async function onClearFinished() {
             :key="job.id"
             :job="job"
             :busy="busyId === job.id"
+            :highlighted="highlightedId === job.id"
             @cancel="act(job, cancel)"
           />
         </ul>
@@ -162,6 +178,7 @@ async function onClearFinished() {
             :key="job.id"
             :job="job"
             :busy="busyId === job.id"
+            :highlighted="highlightedId === job.id"
             @retry="act(job, retry)"
           />
         </ul>

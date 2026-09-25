@@ -15,7 +15,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 03 | [Cancelling a running Job](issues/03-cancelling-a-running-job.md) | done | 02 |
 | 04 | [Real Separation progress](issues/04-real-separation-progress.md) | done | — |
 | 05 | [The Jobs page](issues/05-the-jobs-page.md) | done | 02 |
-| 06 | [Jobs link, badge, and the Library card's chip](issues/06-jobs-link-and-badge.md) | ready-for-agent | 05 |
+| 06 | [Jobs link, badge, and the Library card's chip](issues/06-jobs-link-and-badge.md) | done | 05 |
 
 01 and 04 are independent of each other. 02 → 03 must be sequential. 05 needs the actions it calls (02); 03 and 04 make rows on it do more, and can land either side of it.
 

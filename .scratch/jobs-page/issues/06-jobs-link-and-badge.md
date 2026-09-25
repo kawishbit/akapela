@@ -10,14 +10,14 @@ A Library card that is importing or separating already shows a progress chip. Th
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Jobs is reachable from the Library header and from `TitleBar` in the Desktop App
-- [ ] The badge counts queued and running Jobs and disappears at zero
-- [ ] One shared poll feeds both the badge and the page; no duplicated timers, nothing polling while idle
-- [ ] A Library card's progress chip opens `/jobs` scrolled to its own row, highlighted
-- [ ] Clicking elsewhere on the card still opens the Track
-- [ ] Works at phone width and in the Desktop App's title bar; both themes; keyboard reachable
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Jobs is reachable from the Library header and from `TitleBar` in the Desktop App
+- [x] The badge counts queued and running Jobs and disappears at zero
+- [x] One shared poll feeds both the badge and the page; no duplicated timers, nothing polling while idle
+- [x] A Library card's progress chip opens `/jobs` scrolled to its own row, highlighted
+- [x] Clicking elsewhere on the card still opens the Track
+- [x] Works at phone width and in the Desktop App's title bar; both themes; keyboard reachable
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

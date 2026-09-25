@@ -45,6 +45,16 @@ describe('asking for a Track to be separated', () => {
     expect(job).toMatchObject({ type: 'separate', targetId: track.id, state: 'queued' })
   })
 
+  test('the Library names the separate Job, so a card can link to its row on the Jobs page', async () => {
+    const track = await importedTrack()
+    expect((await (await api.get('/api/tracks')).json())[0].separationJobId).toBeNull()
+
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+
+    const [listed] = await (await api.get('/api/tracks')).json()
+    expect(listed.separationJobId).toBe(separationJob.id)
+  })
+
   test('the separation state and the separate Job are on the Track detail response', async () => {
     const track = await importedTrack()
     const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
