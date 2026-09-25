@@ -10,14 +10,14 @@ Add the Lane to `CONTEXT.md` only if the existing entry needs sharpening; it is 
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Two Lanes run concurrently: a queued Mix starts while a Separation is running
-- [ ] Each Lane runs one Job at a time, in creation order; two Separations never run at once
-- [ ] `recoverStaleJobs()` runs once at startup, not once per Lane
-- [ ] A Job type added later lands in the light Lane without touching the heavy one
-- [ ] `tests/unit/jobs-runner.test.ts` covers the lane filter in `claimNext` and the two loops not claiming each other's Jobs
-- [ ] `ROADMAP.md` item 1 and ADR 0012 say the Lanes are built rather than decided
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Two Lanes run concurrently: a queued Mix starts while a Separation is running
+- [x] Each Lane runs one Job at a time, in creation order; two Separations never run at once
+- [x] `recoverStaleJobs()` runs once at startup, not once per Lane
+- [x] A Job type added later lands in the light Lane without touching the heavy one
+- [x] `tests/unit/jobs-runner.test.ts` covers the lane filter in `claimNext` and the two loops not claiming each other's Jobs
+- [x] `ROADMAP.md` item 1 and ADR 0012 say the Lanes are built rather than decided
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

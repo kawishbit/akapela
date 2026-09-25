@@ -83,24 +83,56 @@ const NO_TELEMETRY: Telemetry = {
   shutdown: async () => {},
 }
 
+/**
+ * One of the two lines Jobs wait in, side by side (ADR 0012): `heavy` runs
+ * Separations, `light` runs everything else. Derived from the Job's type and
+ * never stored, so a type added later lands in the light Lane without anyone
+ * deciding it should.
+ */
+export type Lane = 'heavy' | 'light'
+
+const HEAVY_JOB_TYPE: JobType = 'separate'
+
+export function laneOf(type: JobType): Lane {
+  return type === HEAVY_JOB_TYPE ? 'heavy' : 'light'
+}
+
+/** The `claimNext` filter for one Lane, or for both when a runner is given none. */
+function laneFilter(lane: Lane | undefined): string {
+  if (lane === 'heavy') return `AND type = '${HEAVY_JOB_TYPE}'`
+  if (lane === 'light') return `AND type != '${HEAVY_JOB_TYPE}'`
+  return ''
+}
+
 export class JobsRunner {
   private readonly sqlite: Database.Database
   private readonly dataDir: string
   private readonly handlers: Partial<Record<JobType, Handler>>
   private readonly telemetry: Telemetry
+  private readonly lane: Lane | undefined
 
   constructor(
     sqlite: Database.Database,
     dataDir: string,
-    options: { handlers?: Partial<Record<JobType, Handler>>, telemetry?: Telemetry } = {},
+    options: {
+      handlers?: Partial<Record<JobType, Handler>>
+      telemetry?: Telemetry
+      /** Which Lane this runner claims from. Left out, it claims from both — what a test running one Job wants. */
+      lane?: Lane
+    } = {},
   ) {
     this.sqlite = sqlite
     this.dataDir = dataDir
     this.handlers = options.handlers ?? DEFAULT_HANDLERS
     this.telemetry = options.telemetry ?? NO_TELEMETRY
+    this.lane = options.lane
   }
 
-  /** Requeues any Job left `running` by a previous process that died. Returns how many. */
+  /**
+   * Requeues any Job left `running` by a previous process that died. Returns
+   * how many. Across both Lanes, so it is called once at startup before
+   * either loop starts, never per Lane.
+   */
   recoverStaleJobs(): number {
     const result = this.sqlite
       .prepare(`UPDATE jobs SET state = 'queued', started_at = NULL, progress = 0 WHERE state = 'running'`)
@@ -108,13 +140,13 @@ export class JobsRunner {
     return result.changes
   }
 
-  /** Atomically moves the oldest queued Job to running and returns it, or null when the queue is empty. */
+  /** Atomically moves this Lane's oldest queued Job to running and returns it, or null when there is none. */
   private claimNext(): Job | null {
     const row = this.sqlite
       .prepare(
         `UPDATE jobs SET state = 'running', started_at = ?
          WHERE id = (
-           SELECT id FROM jobs WHERE state = 'queued'
+           SELECT id FROM jobs WHERE state = 'queued' ${laneFilter(this.lane)}
            ORDER BY created_at, rowid LIMIT 1
          )
          RETURNING id, type, target_id, state, progress, error, created_at, started_at, finished_at, trace_parent`,
@@ -169,9 +201,10 @@ export class JobsRunner {
    * Polls forever, `pollIntervalMs` apart whenever the queue is empty. Stops
    * as soon as `signal` aborts — checked between Jobs, never mid-Job, so a
    * shutdown lets whatever is running finish rather than tearing it down.
+   * Stale Jobs are not recovered here: that is `recoverStaleJobs`, called
+   * once for both Lanes before either loop starts.
    */
   async runForever(pollIntervalMs: number, signal: AbortSignal): Promise<void> {
-    this.recoverStaleJobs()
     while (!signal.aborted) {
       const ran = await this.runOnce()
       if (!ran && !signal.aborted) await sleep(pollIntervalMs, signal)

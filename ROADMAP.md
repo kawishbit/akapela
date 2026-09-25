@@ -18,7 +18,7 @@ Capitalised terms (Track, Job, Separation, Queue, ...) are defined in `CONTEXT.m
 
 - A **Jobs** page lists every Job (imports, Separations, Mixes), not only Separations: its Track, what it's doing, its state, and progress. A Separation reports a real percentage (chunks done out of total).
 - Actions: cancel a queued or running Job, retry a failed one, clear finished ones. No manual reordering for now.
-- Jobs run in two **Lanes**, side by side: a heavy Lane for Separations and a light Lane for imports and Mixes, each still one at a time. A Mix never waits behind forty Separations, and two Separations never split the CPU between them. See ADR 0012.
+- Jobs run in two **Lanes**, side by side: a heavy Lane for Separations and a light Lane for imports and Mixes, each still one at a time. A Mix never waits behind forty Separations, and two Separations never split the CPU between them. See ADR 0012. Built.
 
 **Open**
 

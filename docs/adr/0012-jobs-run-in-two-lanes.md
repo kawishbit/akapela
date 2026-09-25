@@ -1,6 +1,6 @@
 # Jobs run in two Lanes: heavy and light
 
-_Decided, not yet built. See `ROADMAP.md`, item 1._
+_Built: `server/plugins/jobs-runner.ts` starts one `JobsRunner` per Lane. See `ROADMAP.md`, item 1._
 
 Jobs have run one at a time, in creation order, since ADR 0002. That was fine while a Job was one import or one Mix. Spotify playlist import changes the shape: forty Separations queued at once is a few hours of work, and under a single line a singer who finishes a Take and asks for its Mix waits behind all of it.
 

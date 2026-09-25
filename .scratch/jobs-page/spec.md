@@ -10,7 +10,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 
 | # | Ticket | Status | Blocked by |
 | - | ------ | ------ | ---------- |
-| 01 | [Two Lanes in the runner](issues/01-two-lanes-in-the-runner.md) | ready-for-agent | — |
+| 01 | [Two Lanes in the runner](issues/01-two-lanes-in-the-runner.md) | done | — |
 | 02 | [Cancelling a queued Job](issues/02-cancelling-a-queued-job.md) | ready-for-agent | 01 |
 | 03 | [Cancelling a running Job](issues/03-cancelling-a-running-job.md) | ready-for-agent | 02 |
 | 04 | [Real Separation progress](issues/04-real-separation-progress.md) | ready-for-agent | — |
