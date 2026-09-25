@@ -2,7 +2,7 @@ import { mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { COVER_BASENAME, coverExtension } from './cover'
-import { childEnv, jsRuntimePath, ytDlpPath } from './tools'
+import { childEnv, jsRuntimePath, killOnAbort, ytDlpPath } from './tools'
 import { ensureManagedYtDlp } from './ytdlp'
 
 /**
@@ -37,11 +37,13 @@ export interface MetadataOptions {
    * files in `directory`, and a cover the singer supplied is theirs.
    */
   keepCover?: boolean
+  /** Kills yt-dlp when it aborts, which is how a cancelled import stops. */
+  signal?: AbortSignal
 }
 
 export interface SourceFetcher {
   fetchMetadata(url: string, directory: string, options?: MetadataOptions): Promise<SourceMetadata>
-  downloadAudio(url: string, directory: string, onProgress: ProgressCallback): Promise<string>
+  downloadAudio(url: string, directory: string, onProgress: ProgressCallback, signal?: AbortSignal): Promise<string>
 }
 
 /** The real thing: the standalone yt-dlp binary, with its progress parsed off stdout. */
@@ -51,7 +53,7 @@ export class YtDlpFetcher implements SourceFetcher {
     // Desktop only, and only the first time: the app owns its yt-dlp there and
     // fetches it when an import needs it. Inert everywhere else.
     await ensureManagedYtDlp()
-    const stdout = await runYtDlp(['-J', '--no-playlist', ...jsRuntimeArgs(), url])
+    const stdout = await runYtDlp(['-J', '--no-playlist', ...jsRuntimeArgs(), url], options.signal)
 
     let info: Record<string, unknown>
     try {
@@ -75,7 +77,7 @@ export class YtDlpFetcher implements SourceFetcher {
     }
   }
 
-  async downloadAudio(url: string, directory: string, onProgress: ProgressCallback): Promise<string> {
+  async downloadAudio(url: string, directory: string, onProgress: ProgressCallback, signal?: AbortSignal): Promise<string> {
     await mkdir(directory, { recursive: true })
     await ensureManagedYtDlp()
     // A retry may have left a different-extension file behind than this attempt will produce.
@@ -84,6 +86,7 @@ export class YtDlpFetcher implements SourceFetcher {
     await runYtDlpWithProgress(
       ['-f', 'bestaudio/best', '-o', join(directory, `${ORIGINAL_BASENAME}.%(ext)s`), '--newline', ...jsRuntimeArgs(), url],
       onProgress,
+      signal,
     )
 
     const [written] = await originalFiles(directory)
@@ -117,9 +120,10 @@ function jsRuntimeArgs(): string[] {
   return ['--js-runtimes', runtime ? `node:${runtime}` : 'node']
 }
 
-function runYtDlp(args: string[]): Promise<string> {
+function runYtDlp(args: string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(ytDlpPath(), args, { env: childEnv() })
+    killOnAbort(child, signal)
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', d => (stdout += d))
@@ -134,9 +138,10 @@ function runYtDlp(args: string[]): Promise<string> {
 
 const PROGRESS_LINE = /\[download]\s+([\d.]+)%/
 
-function runYtDlpWithProgress(args: string[], onProgress: ProgressCallback): Promise<void> {
+function runYtDlpWithProgress(args: string[], onProgress: ProgressCallback, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(ytDlpPath(), args, { env: childEnv() })
+    killOnAbort(child, signal)
     let stderr = ''
     let buffered = ''
 

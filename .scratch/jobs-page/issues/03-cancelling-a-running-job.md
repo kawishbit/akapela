@@ -17,18 +17,18 @@ Keep using `childEnv()` for anything spawned, as today.
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A running Separation stops within a chunk or two, not at the next milestone
-- [ ] Its subprocess is gone afterwards — nothing keeps burning CPU
-- [ ] A cancelled re-separation leaves the Track `ready` with its previous Stems, byte for byte
-- [ ] A cancelled first Separation leaves the Track `none` and no partial Stems on disk
-- [ ] A cancelled import kills its child process and leaves no Track and no directory behind
-- [ ] A cancelled Mix leaves no partial file
-- [ ] The Job row ends `cancelled` with no error message, never `failed`
-- [ ] The Lane picks up the next Job immediately after a cancel
-- [ ] Shutdown still lets a running Job finish (`runForever`'s abort is a different signal from a cancel; do not conflate them)
-- [ ] Tests cover abort mid-handler for each type, including that the old Stems survive
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] A running Separation stops within a chunk or two, not at the next milestone
+- [x] Its subprocess is gone afterwards — nothing keeps burning CPU
+- [x] A cancelled re-separation leaves the Track `ready` with its previous Stems, byte for byte
+- [x] A cancelled first Separation leaves the Track `none` and no partial Stems on disk
+- [x] A cancelled import kills its child process and leaves no Track and no directory behind
+- [x] A cancelled Mix leaves no partial file
+- [x] The Job row ends `cancelled` with no error message, never `failed`
+- [x] The Lane picks up the next Job immediately after a cancel
+- [x] Shutdown still lets a running Job finish (`runForever`'s abort is a different signal from a cancel; do not conflate them)
+- [x] Tests cover abort mid-handler for each type, including that the old Stems survive
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

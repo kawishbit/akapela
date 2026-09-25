@@ -25,7 +25,11 @@ export default defineNitroPlugin((nitroApp) => {
   const lanes: Lane[] = ['heavy', 'light']
   const loop = loadTelemetry()
     .then((telemetry) => {
-      const runners = lanes.map(lane => new JobsRunner(akapela.sqlite, akapela.dataDir, { telemetry, lane }))
+      const runners = lanes.map(lane => new JobsRunner(akapela.sqlite, akapela.dataDir, {
+        telemetry,
+        lane,
+        running: akapela.runningJobs,
+      }))
       runners[0]!.recoverStaleJobs()
       return Promise.all(runners.map(runner => runner.runForever(pollIntervalMs, stopping.signal)))
     })

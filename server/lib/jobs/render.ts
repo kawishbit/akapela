@@ -108,16 +108,17 @@ export const runRender: Handler = async (ctx) => {
     reverbAmount: row.reverb_amount,
     lowpassHz: row.lowpass_hz,
     effectsTarget: row.effects_target,
+    signal: ctx.signal,
   })
   ctx.progress(PROGRESS_RENDERED)
 
-  // The singer may delete the Mix while its render runs. The row (and the
-  // app's own copies of its files) are already gone by then, so what was just
+  // The singer may delete the Mix while its render runs, or cancel the render
+  // just as it finishes. Either way the row is gone or going, so what was just
   // written here is an orphan — clean it up rather than resurrect the Mix.
-  if (!mixExists(ctx.sqlite, mixId)) {
+  if (ctx.signal.aborted || !mixExists(ctx.sqlite, mixId)) {
     await unlink(mp3Path).catch(() => {})
     if (wavPath) await unlink(wavPath).catch(() => {})
-    throw new Error(`Mix ${mixId} was deleted during render`)
+    throw new Error(`Mix ${mixId} was ${ctx.signal.aborted ? 'cancelled' : 'deleted'} during render`)
   }
 
   ctx.sqlite

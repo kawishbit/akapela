@@ -25,8 +25,6 @@ import type { Akapela } from './akapela'
 /** A request the Job's current state cannot honour; the route answers it with a 409. */
 export class JobActionRefused extends Error {}
 
-const TERMINAL_STATES: readonly Job['state'][] = ['succeeded', 'failed', 'cancelled']
-
 /**
  * A newer Job of the same type on the same target, as SQL over an outer
  * `jobs` row aliased `j`. "Newer" is creation order, which is also run order.
@@ -119,20 +117,23 @@ export function listJobs(akapela: Akapela): JobListEntry[] {
 }
 
 /**
- * Cancels a queued Job and puts its target back the way it was before the Job
- * was asked for. The Job row stays, `cancelled`, until the singer clears it.
+ * Cancels a queued or running Job and puts its target back the way it was
+ * before the Job was asked for. The Job row stays, `cancelled`, until the
+ * singer clears it.
+ *
+ * A running Job is marked first and aborted in the same tick, so a handler
+ * that checks its signal before committing anything always sees it; the
+ * cleanup waits until the handler has let go, so it never races one still
+ * writing into the Track.
  */
-export function cancelJob(akapela: Akapela, job: Job): Job {
-  if (TERMINAL_STATES.includes(job.state)) {
-    throw new JobActionRefused('This Job has already finished')
-  }
+export async function cancelJob(akapela: Akapela, job: Job): Promise<Job> {
   const cancelled = akapela.sqlite
-    .prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ? WHERE id = ? AND state = 'queued'`)
+    .prepare(`UPDATE jobs SET state = 'cancelled', error = NULL, finished_at = ? WHERE id = ? AND state IN ('queued', 'running')`)
     .run(Date.now(), job.id)
   if (cancelled.changes === 0) {
-    // Claimed by its Lane between being read and being cancelled.
-    throw new JobActionRefused('A running Job cannot be cancelled')
+    throw new JobActionRefused('This Job has already finished')
   }
+  await akapela.runningJobs.abort(job.id)
   undoJob(akapela, job)
   return getJob(akapela, job.id)!
 }

@@ -325,6 +325,7 @@ describe('runRender', () => {
     const ctx: JobContext = {
       job: { id: 'j1', type: 'render', targetId: 'm1', state: 'running', progress: 0, error: null, createdAt: 1000, startedAt: 1000, finishedAt: null, traceParent: null },
       dataDir: t.dataDir,
+      signal: new AbortController().signal,
       sqlite: t.akapela.sqlite,
       progress(percent) {
         t.akapela.sqlite.prepare(`UPDATE jobs SET progress = ? WHERE id = 'j1'`).run(percent)
@@ -367,6 +368,7 @@ describe('runRender', () => {
     const ctx: JobContext = {
       job: { id: 'j1', type: 'render', targetId: 'm1', state: 'running', progress: 0, error: null, createdAt: 1000, startedAt: 1000, finishedAt: null, traceParent: null },
       dataDir: t.dataDir,
+      signal: new AbortController().signal,
       sqlite: t.akapela.sqlite,
       progress(percent) {
         seen.push(percent)

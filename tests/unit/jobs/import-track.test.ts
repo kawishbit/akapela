@@ -61,6 +61,7 @@ function buildCtx(t: JobTestDb, jobId: string, onProgress?: (percent: number) =>
       t.akapela.sqlite.prepare(`UPDATE jobs SET progress = ? WHERE id = ?`).run(percent, jobId)
       onProgress?.(percent)
     },
+    signal: new AbortController().signal,
   }
 }
 
@@ -262,7 +263,7 @@ describe('importHandler (youtube)', () => {
 
     await importHandler(fetcher)(buildCtx(t, 'j1'))
 
-    expect(fetcher.metadataOptions).toEqual({ keepCover: true })
+    expect(fetcher.metadataOptions).toMatchObject({ keepCover: true })
     const track = getTrack(t)
     expect(track.import_state).toBe('ready')
     expect(track.title).toBe('My title')

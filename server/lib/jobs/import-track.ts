@@ -57,7 +57,8 @@ export function importHandler(fetcher: SourceFetcher): Handler {
       }
 
       const backing = join(directory, BACKING_TRACK_FILE)
-      await normalizeToBackingTrack(original, backing)
+      await normalizeToBackingTrack(original, backing, ctx.signal)
+      ctx.signal.throwIfAborted()
       ctx.progress(PROGRESS_NORMALIZED)
 
       const durationMs = await wavDurationMs(backing)
@@ -67,6 +68,9 @@ export function importHandler(fetcher: SourceFetcher): Handler {
         .run(durationMs, Date.now(), trackId)
     }
     catch (error) {
+      // Cancelled: the cancel deletes the Track and its directory once this
+      // returns, and the child process is already gone.
+      if (ctx.signal.aborted) throw error
       // If the Track was deleted mid-run, that is the failure that surfaces —
       // there is no Track left to mark failed, so this replaces the original
       // error rather than following it.
@@ -89,7 +93,8 @@ async function fetchFromSource(
 ): Promise<string> {
   const edited = ctx.sqlite.prepare(`SELECT cover_edited FROM tracks WHERE id = ?`).get(trackId) as
     { cover_edited: number } | undefined
-  const metadata = await fetcher.fetchMetadata(url, directory, edited?.cover_edited ? { keepCover: true } : undefined)
+  const metadata = await fetcher.fetchMetadata(url, directory, { keepCover: Boolean(edited?.cover_edited), signal: ctx.signal })
+  ctx.signal.throwIfAborted()
   await ensureNotDeleted(ctx.sqlite, trackId, directory, 'import')
   // A title or cover the singer set survives a retried import.
   ctx.sqlite
@@ -115,7 +120,8 @@ async function fetchFromSource(
     }
   }
 
-  const original = await fetcher.downloadAudio(url, directory, onProgress)
+  const original = await fetcher.downloadAudio(url, directory, onProgress, ctx.signal)
+  ctx.signal.throwIfAborted()
   await ensureNotDeleted(ctx.sqlite, trackId, directory, 'import')
   ctx.progress(PROGRESS_AUDIO_ON_DISK)
   return original

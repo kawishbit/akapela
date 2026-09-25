@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { decodeWav, encodeWav } from '../../../app/audio/wav'
 import { fetchModel } from '../separators/download-model'
-import { childEnv, separateCliPath } from '../tools'
+import { childEnv, killOnAbort, separateCliPath } from '../tools'
 import type { Handler } from '../jobs-runner'
 import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir, trackExists } from './track-paths'
 
@@ -23,11 +23,16 @@ export interface Stems {
   sampleRate: number
 }
 
+export interface SeparateOptions {
+  /** Stops the model run when it aborts, killing its subprocess; the Separation is then rejected. */
+  signal?: AbortSignal
+}
+
 export interface Separator {
   /** Puts the separation model in `modelsDir`, or does nothing if it is already there. */
   fetchModel: (modelsDir: string) => Promise<void>
   /** Runs the model over the Backing Track WAV at `backingPath`. */
-  separate: (backingPath: string, modelsDir: string) => Promise<Stems>
+  separate: (backingPath: string, modelsDir: string, options?: SeparateOptions) => Promise<Stems>
 }
 
 export class MdxNetSeparator implements Separator {
@@ -37,13 +42,13 @@ export class MdxNetSeparator implements Separator {
     this.modelPath = await fetchModel(modelsDir)
   }
 
-  async separate(backingPath: string, modelsDir: string): Promise<Stems> {
+  async separate(backingPath: string, modelsDir: string, options: SeparateOptions = {}): Promise<Stems> {
     const modelPath = this.modelPath ?? await fetchModel(modelsDir)
     const scratchDir = await mkdtemp(join(tmpdir(), 'akapela-separate-'))
     const instrumentalPath = join(scratchDir, 'instrumental.wav')
     const vocalsPath = join(scratchDir, 'vocals.wav')
     try {
-      await runSeparateCli(modelPath, backingPath, instrumentalPath, vocalsPath)
+      await runSeparateCli(modelPath, backingPath, instrumentalPath, vocalsPath, options.signal)
       const instrumentalWav = decodeWav(await readFile(instrumentalPath))
       const vocalsWav = decodeWav(await readFile(vocalsPath))
       return {
@@ -63,6 +68,7 @@ function runSeparateCli(
   backingPath: string,
   instrumentalOutPath: string,
   vocalsOutPath: string,
+  signal: AbortSignal | undefined,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // `separate-cli.ts`, run as its own subprocess — CPU isolation for the
@@ -76,6 +82,7 @@ function runSeparateCli(
       [separateCliPath(), modelPath, backingPath, instrumentalOutPath, vocalsOutPath],
       { env: childEnv() },
     )
+    killOnAbort(child, signal)
     let stderr = ''
     child.stderr.on('data', d => (stderr += d))
     child.on('error', error => reject(new Error(`could not start the separation subprocess: ${error.message}`)))
@@ -157,9 +164,11 @@ async function runSeparateWith(ctx: Parameters<Handler>[0], separator: Separator
 
     const models = await modelsDir(ctx.dataDir)
     await separator.fetchModel(models)
+    ctx.signal.throwIfAborted()
     ctx.progress(PROGRESS_MODEL_READY)
 
-    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models)
+    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models, { signal: ctx.signal })
+    ctx.signal.throwIfAborted()
 
     const scratch = join(directory, SEPARATION_DIRNAME)
     await rm(scratch, { recursive: true, force: true })
@@ -177,6 +186,9 @@ async function runSeparateWith(ctx: Parameters<Handler>[0], separator: Separator
       }))
 
       await ensureNotDeleted(ctx.sqlite, trackId, directory, 'separation')
+      // The last moment a cancel can still keep the Track's existing Stems:
+      // nothing before this has touched them.
+      ctx.signal.throwIfAborted()
       await rename(instrumentalPath, join(directory, INSTRUMENTAL_STEM_FILE))
       await rename(vocalsPath, join(directory, VOCALS_STEM_FILE))
     }
@@ -191,6 +203,8 @@ async function runSeparateWith(ctx: Parameters<Handler>[0], separator: Separator
       .run(Date.now(), trackId)
   }
   catch (error) {
+    // Cancelled: the cancel puts the Track's state back once this returns.
+    if (ctx.signal.aborted) throw error
     // The job row carries the message; the Track carries the state a card
     // renders, and it is `failed` that puts the error and its retry button
     // on the Track.

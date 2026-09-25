@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve } from 'node:path'
 
 /**
@@ -106,4 +107,33 @@ export function ytDlpIsManaged(): boolean {
  */
 export function childEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extra }
+}
+
+/**
+ * Stops `child`, and whatever it started, when `signal` aborts — how a
+ * cancelled Job stops burning CPU. Every spawn a Job makes goes through this
+ * rather than `spawn`'s own `signal` option, because the standalone yt-dlp is
+ * a PyInstaller bootloader that runs the real program as a child of its own:
+ * on POSIX the bootloader forwards SIGTERM to it, and on Windows killing the
+ * bootloader alone would leave that child downloading, so the whole tree goes
+ * through `taskkill`.
+ */
+export function killOnAbort(child: ChildProcess, signal: AbortSignal | undefined): void {
+  if (!signal) return
+  const kill = () => {
+    if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+        .on('error', () => child.kill())
+    }
+    else {
+      child.kill('SIGTERM')
+    }
+  }
+  if (signal.aborted) {
+    kill()
+    return
+  }
+  signal.addEventListener('abort', kill, { once: true })
+  child.once('close', () => signal.removeEventListener('abort', kill))
 }
