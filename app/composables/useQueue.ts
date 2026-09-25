@@ -111,6 +111,14 @@ export function useQueue(options: { poll?: boolean } = {}) {
     clear: () => change(() => $fetch<unknown>('/api/queue/clear', { method: 'POST' })),
     move,
     playNext,
+    /**
+     * Drops an entry from this screen's list at once, when it has just been
+     * used up elsewhere — so Up next never offers the singer who just sang
+     * while the server catches up.
+     */
+    forget: (id: string) => {
+      entries.value = entries.value.filter(entry => entry.id !== id)
+    },
     /** Shows an entry at `index` without asking the server: what a drag does before it lets go. */
     preview: showMoved,
     rename: (entry: Pick<QueueEntryWithTrack, 'id'>, singerName: string) =>

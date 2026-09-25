@@ -321,7 +321,15 @@ let reconnectTimer: ReturnType<typeof setTimeout> | undefined
 let heartbeat: ReturnType<typeof setInterval> | undefined
 const HEARTBEAT_MS = 15_000
 
+/**
+ * Bumped by every connect attempt. The heartbeat and a failed load can both
+ * start one at once; each awaits a probe, and only the newest may go on to
+ * set a timer, or an older one would leave a heartbeat nothing can clear.
+ */
+let connection = 0
+
 function stopConnectionTimers(): void {
+  connection += 1
   if (reconnectTimer) clearTimeout(reconnectTimer)
   if (heartbeat) clearInterval(heartbeat)
   reconnectTimer = undefined
@@ -330,8 +338,10 @@ function stopConnectionTimers(): void {
 
 async function connectTo(url: string, attempt = 0, lost = false): Promise<void> {
   stopConnectionTimers()
+  const attemptId = connection
   if (!mainWindow || mainWindow.isDestroyed()) return
   const probe = await probeServer(url)
+  if (attemptId !== connection || mainWindow.isDestroyed()) return
   if (probe.state === 'akapela') {
     // Checked on every connect, reconnects included: a server that went away
     // may have come back upgraded.
@@ -341,7 +351,7 @@ async function connectTo(url: string, attempt = 0, lost = false): Promise<void> 
       return
     }
     await showApp(url)
-    watchConnection(url)
+    if (attemptId === connection) watchConnection(url)
     return
   }
   const delay = reconnectDelayMs(attempt)
@@ -352,6 +362,7 @@ async function connectTo(url: string, attempt = 0, lost = false): Promise<void> 
       : 'Nothing is answering there. The server may be off, asleep, or on another network.'
   currentOrigin = undefined
   await mainWindow.loadURL(unreachablePage(url, detail, Math.round(delay / 1000)))
+  if (attemptId !== connection) return
   reconnectTimer = setTimeout(() => { void connectTo(url, attempt + 1, lost) }, delay)
 }
 
@@ -393,6 +404,7 @@ async function onShellAction(action: ShellAction): Promise<void> {
         store.update({ server: { mode: 'local' } })
         await mainWindow?.loadURL(loadingPage())
         await startSupervised()
+        installMenu({ localLibrary: true })
       }
       else {
         restartInto({ mode: 'local' })
@@ -419,6 +431,12 @@ async function onShellAction(action: ShellAction): Promise<void> {
       await showChoice()
       return
     case 'update':
+      // The launch check may not have answered yet; asking now is what makes
+      // this the Release that fixes it, rather than a guess at the page.
+      if (!availableUpdate) {
+        const checked = await checkLatestRelease(app.getVersion())
+        if (checked.state === 'available') availableUpdate = checked.update
+      }
       await shell.openExternal(availableUpdate?.url ?? RELEASES_URL)
   }
 }
@@ -436,6 +454,25 @@ async function describeProbe(url: string): Promise<{ text: string, ok: boolean }
     return { text: `Found Akapela ${probe.version}, which is newer than this app. Update the app before connecting.`, ok: false }
   }
   return { text: `Found Akapela${probe.version ? ` ${probe.version}` : ''} at ${url}.`, ok: true }
+}
+
+/**
+ * The File menu follows where the library is: Connected there is no local
+ * folder to open or change, and before the first-launch choice there is none
+ * yet — so it is installed again once **Use this computer** starts one.
+ */
+function installMenu({ localLibrary }: { localLibrary: boolean }): void {
+  buildMenu({
+    ...(localLibrary
+      ? {
+          openLibraryFolder: () => { void shell.openPath(libraryDir()) },
+          chooseLibraryFolder: () => { void chooseLibrary() },
+        }
+      : {}),
+    // A development window follows `AKAPELA_SERVER_URL`, not a stored choice.
+    ...(mode.kind === 'attached' ? {} : { changeServer: () => { void showChoice() } }),
+    showLicenses: () => { void shell.openPath(layout.licensesDir) },
+  })
 }
 
 /** The one place the modes diverge: which Akapela the window opens, and what, if anything, is started for it. */
@@ -618,18 +655,7 @@ void app.whenReady().then(async () => {
     })
   }
 
-  buildMenu({
-    // Connected there is no local library folder to open or change.
-    ...(hasLocalLibrary && mode.kind !== 'unchosen'
-      ? {
-          openLibraryFolder: () => { void shell.openPath(libraryDir()) },
-          chooseLibraryFolder: () => { void chooseLibrary() },
-        }
-      : {}),
-    // A development window follows `AKAPELA_SERVER_URL`, not a stored choice.
-    ...(mode.kind === 'attached' ? {} : { changeServer: () => { void showChoice() } }),
-    showLicenses: () => { void shell.openPath(layout.licensesDir) },
-  })
+  installMenu({ localLibrary: hasLocalLibrary && mode.kind !== 'unchosen' })
 
   await start()
 

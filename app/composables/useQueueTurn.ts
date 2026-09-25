@@ -19,7 +19,7 @@ export interface EndedTurn {
  * `keepalive` request on `pagehide`.
  */
 export function useQueueTurn(trackId: Ref<string>, entryId: Ref<string | null>) {
-  const { entries } = useQueue()
+  const { entries, forget, refresh } = useQueue()
   const ended = useState<EndedTurn | null>('akapela-turn-ended', () => null)
 
   const entry = computed<QueueEntryWithTrack | null>(() => {
@@ -37,9 +37,13 @@ export function useQueueTurn(trackId: Ref<string>, entryId: Ref<string | null>) 
     const turn = current.value
     if (!turn || consumed) return
     consumed = true
+    forget(turn.id)
     // `keepalive` lets the request outlive a page that is closing. A 404 means
-    // another device took it out first, which is the same outcome.
-    fetch(`/api/queue/${turn.id}`, { method: 'DELETE', keepalive: true }).catch(() => {})
+    // another device took it out first, which is the same outcome. Read back
+    // afterwards, so Up next offers whoever the server says is first now.
+    fetch(`/api/queue/${turn.id}`, { method: 'DELETE', keepalive: true })
+      .catch(() => {})
+      .finally(() => void refresh())
   }
 
   onMounted(() => window.addEventListener('pagehide', consume))

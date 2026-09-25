@@ -1,3 +1,5 @@
+import type { SeparationState } from '~~/server/db/schema'
+
 /**
  * `list` with the item at `from` moved to `to`, clamped to the list the way
  * `moveQueueEntry` clamps on the server, so the order a drag shows is the
@@ -21,7 +23,7 @@ export function upNextLabel(entry: { singerName: string | null, track: { title: 
  * separate is as ready as it will be; one still separating, or whose
  * Separation failed, asks first whether to sing over the original audio.
  */
-export function entryReadiness(entry: { track: { separationState: string } }): 'ready' | 'separating' | 'failed' {
+export function entryReadiness(entry: { track: { separationState: SeparationState } }): 'ready' | 'separating' | 'failed' {
   const state = entry.track.separationState
   return state === 'separating' || state === 'failed' ? state : 'ready'
 }
