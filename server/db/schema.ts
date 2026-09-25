@@ -14,7 +14,12 @@ import type { SongProviderIds } from '../../shared/song'
 export const JOB_TYPES = ['noop', 'import', 'render', 'separate'] as const
 export type JobType = (typeof JOB_TYPES)[number]
 
-export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed'] as const
+/**
+ * `succeeded`, `failed`, and `cancelled` are terminal. `cancelled` means the
+ * singer stopped it, and whatever it was working on was put back the way it
+ * was before it was asked for (`server/lib/job-actions.ts`).
+ */
+export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const
 export type JobState = (typeof JOB_STATES)[number]
 
 /**

@@ -5,6 +5,9 @@ import { runRender } from './jobs/render'
 import { MdxNetSeparator, separateHandler } from './jobs/separate'
 import { YtDlpFetcher } from './sources'
 import type { Telemetry } from './telemetry'
+import { HEAVY_JOB_TYPE, type Lane } from './jobs'
+
+export type { Lane }
 
 /**
  * Claims queued Jobs one at a time and runs them to a terminal state, in
@@ -81,20 +84,6 @@ const NO_TELEMETRY: Telemetry = {
   recordBrowserLogs: () => {},
   flush: async () => {},
   shutdown: async () => {},
-}
-
-/**
- * One of the two lines Jobs wait in, side by side (ADR 0012): `heavy` runs
- * Separations, `light` runs everything else. Derived from the Job's type and
- * never stored, so a type added later lands in the light Lane without anyone
- * deciding it should.
- */
-export type Lane = 'heavy' | 'light'
-
-const HEAVY_JOB_TYPE: JobType = 'separate'
-
-export function laneOf(type: JobType): Lane {
-  return type === HEAVY_JOB_TYPE ? 'heavy' : 'light'
 }
 
 /** The `claimNext` filter for one Lane, or for both when a runner is given none. */

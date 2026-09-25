@@ -19,18 +19,18 @@ The cancel and retry cleanup is domain work: put it in `server/lib/jobs.ts` (or 
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A queued Separation, import, and Mix can each be cancelled, and the Job row ends `cancelled`
-- [ ] Cancelling a Separation on a Track with no Stems leaves it `none`; on a Track being re-separated it leaves it `ready` with its Stems intact
-- [ ] Cancelling an import deletes the Track, its rows, and its directory
-- [ ] Cancelling a Mix deletes the Mix row and leaves its Take alone
-- [ ] Cancelling a finished Job changes nothing and says why; cancelling a running one is refused until 03
-- [ ] Retry enqueues a new Job through the existing domain functions and leaves the failed row's error intact
-- [ ] Clear removes succeeded and cancelled Jobs, keeps a failed Job that is still the latest for its target, and removes one that has been retried
-- [ ] `GET /api/jobs` returns what a row needs without a second request per Job
-- [ ] `GET /api/jobs/busy` still answers "anything queued or running, in either Lane"
-- [ ] Tests cover each cancel path's cleanup, the clear rules, and retry leaving the old row alone
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] A queued Separation, import, and Mix can each be cancelled, and the Job row ends `cancelled`
+- [x] Cancelling a Separation on a Track with no Stems leaves it `none`; on a Track being re-separated it leaves it `ready` with its Stems intact
+- [x] Cancelling an import deletes the Track, its rows, and its directory
+- [x] Cancelling a Mix deletes the Mix row and leaves its Take alone
+- [x] Cancelling a finished Job changes nothing and says why; cancelling a running one is refused until 03
+- [x] Retry enqueues a new Job through the existing domain functions and leaves the failed row's error intact
+- [x] Clear removes succeeded and cancelled Jobs, keeps a failed Job that is still the latest for its target, and removes one that has been retried
+- [x] `GET /api/jobs` returns what a row needs without a second request per Job
+- [x] `GET /api/jobs/busy` still answers "anything queued or running, in either Lane"
+- [x] Tests cover each cancel path's cleanup, the clear rules, and retry leaving the old row alone
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

@@ -10,6 +10,10 @@ import type { BrowserLogEntry } from '../../shared/browser-log'
 import jobsPost from '../../server/api/jobs.post'
 import jobsBusyGet from '../../server/api/jobs/busy.get'
 import jobsIdGet from '../../server/api/jobs/[id].get'
+import jobsGet from '../../server/api/jobs.get'
+import jobsClearPost from '../../server/api/jobs/clear.post'
+import jobsIdCancelPost from '../../server/api/jobs/[id]/cancel.post'
+import jobsIdRetryPost from '../../server/api/jobs/[id]/retry.post'
 import tracksPost from '../../server/api/tracks.post'
 import tracksGet from '../../server/api/tracks.get'
 import tracksIdGet from '../../server/api/tracks/[id].get'
@@ -117,7 +121,11 @@ export async function createTestApi() {
   }))
   const router = createRouter()
   router.post('/api/jobs', jobsPost)
+  router.get('/api/jobs', jobsGet)
   router.get('/api/jobs/busy', jobsBusyGet)
+  router.post('/api/jobs/clear', jobsClearPost)
+  router.post('/api/jobs/:id/cancel', jobsIdCancelPost)
+  router.post('/api/jobs/:id/retry', jobsIdRetryPost)
   router.get('/api/jobs/:id', jobsIdGet)
   router.post('/api/tracks', tracksPost)
   router.get('/api/tracks', tracksGet)

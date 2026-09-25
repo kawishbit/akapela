@@ -4,6 +4,20 @@ import { JOB_TYPES, jobs, type Job, type JobType } from '../db/schema'
 import { currentTraceParent } from './request-trace'
 import type { Akapela } from './akapela'
 
+/**
+ * One of the two lines Jobs wait in, side by side (ADR 0012): `heavy` runs
+ * Separations, `light` runs everything else. Derived from the Job's type and
+ * never stored, so a type added later lands in the light Lane without anyone
+ * deciding it should.
+ */
+export type Lane = 'heavy' | 'light'
+
+export const HEAVY_JOB_TYPE: JobType = 'separate'
+
+export function laneOf(type: JobType): Lane {
+  return type === HEAVY_JOB_TYPE ? 'heavy' : 'light'
+}
+
 export function isJobType(value: unknown): value is JobType {
   return typeof value === 'string' && (JOB_TYPES as readonly string[]).includes(value)
 }

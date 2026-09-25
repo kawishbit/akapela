@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { trackDir as trackDirFor } from './jobs/track-paths'
 import {
   jobs,
@@ -423,12 +423,17 @@ export function saveLyricsOffset(akapela: Akapela, track: TrackWithJob, lyricsOf
   return { ...track, lyricsOffsetMs, updatedAt: now }
 }
 
-/** Deletes the Track's rows, its jobs, and its directory. Returns false when no such Track exists. */
-export function deleteTrack(akapela: Akapela, id: string): boolean {
+/**
+ * Deletes the Track's rows, its jobs, and its directory. Returns false when no
+ * such Track exists. `keepJobId` spares one Job row: a cancelled import deletes
+ * its Track, but the Job the singer cancelled stays until they clear it.
+ */
+export function deleteTrack(akapela: Akapela, id: string, options: { keepJobId?: string } = {}): boolean {
   const deleted = akapela.db.transaction((tx) => {
     const removed = tx.delete(tracks).where(eq(tracks.id, id)).returning({ id: tracks.id }).all()
     if (removed.length === 0) return false
-    tx.delete(jobs).where(eq(jobs.targetId, id)).run()
+    const targeting = eq(jobs.targetId, id)
+    tx.delete(jobs).where(options.keepJobId ? and(targeting, ne(jobs.id, options.keepJobId)) : targeting).run()
     return true
   })
   if (deleted) rmSync(trackDir(akapela, id), { recursive: true, force: true })
