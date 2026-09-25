@@ -1,6 +1,6 @@
 # A Connected Desktop App, and the secure-context grant it needs
 
-_Amends ADR 0009. See `ROADMAP.md`, item 3, and `.scratch/connected-desktop/`._
+_Amends ADR 0009. See `ROADMAP.md`, Done, and `.scratch/connected-desktop/`._
 
 ADR 0009 made the Desktop App a window over a server it starts itself, on loopback. That stays the default. What changes is that the shell no longer *always* wraps a server of its own: it can be **Connected**, pointed at an Akapela already running elsewhere — typically a compose install on the household server — and then it starts nothing. No server, no port, no data directory, no bundled binaries. It is a window, a title bar, the preload bridge, and the shell's own update check. First launch asks which (**Use this computer** or **Connect to a server**), and **Change server…** in the File menu asks again.
 

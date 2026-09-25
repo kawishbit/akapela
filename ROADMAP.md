@@ -9,57 +9,11 @@ Capitalised terms (Track, Job, Separation, Queue, ...) are defined in `CONTEXT.m
 - **Backup and restore** from Settings.
 - **Desktop App** (Electron), ADR 0009.
 - **Shorter README.** The README says what Akapela is, how to get it, and nothing else. Self-hosting detail lives in `docs/self-hosting.md`, fixes in `docs/troubleshooting.md`, development in `CONTRIBUTING.md`. ADRs aren't linked from the README: they're for people changing the code, not people running it.
+- **Jobs page.** `/jobs` lists every Job (imports, Separations, Mixes) with its Track, what it's doing, its state, and its progress; a Separation reports a real percentage, chunk by chunk. Cancel a queued or running Job, retry a failed one, clear finished ones. Cancelling puts the target back the way it was: a Separation's Track returns to no Stems or to the Stems it had, a cancelled import's Track is deleted, a cancelled Mix's row is deleted. Jobs run in two Lanes, heavy for Separations and light for everything else, so a Mix never waits behind a Separation (ADR 0012). A header badge counts what's queued or running, and a Library card's progress chip opens its Job's row. Spec in `.scratch/jobs-page/`.
+- **Queue.** One Queue per install, on the server, shared by every device. `/queue` adds (with an optional singer name), removes, drags to reorder, **Play next**, renames, clears, and searches the Library to add from. Singing an entry uses it up when the turn ends, and **Up next** offers whoever is first; nothing starts on its own. An entry whose Separation hasn't finished asks first: sing over the original, or leave it for now. Spec in `.scratch/queue/`.
+- **Connect the Desktop App to your server.** First launch asks **Use this computer** or **Connect to a server**; **Change Server…** in the File menu asks again. Connected, the app starts nothing of its own, never falls back to a local library, refuses a server newer than itself, and waits and reconnects when the server goes away. It grants exactly the entered origin secure-context status, so a laptop can sing from a compose install over plain `http://` (ADR 0015). `docs/self-hosting.md` says why singing needs that. One check is still open: recording a Take Connected to a real second machine, which the suite can't do. Spec in `.scratch/connected-desktop/`.
 
-## 1. Jobs page
-
-**Why first:** a Spotify playlist import creates dozens of Jobs, and today there's no single place to see them. Every later item that makes background work (faster Separation, playlist import, lyrics timing) needs this page to be observable.
-
-**Decided**
-
-- A **Jobs** page lists every Job (imports, Separations, Mixes), not only Separations: its Track, what it's doing, its state, and progress. A Separation reports a real percentage (chunks done out of total).
-- Actions: cancel a queued or running Job, retry a failed one, clear finished ones. No manual reordering for now.
-- Jobs run in two **Lanes**, side by side: a heavy Lane for Separations and a light Lane for imports and Mixes, each still one at a time. A Mix never waits behind forty Separations, and two Separations never split the CPU between them. See ADR 0012. Built.
-
-- Cancelling leaves the target as it was before the Job was asked for: a Separation's Track goes back to having no Stems, or back to the Stems it already had if it was being re-separated; a cancelled import's Track is deleted; a cancelled Mix's row is deleted. `cancelled` is a Job state, not a Track state — nothing the singer changed their mind about wears a badge.
-- A Library card's progress chip links to its row on the Jobs page.
-
-Specced, with tickets, in `.scratch/jobs-page/`.
-
-## 2. Queue
-
-Karaoke runs on a list of who sings next. Today there's only the Library.
-
-**Decided**
-
-- One **Queue** per install, stored on the server. Every device in the house sees and adds to the same Queue; the Desktop App has the same thing.
-- A **Queue Entry** is a Track plus an optional singer name (free text; there are no accounts). The same Track can be queued more than once.
-- Actions: add, remove, drag to reorder, clear, **Play next** (move to the top).
-- When a Take finishes, or the singer leaves the Sing screen, the entry is removed and an **Up next** prompt offers the next one. Nothing starts on its own.
-- A Track whose Separation hasn't finished can still be queued. Its entry shows the Separation's progress. If it reaches the top before it's ready, the singer chooses between singing over the original audio and skipping it for now.
-
-- A **Queue** page at `/queue`, reached from a header link with a count, the way the Jobs page is. It carries its own empty state; the home screen stays the Library, unchanged.
-- Every device sees the full app. There is no lighter "add a song" view: `/queue` with its own Library search *is* that view, and with no accounts there is no host-and-guest split to hang one off.
-
-Specced, with tickets, in `.scratch/queue/`.
-
-## 3. Connect the Desktop App to your server
-
-The Desktop App starts its own server and owns its own library (ADR 0009). A household that already runs Akapela on a server has no way to point a laptop at it, so a second machine means a second, separate library.
-
-It matters more than convenience: singing needs `getUserMedia` and an AudioWorklet, which need a secure context. `http://localhost` is one; `http://192.168.1.20:3000` is not. So today a compose install can be browsed and queued from any device in the house, but can only be *sung* on the server machine itself, unless the self-hoster puts HTTPS in front of it. A Desktop App can grant that one origin secure-context status, which a browser cannot — so this is the supported way to sing from a second machine.
-
-**Decided**
-
-- First launch asks once: **Use this computer** or **Connect to a server**, with a URL and a connection test. Changeable later from the shell's menu. It is the attached-server path `AKAPELA_SERVER_URL` already uses for development, promoted to a stored setting.
-- In Connected mode the shell starts nothing of its own: no data directory, no bundled binaries, no server process. No local fallback — silently swapping in a different, empty library is the worst failure available.
-- The secure-context grant is scoped to exactly the entered origin, and skipped when it is already `https://`. An ADR amends 0009 for it: a flag with "unsafely" in its name needs its reasoning written down.
-- The shell refuses a server **newer** than itself and offers the Update, since the served app can expect a bridge the shell does not have. An older server is the safe direction and says nothing.
-- Any URL is accepted. Akapela has no accounts, so the docs and the connect screen say plainly that it belongs on a LAN or behind a VPN; refusing public addresses would break Tailscale and imply a security model the app does not have.
-- `docs/self-hosting.md` gains the secure-context note, which is true today and written nowhere.
-
-Specced, with tickets, in `.scratch/connected-desktop/`.
-
-## 4. Faster Separation
+## 1. Faster Separation
 
 A Separation takes minutes per song on the 2-CPU default Docker allotment. Most people run Akapela with Docker, so this has to get faster there first, not only in the Desktop App.
 
@@ -81,7 +35,7 @@ Separation always runs on the machine hosting Akapela, never in the browser (ADR
 
 - AMD (ROCm) and Intel (OpenVINO) on Linux. Each would need its own image.
 
-## 5. Spotify playlist import
+## 2. Spotify playlist import
 
 Paste a Spotify playlist link; Akapela lists its songs, finds each one on YouTube, imports it, and separates it. Progress is visible on the Jobs page and in the Library.
 
@@ -104,7 +58,7 @@ Paste a Spotify playlist link; Akapela lists its songs, finds each one on YouTub
 
 On what's known today, (b) and (c) can't import the playlists people most want to sing through, so (a) is the likely route and (b)/(c) only a fallback for one's own playlists.
 
-## 6. More languages
+## 3. More languages
 
 **Decided** (ADR 0014)
 
@@ -117,7 +71,7 @@ On what's known today, (b) and (c) can't import the playlists people most want t
 
 - Which language comes after English.
 
-## 7. Automatic lyrics timing (Auto Lyrics Offset)
+## 4. Automatic lyrics timing (Auto Lyrics Offset)
 
 Synced Lyrics from LRCLIB are timed against the studio recording. A YouTube upload with a longer intro drifts by a constant amount, which the singer fixes today by hand with the Lyrics Offset.
 
@@ -130,9 +84,9 @@ Synced Lyrics from LRCLIB are timed against the studio recording. A YouTube uplo
 
 **Open**
 
-- Whether a constant offset is enough, or a speed factor is needed as well, for live versions and sped-up uploads. Only if item 8 doesn't already cover it.
+- Whether a constant offset is enough, or a speed factor is needed as well, for live versions and sped-up uploads. Only if item 5 doesn't already cover it.
 
-## 8. Lyrics syncing for unsynced lyrics (research)
+## 5. Lyrics syncing for unsynced lyrics (research)
 
 Genius and pasted Lyrics are Plain: no timing, so nothing scrolls. The goal is to line known text up against the Vocals Stem, line by line and possibly word by word. This is alignment, not transcription: Akapela never writes Lyrics from nothing.
 

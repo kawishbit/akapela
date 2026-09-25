@@ -1,6 +1,6 @@
 # Jobs run in two Lanes: heavy and light
 
-_Built: `server/plugins/jobs-runner.ts` starts one `JobsRunner` per Lane. See `ROADMAP.md`, item 1._
+_Built: `server/plugins/jobs-runner.ts` starts one `JobsRunner` per Lane. See `ROADMAP.md`, Done (Jobs page)._
 
 Jobs have run one at a time, in creation order, since ADR 0002. That was fine while a Job was one import or one Mix. Spotify playlist import changes the shape: forty Separations queued at once is a few hours of work, and under a single line a singer who finishes a Take and asks for its Mix waits behind all of it.
 
@@ -14,5 +14,5 @@ Jobs now run in two **Lanes**, side by side. The heavy Lane runs Separations; th
 ## Consequences
 
 - A light Job now runs while a Separation holds the CPU, so it's slower than it would be alone. Imports are mostly waiting on the network and a Mix takes seconds, so this is accepted.
-- A future GPU-backed heavy Lane doesn't change the shape: still one Separation at a time, with batching inside it (`ROADMAP.md`, item 4).
+- A future GPU-backed heavy Lane doesn't change the shape: still one Separation at a time, with batching inside it (`ROADMAP.md`, item 1).
 - "Jobs run one at a time" in `CONTEXT.md` becomes "one at a time per Lane". ADR 0002's SQLite queue stands; only its one-line rule changes.

@@ -1,6 +1,6 @@
 # Separation always runs on the server, never in the browser
 
-_Decided, not yet built as far as acceleration goes. See `ROADMAP.md`, item 4._
+_Decided, not yet built as far as acceleration goes. See `ROADMAP.md`, item 1._
 
 Most people run Akapela with Docker on a small machine, so Separation is slow exactly where it's used most. One way around that would be to run the model in the singer's browser, with ONNX Runtime Web and WebGPU, on the laptop's GPU, and upload the Stems. We're not doing that. Separation stays a server Job, and speeding it up happens on the server: faster CPU code first, then an opt-in GPU image for Docker and GPU support in the Desktop App.
 
