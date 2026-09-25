@@ -15,6 +15,9 @@ import queueGet from '../../server/api/queue.get'
 import queuePost from '../../server/api/queue.post'
 import queueClearPost from '../../server/api/queue/clear.post'
 import queueIdDelete from '../../server/api/queue/[id].delete'
+import queueIdPatch from '../../server/api/queue/[id].patch'
+import queueIdMovePost from '../../server/api/queue/[id]/move.post'
+import queueIdPlayNextPost from '../../server/api/queue/[id]/play-next.post'
 import jobsClearPost from '../../server/api/jobs/clear.post'
 import jobsIdCancelPost from '../../server/api/jobs/[id]/cancel.post'
 import jobsIdRetryPost from '../../server/api/jobs/[id]/retry.post'
@@ -134,6 +137,9 @@ export async function createTestApi() {
   router.post('/api/queue', queuePost)
   router.post('/api/queue/clear', queueClearPost)
   router.delete('/api/queue/:id', queueIdDelete)
+  router.patch('/api/queue/:id', queueIdPatch)
+  router.post('/api/queue/:id/move', queueIdMovePost)
+  router.post('/api/queue/:id/play-next', queueIdPlayNextPost)
   router.get('/api/jobs/:id', jobsIdGet)
   router.post('/api/tracks', tracksPost)
   router.get('/api/tracks', tracksGet)

@@ -141,3 +141,35 @@ export function clearQueue(akapela: Akapela): number {
 export function queueCountForTrack(akapela: Akapela, trackId: string): number {
   return akapela.sqlite.prepare(`SELECT count(*) FROM queue_entries WHERE track_id = ?`).pluck().get(trackId) as number
 }
+
+/**
+ * Moves an entry to `index` (clamped to the Queue) and rewrites every
+ * position in one transaction, so the order is never half-applied. Two
+ * devices moving at once is last-write-wins, never a corrupt order. Returns
+ * false when the entry is gone.
+ */
+export function moveQueueEntry(akapela: Akapela, id: string, index: number): boolean {
+  return akapela.sqlite.transaction(() => {
+    const order = currentOrder(akapela)
+    const from = order.indexOf(id)
+    if (from === -1) return false
+    order.splice(from, 1)
+    const to = Math.max(0, Math.min(order.length, Math.trunc(index)))
+    order.splice(to, 0, id)
+    renumber(akapela, order)
+    return true
+  }).immediate()
+}
+
+/** Changes who is singing an entry; blank clears it. Returns the entry, or undefined when it is gone. */
+export function renameQueueEntry(
+  akapela: Akapela,
+  id: string,
+  singerName: string | null | undefined,
+): QueueEntryWithTrack | undefined {
+  const changed = akapela.sqlite
+    .prepare(`UPDATE queue_entries SET singer_name = ? WHERE id = ?`)
+    .run(normalizeSingerName(singerName), id)
+    .changes
+  return changed ? getQueueEntry(akapela, id) : undefined
+}

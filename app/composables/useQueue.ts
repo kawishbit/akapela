@@ -1,4 +1,5 @@
 import type { QueueEntryWithTrack } from '~~/server/lib/queue'
+import { moveItem } from '~/utils/queue'
 
 const POLL_MS = 3000
 
@@ -76,6 +77,26 @@ export function useQueue(options: { poll?: boolean } = {}) {
     }
   }
 
+  /**
+   * Shows the new order at once and then asks the server, whose answer the
+   * refresh brings back — the same order, unless another device moved
+   * something in between, in which case theirs wins and this screen follows.
+   */
+  async function move(entry: Pick<QueueEntryWithTrack, 'id'>, index: number) {
+    showMoved(entry, index)
+    await change(() => $fetch<unknown>(`/api/queue/${entry.id}/move`, { method: 'POST', body: { index } }))
+  }
+
+  async function playNext(entry: Pick<QueueEntryWithTrack, 'id'>) {
+    showMoved(entry, 0)
+    await change(() => $fetch<unknown>(`/api/queue/${entry.id}/play-next`, { method: 'POST' }))
+  }
+
+  function showMoved(entry: Pick<QueueEntryWithTrack, 'id'>, index: number) {
+    const from = entries.value.findIndex(candidate => candidate.id === entry.id)
+    entries.value = moveItem(entries.value, from, index)
+  }
+
   return {
     entries: computed(() => entries.value),
     loaded: computed(() => loaded.value),
@@ -88,5 +109,11 @@ export function useQueue(options: { poll?: boolean } = {}) {
     remove: (entry: Pick<QueueEntryWithTrack, 'id'>) =>
       change(() => $fetch<unknown>(`/api/queue/${entry.id}`, { method: 'DELETE' })),
     clear: () => change(() => $fetch<unknown>('/api/queue/clear', { method: 'POST' })),
+    move,
+    playNext,
+    /** Shows an entry at `index` without asking the server: what a drag does before it lets go. */
+    preview: showMoved,
+    rename: (entry: Pick<QueueEntryWithTrack, 'id'>, singerName: string) =>
+      change(() => $fetch<unknown>(`/api/queue/${entry.id}`, { method: 'PATCH', body: { singerName } })),
   }
 }

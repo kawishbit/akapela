@@ -148,3 +148,106 @@ describe('the Queue', () => {
     expect((await (await add(track.id)).json()).position).toBe(0)
   })
 })
+
+describe('changing an entry in place', () => {
+  const move = (id: string, index: unknown) => api.post(`/api/queue/${id}/move`, { index })
+  const playNext = (id: string) => api.post(`/api/queue/${id}/play-next`, {})
+  const rename = (id: string, singerName: unknown) =>
+    fetch(`${api.baseUrl}/api/queue/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ singerName }),
+    })
+
+  async function queueOf(names: string[]): Promise<Record<string, string>> {
+    const track = await importedTrack()
+    const ids: Record<string, string> = {}
+    for (const name of names) ids[name] = (await (await add(track.id, name)).json()).id
+    return ids
+  }
+
+  const order = async () => (await queue()).map(entry => entry.singerName)
+  const positions = async () => (await queue()).map(entry => entry.position)
+
+  test('moves the first entry to last and back again', async () => {
+    const ids = await queueOf(['A', 'B', 'C', 'D'])
+
+    expect((await move(ids.A!, 3)).status).toBe(200)
+    expect(await order()).toEqual(['B', 'C', 'D', 'A'])
+    expect(await positions()).toEqual([0, 1, 2, 3])
+
+    await move(ids.A!, 0)
+    expect(await order()).toEqual(['A', 'B', 'C', 'D'])
+  })
+
+  test('moves an entry into the middle, and clamps an index past either end', async () => {
+    const ids = await queueOf(['A', 'B', 'C', 'D'])
+
+    await move(ids.D!, 1)
+    expect(await order()).toEqual(['A', 'D', 'B', 'C'])
+
+    await move(ids.A!, 99)
+    expect(await order()).toEqual(['D', 'B', 'C', 'A'])
+
+    await move(ids.C!, -5)
+    expect(await order()).toEqual(['C', 'D', 'B', 'A'])
+  })
+
+  test('keeps a contiguous order with no duplicates after a hundred random moves', async () => {
+    const names = ['A', 'B', 'C', 'D', 'E', 'F']
+    const ids = await queueOf(names)
+    let seed = 7
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+
+    for (let i = 0; i < 100; i++) {
+      const name = names[Math.floor(random() * names.length)]!
+      await move(ids[name]!, Math.floor(random() * names.length))
+    }
+
+    expect(await positions()).toEqual([0, 1, 2, 3, 4, 5])
+    expect([...(await order())].sort()).toEqual(names)
+  })
+
+  test('two moves at once leave a sane order', async () => {
+    const ids = await queueOf(['A', 'B', 'C', 'D'])
+
+    await Promise.all([move(ids.A!, 3), move(ids.D!, 0), playNext(ids.C!)])
+
+    expect(await positions()).toEqual([0, 1, 2, 3])
+    expect([...(await order())].sort()).toEqual(['A', 'B', 'C', 'D'])
+  })
+
+  test('refuses a move without a whole-number index', async () => {
+    const ids = await queueOf(['A', 'B'])
+
+    expect((await move(ids.A!, 'last')).status).toBe(400)
+    expect((await move(ids.A!, 1.5)).status).toBe(400)
+  })
+
+  test('Play next moves an entry to the top', async () => {
+    const ids = await queueOf(['A', 'B', 'C'])
+
+    expect((await playNext(ids.C!)).status).toBe(200)
+
+    expect(await order()).toEqual(['C', 'A', 'B'])
+  })
+
+  test('renames an entry, and clears a name back to none', async () => {
+    const ids = await queueOf(['Sra'])
+
+    expect((await (await rename(ids.Sra!, ' Sara ')).json()).singerName).toBe('Sara')
+    expect(await order()).toEqual(['Sara'])
+
+    await rename(ids.Sra!, '')
+    expect(await order()).toEqual([null])
+  })
+
+  test('moving, promoting, or renaming an entry that is gone is a 404', async () => {
+    const ids = await queueOf(['A'])
+    await api.del(`/api/queue/${ids.A}`)
+
+    expect((await move(ids.A!, 0)).status).toBe(404)
+    expect((await playNext(ids.A!)).status).toBe(404)
+    expect((await rename(ids.A!, 'B')).status).toBe(404)
+  })
+})
