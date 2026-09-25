@@ -20,16 +20,16 @@ English strings, in the style of the rest of the app; localisation is `ROADMAP.m
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `/jobs` lists every Job in the three sections, with Track title and cover, what it is doing, state, and progress
-- [ ] A Separation shows a percentage; other types show their own progress honestly
-- [ ] A Mix row identifies its Take
-- [ ] Cancel appears on queued and running rows, Retry on failed ones, and each does what ticket 02 defined
-- [ ] Clear finished removes what ticket 02 says it removes, and leaves an unretried failure in place
-- [ ] Polling runs only while something is active and stops when the page goes idle or unmounts
-- [ ] The empty state appears when there are no Jobs at all
-- [ ] Works at phone width with no horizontal scroll; keyboard reachable actions; both themes
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] `/jobs` lists every Job in the three sections, with Track title and cover, what it is doing, state, and progress
+- [x] A Separation shows a percentage; other types show their own progress honestly
+- [x] A Mix row identifies its Take
+- [x] Cancel appears on queued and running rows, Retry on failed ones, and each does what ticket 02 defined
+- [x] Clear finished removes what ticket 02 says it removes, and leaves an unretried failure in place
+- [x] Polling runs only while something is active and stops when the page goes idle or unmounts
+- [x] The empty state appears when there are no Jobs at all
+- [x] Works at phone width with no horizontal scroll; keyboard reachable actions; both themes
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
