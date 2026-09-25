@@ -19,7 +19,7 @@ Node 24 strips types, so it runs under plain `node` with no new dependency.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `pnpm icons:generate` writes `public/logo.svg`, the favicon, the
       apple-touch icon, the PWA set and `logos/logo.png`, and running it twice

@@ -17,7 +17,7 @@ suite covers, not buried in window construction (ADR 0009).
 
 **Blocked by:** 01 (the generator is where the icon comes from)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] `pnpm icons:generate` writes a 1024 × 1024 full-bleed desktop icon, and
       running it twice leaves the working tree clean
@@ -31,3 +31,5 @@ suite covers, not buried in window construction (ADR 0009).
       `desktop/`
 
 ## Comments
+
+The code landed in 9122534 (`feat(icons): regenerate every icon from the one mark`). What is unchecked above can only be seen in a packaged installer, which is a person's check.
