@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronsUp, GripVertical, Mic2, Pencil, Trash2 } from 'lucide-vue-next'
+import { ChevronsUp, GripVertical, Loader2, Mic2, Pencil, Trash2, XCircle } from 'lucide-vue-next'
 import type { QueueEntryWithTrack } from '~~/server/lib/queue'
 
 /**
@@ -102,6 +102,22 @@ function finishEditing(save: boolean) {
       </p>
       <p class="truncate text-sm text-text-muted">
         {{ entry.track.artist ?? 'Unknown artist' }}
+      </p>
+      <!-- Queued before its Stems exist: honest about it, without blocking
+           anyone. The same percentage the Jobs page shows. -->
+      <p
+        v-if="entry.track.separationState === 'separating'"
+        class="flex items-center gap-1.5 text-xs font-bold text-text-muted"
+      >
+        <Loader2 class="size-3 shrink-0 animate-spin text-accent" />
+        Separating {{ entry.track.separationProgress ?? 0 }}%
+      </p>
+      <p
+        v-else-if="entry.track.separationState === 'failed'"
+        class="flex items-center gap-1.5 text-xs font-bold text-negative"
+      >
+        <XCircle class="size-3 shrink-0" />
+        Separation failed
       </p>
       <input
         v-if="editing"

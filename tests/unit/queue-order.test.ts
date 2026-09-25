@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { moveItem, upNextLabel } from '../../app/utils/queue'
+import { entryReadiness, moveItem, upNextLabel } from '../../app/utils/queue'
 
 describe('moveItem', () => {
   test('moves an item to a new index, leaving the original untouched', () => {
@@ -29,5 +29,19 @@ describe('upNextLabel', () => {
 
   test('names just the Track when nobody gave a name', () => {
     expect(upNextLabel({ singerName: null, track: { title: 'Creep' } })).toBe('Creep')
+  })
+})
+
+describe('entryReadiness', () => {
+  const entry = (separationState: 'none' | 'separating' | 'ready' | 'failed') => ({ track: { separationState } })
+
+  test('goes straight to Sing for a Track that was never separated or has finished', () => {
+    expect(entryReadiness(entry('none'))).toBe('ready')
+    expect(entryReadiness(entry('ready'))).toBe('ready')
+  })
+
+  test('asks first while a Separation runs, and after one failed', () => {
+    expect(entryReadiness(entry('separating'))).toBe('separating')
+    expect(entryReadiness(entry('failed'))).toBe('failed')
   })
 })

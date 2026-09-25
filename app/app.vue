@@ -43,5 +43,6 @@ useHead(() => ({
     <PlayerBar v-if="showPlayerBar" />
     <UpdatePrompt />
     <AddToQueueDialog />
+    <SingChoiceDialog />
   </div>
 </template>

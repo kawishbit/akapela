@@ -13,16 +13,16 @@ Once the Separation finishes, the row loses its progress and its choice on the n
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A separating entry shows its progress, and the number agrees with the Library card's
-- [ ] Its Sing offers Sing over the original and Leave it for now
-- [ ] Sing over the original opens the Sing screen using the original audio, and the Take records what was actually sung over
-- [ ] Leave it for now moves the entry down exactly one place and never removes it
-- [ ] Leave it for now on the last entry is a no-op rather than an error
-- [ ] A failed Separation offers the same choice, worded for the failure, with a way to retry
-- [ ] A ready Track's Sing goes straight through with no extra dialog
-- [ ] A Separation finishing while the page is open clears the progress and the choice on the next poll
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] A separating entry shows its progress, and the number agrees with the Library card's
+- [x] Its Sing offers Sing over the original and Leave it for now
+- [x] Sing over the original opens the Sing screen using the original audio, and the Take records what was actually sung over
+- [x] Leave it for now moves the entry down exactly one place and never removes it
+- [x] Leave it for now on the last entry is a no-op rather than an error
+- [x] A failed Separation offers the same choice, worded for the failure, with a way to retry
+- [x] A ready Track's Sing goes straight through with no extra dialog
+- [x] A Separation finishing while the page is open clears the progress and the choice on the next poll
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

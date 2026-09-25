@@ -37,6 +37,8 @@ async function onSing() {
     await refresh()
     const now = first.value
     if (now?.id !== offered.id) return
+    // A choice about Stems that are not there yet ends the offer too: it is
+    // made in the dialog, and Leave it for now moves this entry down.
     ended.value = null
     await sing(now)
   }

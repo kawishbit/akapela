@@ -15,3 +15,13 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
 export function upNextLabel(entry: { singerName: string | null, track: { title: string } }): string {
   return entry.singerName ? `${entry.singerName} — ${entry.track.title}` : entry.track.title
 }
+
+/**
+ * Whether an entry can go straight to its Sing screen. A Track never asked to
+ * separate is as ready as it will be; one still separating, or whose
+ * Separation failed, asks first whether to sing over the original audio.
+ */
+export function entryReadiness(entry: { track: { separationState: string } }): 'ready' | 'separating' | 'failed' {
+  const state = entry.track.separationState
+  return state === 'separating' || state === 'failed' ? state : 'ready'
+}
