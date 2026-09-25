@@ -102,6 +102,10 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
     </section>
 
     <template v-else-if="track">
+      <UpNextPrompt
+        :track-id="track.id"
+        :recorded="false"
+      />
       <header class="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end">
         <div class="relative mx-auto w-full max-w-64 shrink-0 sm:mx-0 sm:w-56">
           <img

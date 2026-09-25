@@ -48,6 +48,10 @@ _Avoid_: Playlist, setlist, Job queue (that is Jobs)
 One place in the Queue: a Track, and optionally the name of who will sing it. The same Track can have several.
 _Avoid_: Request, slot, item
 
+**Up next**:
+The prompt that offers the Queue's first Queue Entry when a turn at singing ends — on Review after a Take, or on the Track page after leaving the Sing screen without recording. It only offers: the singer chooses Sing or Not now, and nothing starts on its own. The prompt, not the entry it names.
+_Avoid_: Next song, autoplay, now playing
+
 ### Lyrics
 
 **Lyrics**:

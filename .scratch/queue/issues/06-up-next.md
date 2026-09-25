@@ -13,16 +13,16 @@ Add **Up next** to `CONTEXT.md`: the prompt offering the Queue's first entry whe
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] After a Take, the Review screen offers the Queue's first entry with Sing and Not now
-- [ ] Leaving the Sing screen without recording shows the same prompt on the Track page
-- [ ] Sing opens that entry's Sing screen; Not now leaves the Queue untouched
-- [ ] Nothing starts playing or recording on its own, under any timing
-- [ ] With an empty Queue, no prompt appears anywhere
-- [ ] The prompt handles an entry with no singer name
-- [ ] An entry removed by another device between the poll and the tap fails gracefully, offering the new first entry
-- [ ] `CONTEXT.md` defines **Up next**
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] After a Take, the Review screen offers the Queue's first entry with Sing and Not now
+- [x] Leaving the Sing screen without recording shows the same prompt on the Track page
+- [x] Sing opens that entry's Sing screen; Not now leaves the Queue untouched
+- [x] Nothing starts playing or recording on its own, under any timing
+- [x] With an empty Queue, no prompt appears anywhere
+- [x] The prompt handles an entry with no singer name
+- [x] An entry removed by another device between the poll and the tap fails gracefully, offering the new first entry
+- [x] `CONTEXT.md` defines **Up next**
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

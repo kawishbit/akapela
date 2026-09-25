@@ -10,3 +10,8 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
   next.splice(Math.max(0, Math.min(next.length, to)), 0, item!)
   return next
 }
+
+/** What Up next says about an entry: "Sara — Creep", or just "Creep" when nobody gave a name. */
+export function upNextLabel(entry: { singerName: string | null, track: { title: string } }): string {
+  return entry.singerName ? `${entry.singerName} — ${entry.track.title}` : entry.track.title
+}

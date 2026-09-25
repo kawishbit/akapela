@@ -279,6 +279,10 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
     </section>
 
     <template v-else-if="track && take">
+      <UpNextPrompt
+        :track-id="track.id"
+        :recorded="true"
+      />
       <header class="mb-6">
         <p class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
           Review Take

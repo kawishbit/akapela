@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { moveItem } from '../../app/utils/queue'
+import { moveItem, upNextLabel } from '../../app/utils/queue'
 
 describe('moveItem', () => {
   test('moves an item to a new index, leaving the original untouched', () => {
@@ -19,5 +19,15 @@ describe('moveItem', () => {
   test('returns the same order for a move to where it already is, or of nothing', () => {
     expect(moveItem(['A', 'B'], 1, 1)).toEqual(['A', 'B'])
     expect(moveItem(['A', 'B'], 5, 0)).toEqual(['A', 'B'])
+  })
+})
+
+describe('upNextLabel', () => {
+  test('names the singer and the Track', () => {
+    expect(upNextLabel({ singerName: 'Sara', track: { title: 'Creep' } })).toBe('Sara — Creep')
+  })
+
+  test('names just the Track when nobody gave a name', () => {
+    expect(upNextLabel({ singerName: null, track: { title: 'Creep' } })).toBe('Creep')
   })
 })

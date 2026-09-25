@@ -6,6 +6,8 @@ useHead({ title: 'Queue · Akapela' })
 
 const { entries, loaded, error, count, holding, remove, clear, move, playNext, rename, preview } = useQueue({ poll: true })
 
+const { sing } = useSingEntry()
+
 const busyId = ref<string | null>(null)
 const actionError = ref<string | null>(null)
 const confirmingClear = ref(false)
@@ -86,11 +88,6 @@ function onDragStart(entry: QueueEntryWithTrack, event: PointerEvent) {
   handle.addEventListener('pointermove', onMove)
   handle.addEventListener('pointerup', onEnd)
   handle.addEventListener('pointercancel', onEnd)
-}
-
-/** Sings an entry: its Track's Sing screen, carrying the entry so the turn uses it up. */
-function sing(entry: QueueEntryWithTrack) {
-  return navigateTo(`/tracks/${entry.trackId}/sing?entry=${encodeURIComponent(entry.id)}`)
 }
 
 async function onClear() {
