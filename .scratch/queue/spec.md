@@ -12,7 +12,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | - | ------ | ------ | ---------- |
 | 01 | [The Queue table and its API](issues/01-queue-table-and-api.md) | done | — |
 | 02 | [The Queue page](issues/02-the-queue-page.md) | done | 01 |
-| 03 | [Add to queue, with the singer's name](issues/03-add-to-queue.md) | ready-for-agent | 01 |
+| 03 | [Add to queue, with the singer's name](issues/03-add-to-queue.md) | done | 01 |
 | 04 | [Reorder, Play next, rename](issues/04-reorder-and-play-next.md) | ready-for-agent | 02 |
 | 05 | [Singing an entry](issues/05-singing-an-entry.md) | ready-for-agent | 02 |
 | 06 | [Up next](issues/06-up-next.md) | ready-for-agent | 05 |

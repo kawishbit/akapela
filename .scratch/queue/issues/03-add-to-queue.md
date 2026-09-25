@@ -10,15 +10,15 @@ Follow `ConfirmDialog.vue`'s existing shape for focus handling and Escape, rathe
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Every Library card and the Track page can add to the Queue
-- [ ] The dialog's name field is optional; Enter adds with the name, Escape adds without it
-- [ ] The field is empty on every open, and focused on open
-- [ ] Adding does not navigate away, and the header count reflects it immediately
-- [ ] A Track that is still importing offers no add; one that is separating does
-- [ ] Adding the same Track twice makes two entries
-- [ ] Keyboard and screen-reader behaviour matches the existing dialog
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Every Library card and the Track page can add to the Queue
+- [x] The dialog's name field is optional; Enter adds with the name, Escape adds without it
+- [x] The field is empty on every open, and focused on open
+- [x] Adding does not navigate away, and the header count reflects it immediately
+- [x] A Track that is still importing offers no add; one that is separating does
+- [x] Adding the same Track twice makes two entries
+- [x] Keyboard and screen-reader behaviour matches the existing dialog
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

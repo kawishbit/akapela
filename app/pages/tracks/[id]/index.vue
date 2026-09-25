@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Loader2, Mic2, Pause, Pencil, Play, XCircle } from 'lucide-vue-next'
+import { ArrowLeft, ListPlus, Loader2, Mic2, Pause, Pencil, Play, XCircle } from 'lucide-vue-next'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -9,6 +9,7 @@ const playerState = player.state
 const POLL_MS = 1000
 
 const { track, error, notFound, refresh } = useTrackDetail(id)
+const { ask: askToQueue } = useAddToQueue()
 
 // Keep the page current while the worker is still importing, separating, or
 // rendering a Mix.
@@ -186,6 +187,15 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
               <Mic2 class="size-4" />
               Sing
             </NuxtLink>
+            <button
+              v-if="track.importState === 'ready'"
+              type="button"
+              class="inline-flex h-12 items-center gap-2 rounded-pill border border-border-light px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:border-text"
+              @click="askToQueue(track)"
+            >
+              <ListPlus class="size-4" />
+              Add to queue
+            </button>
             <button
               v-if="track.importState === 'failed'"
               type="button"

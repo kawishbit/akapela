@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AudioLines, Loader2, RotateCcw, Trash2, XCircle } from 'lucide-vue-next'
+import { AudioLines, ListPlus, Loader2, RotateCcw, Trash2, XCircle } from 'lucide-vue-next'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 
 const props = defineProps<{ track: TrackWithJob }>()
@@ -18,6 +18,10 @@ const importLabel = computed(() => {
 })
 
 const failure = computed(() => errorSummary(props.track.job?.error))
+
+// A separating Track can be queued; its entry says how far along it is. One
+// still importing cannot be sung at all.
+const { ask: askToQueue } = useAddToQueue()
 
 /** A Job's own row on the Jobs page, which highlights it on arrival. */
 function jobLink(jobId: string | null | undefined): string {
@@ -126,6 +130,17 @@ function jobLink(jobId: string | null | undefined): string {
         </button>
       </div>
     </div>
+
+    <button
+      v-if="track.importState === 'ready'"
+      type="button"
+      class="absolute right-16 top-4 flex size-10 items-center justify-center rounded-full bg-black/60 text-white shadow-[var(--shadow-medium)] transition hover:bg-black/80 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+      :aria-label="`Add ${track.title} to the Queue`"
+      title="Add to queue"
+      @click="askToQueue(track)"
+    >
+      <ListPlus class="size-4" />
+    </button>
 
     <button
       type="button"

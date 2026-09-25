@@ -12,6 +12,18 @@ const { isDesktop } = useDesktop()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const pendingDelete = ref<TrackWithJob | null>(null)
+
+// Deleting a Track takes its Queue Entries with it; say so, so it is not a
+// surprise mid-party.
+const { entries: queueEntries } = useQueue()
+const deleteMessage = computed(() => {
+  const track = pendingDelete.value
+  if (!track) return ''
+  const queued = queueEntries.value.filter(entry => entry.trackId === track.id).length
+  const times = queued === 1 ? '' : queued === 2 ? ' twice' : ` ${queued} times`
+  const queue = queued ? ` It's in the Queue${times}, and will come off it.` : ''
+  return `“${track.title}” and every file under it will be removed. This cannot be undone.${queue}`
+})
 const deleting = ref(false)
 const actionError = ref<string | null>(null)
 
@@ -361,7 +373,7 @@ async function onRetry(track: TrackWithJob) {
     <ConfirmDialog
       :open="pendingDelete !== null"
       title="Delete this Track?"
-      :message="pendingDelete ? `“${pendingDelete.title}” and every file under it will be removed. This cannot be undone.` : ''"
+      :message="deleteMessage"
       confirm-label="Delete"
       :busy="deleting"
       @confirm="confirmDelete"
