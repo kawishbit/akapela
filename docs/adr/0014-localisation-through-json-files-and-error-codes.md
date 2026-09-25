@@ -1,6 +1,6 @@
 # Localisation through one JSON file per language, and error codes from the server
 
-_Decided, not yet built. See `ROADMAP.md`, item 5._
+_Decided, not yet built. See `ROADMAP.md`, item 6._
 
 Every user-facing string moves into `@nuxtjs/i18n` locale files, one JSON file per language, loaded only when that language is in use, so adding a language means adding a file and nothing else. The browser's language is the default and Settings can override it.
 

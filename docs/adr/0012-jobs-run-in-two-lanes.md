@@ -14,5 +14,5 @@ Jobs now run in two **Lanes**, side by side. The heavy Lane runs Separations; th
 ## Consequences
 
 - A light Job now runs while a Separation holds the CPU, so it's slower than it would be alone. Imports are mostly waiting on the network and a Mix takes seconds, so this is accepted.
-- A future GPU-backed heavy Lane doesn't change the shape: still one Separation at a time, with batching inside it (`ROADMAP.md`, item 3).
+- A future GPU-backed heavy Lane doesn't change the shape: still one Separation at a time, with batching inside it (`ROADMAP.md`, item 4).
 - "Jobs run one at a time" in `CONTEXT.md` becomes "one at a time per Lane". ADR 0002's SQLite queue stands; only its one-line rule changes.
