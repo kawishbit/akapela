@@ -16,15 +16,19 @@ Verify it end to end against a real second machine: import, sing a Take with mon
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] Connected over `http://` to a LAN address, recording a Take works: the mic prompt appears and the AudioWorklet engines start
-- [ ] The grant names exactly the one origin; no wildcard and no second host
+- [x] The grant names exactly the one origin; no wildcard and no second host
 - [ ] An `https://` server gets no grant and still works
-- [ ] **Use this computer** mode passes no such switch at all
-- [ ] The granted origin is derived from ticket 01's normalisation, with a test proving they agree
+- [x] **Use this computer** mode passes no such switch at all
+- [x] The granted origin is derived from ticket 01's normalisation, with a test proving they agree
 - [ ] Monitoring, latency compensation, and a Mix all work Connected, not just playback
-- [ ] An ADR amends 0009 with the reasoning, the cost, and the rejected alternatives
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] An ADR amends 0009 with the reasoning, the cost, and the rejected alternatives
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+The grant is built: `desktop/src/connection.ts` (`secureContextGrant`, covered in `tests/unit/desktop/connection.test.ts`) and the switch in `desktop/src/main.ts`, applied before `app.whenReady()`. ADR 0015 amends 0009.
+
+What is left needs a person and a second machine, which an agent session does not have. Connected over `http://` to a LAN address, check that the microphone prompt appears and a Take records with monitoring on, that the latency nudge and a Mix work, and that an `https://` server works with no grant. If Chromium ignores the switch, `--user-data-dir` is the companion that desktop Chrome needs, and it is worth trying there first.

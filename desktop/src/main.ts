@@ -5,15 +5,24 @@ import { dirname, join, resolve } from 'node:path'
 import { restoreBounds, MIN_WINDOW_SIZE, type Bounds } from './bounds.js'
 import { BRIDGE_CHANNELS, type DesktopUpdate, type DesktopUpdateInstallState, type LibraryChange } from './bridge.cjs'
 import { ConfigStore, configPath } from './config.js'
+import {
+  compareServerVersion,
+  normalizeServerUrl,
+  probeServer,
+  reconnectDelayMs,
+  resolveServerMode,
+  secureContextGrant,
+  type ServerMode,
+} from './connection.js'
 import { windowIconOptions } from './icon.js'
 import { developmentLayout, managedYtDlpPath, packagedLayout, type Layout } from './layout.js'
 import { checkLibraryDir, defaultLibraryDir, LibraryDirError } from './library.js'
 import { buildMenu } from './menu.js'
 import { choosePort } from './port.js'
 import { AkapelaServer, serverAnswersAt, ServerStartError } from './server.js'
-import { errorPage, loadingPage } from './splash.js'
+import { choicePage, errorPage, loadingPage, parseShellAction, tooNewPage, unreachablePage, type ChoicePageOptions, type ShellAction } from './splash.js'
 import { titleBarWindowOptions } from './titlebar.js'
-import { automaticChecks, checkForUpdate, checkLatestRelease, offeredUpdate, updateInstallMode } from './update-check.js'
+import { automaticChecks, checkForUpdate, checkLatestRelease, offeredUpdate, RELEASES_URL, updateInstallMode } from './update-check.js'
 import { UpdateInstaller } from './updater.js'
 
 /**
@@ -26,12 +35,20 @@ import { UpdateInstaller } from './updater.js'
  * hand it absolute paths to the bundled tools, put the window back on a
  * monitor that still exists, and open a native folder picker.
  *
- * Two modes:
+ * Where the window's Akapela comes from (`connection.ts`):
  *   - `AKAPELA_SERVER_URL` set — the contributor loop. The window points at a
  *     server someone else is running (`pnpm dev` or `aspire run`), so hot
  *     reload survives and the Aspire Dashboard keeps collecting its telemetry.
- *   - unset — the production shape. The shell starts `.output/server/index.mjs`
- *     itself and supervises it.
+ *   - Use this computer — the shell starts `.output/server/index.mjs` itself
+ *     and supervises it.
+ *   - Connected — a server elsewhere, typically a compose install. The shell
+ *     starts nothing of its own: no server, no port, no data directory, no
+ *     bundled binaries. It is a window, a title bar, a bridge, and an update
+ *     check, and it grants that one origin secure-context status so singing
+ *     works (ADR 0015).
+ *   - nothing chosen yet — first launch asks.
+ *
+ * `start()` is the one place the modes diverge.
  */
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -42,6 +59,15 @@ const desktopRoot = resolve(here, '..', '..')
 if (!app.requestSingleInstanceLock()) app.quit()
 
 const store = new ConfigStore(configPath(app.getPath('userData')))
+
+/**
+ * Decided before anything else, because the secure-context grant is a
+ * Chromium switch and only counts if it is set before the app is ready. A
+ * change of server therefore restarts the app rather than switching in place.
+ */
+const mode: ServerMode = resolveServerMode(process.env.AKAPELA_SERVER_URL, store.read())
+const grantedOrigin = secureContextGrant(mode)
+if (grantedOrigin) app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure', grantedOrigin)
 const layout: Layout = app.isPackaged
   ? packagedLayout(process.resourcesPath, process.platform)
   : developmentLayout(desktopRoot, process.platform, process.arch)
@@ -55,7 +81,7 @@ let availableUpdate: DesktopUpdate | null = null
  * rather than inside `whenReady`, because how this build takes an Update
  * depends on it: a contributor's window has no installer under it.
  */
-const attachedServerUrl = process.env.AKAPELA_SERVER_URL?.trim()
+const attachedServerUrl = mode.kind === 'attached' ? mode.url : undefined
 
 /** How an Update is taken on this platform, in this build (ADR 0009's amendment on Updates). */
 const installMode = updateInstallMode(process.platform, {
@@ -143,7 +169,7 @@ function serverEnvironment(): NodeJS.ProcessEnv {
   }
 }
 
-async function createWindow(origin: string): Promise<BrowserWindow> {
+async function createWindow(origin: string, onShellAction: (action: ShellAction) => void): Promise<BrowserWindow> {
   const bounds: Bounds = restoreBounds(
     store.read().bounds,
     screen.getAllDisplays().map(display => ({ workArea: display.workArea })),
@@ -203,6 +229,14 @@ async function createWindow(origin: string): Promise<BrowserWindow> {
     return { action: 'deny' }
   })
   created.webContents.on('will-navigate', (event, target) => {
+    // The shell's own screens ask for things by navigating to an address that
+    // resolves nowhere; it is caught here and never loaded (`splash.ts`).
+    const action = parseShellAction(target)
+    if (action) {
+      event.preventDefault()
+      onShellAction(action)
+      return
+    }
     if (target.startsWith(origin) || target.startsWith('data:')) return
     event.preventDefault()
     if (/^https?:\/\//.test(target)) void shell.openExternal(target)
@@ -275,6 +309,149 @@ async function startSupervised(): Promise<void> {
   await showApp(server.origin)
 }
 
+/**
+ * Connected: the server is on another machine, so it will go away — a reboot,
+ * a sleeping laptop, another Wi-Fi network. While it is missing the window
+ * shows a waiting screen and keeps asking, backing off so a server mid-boot
+ * is not hammered, and loads the app the moment it answers. There is never a
+ * local fallback: a different, empty library in its place is the worst thing
+ * this could do.
+ */
+let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+let heartbeat: ReturnType<typeof setInterval> | undefined
+const HEARTBEAT_MS = 15_000
+
+function stopConnectionTimers(): void {
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  if (heartbeat) clearInterval(heartbeat)
+  reconnectTimer = undefined
+  heartbeat = undefined
+}
+
+async function connectTo(url: string, attempt = 0, lost = false): Promise<void> {
+  stopConnectionTimers()
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const probe = await probeServer(url)
+  if (probe.state === 'akapela') {
+    // Checked on every connect, reconnects included: a server that went away
+    // may have come back upgraded.
+    if (compareServerVersion(probe.version, app.getVersion()) === 'newer') {
+      currentOrigin = undefined
+      await mainWindow.loadURL(tooNewPage(probe.version ?? '?', app.getVersion()))
+      return
+    }
+    await showApp(url)
+    watchConnection(url)
+    return
+  }
+  const delay = reconnectDelayMs(attempt)
+  const detail = probe.state === 'not-akapela'
+    ? 'Something answered at that address, but it is not Akapela.'
+    : lost
+      ? 'The connection to your Akapela was lost. Anything being recorded when it went is gone; everything already saved is on the server.'
+      : 'Nothing is answering there. The server may be off, asleep, or on another network.'
+  currentOrigin = undefined
+  await mainWindow.loadURL(unreachablePage(url, detail, Math.round(delay / 1000)))
+  reconnectTimer = setTimeout(() => { void connectTo(url, attempt + 1, lost) }, delay)
+}
+
+/**
+ * Notices the server going away while the app is open. A single missed answer
+ * is a blip; two in a row mean it is gone.
+ */
+function watchConnection(url: string): void {
+  let missed = 0
+  heartbeat = setInterval(() => {
+    void probeServer(url).then((probe) => {
+      missed = probe.state === 'akapela' ? 0 : missed + 1
+      if (missed >= 2) void connectTo(url, 0, true)
+    })
+  }, HEARTBEAT_MS)
+}
+
+/** First launch, and **Change server…**: this computer, or a server elsewhere. */
+async function showChoice(options: ChoicePageOptions = {}): Promise<void> {
+  stopConnectionTimers()
+  currentOrigin = undefined
+  const current = mode.kind === 'connected' ? mode.url : undefined
+  await mainWindow?.loadURL(choicePage({ url: current, ...options }))
+}
+
+/** Stores a new choice and restarts into it: the secure-context grant only counts from startup. */
+function restartInto(server: NonNullable<ReturnType<ConfigStore['read']>['server']>): void {
+  store.update({ server })
+  app.relaunch()
+  app.quit()
+}
+
+async function onShellAction(action: ShellAction): Promise<void> {
+  switch (action.kind) {
+    case 'use-local':
+      // Nothing was granted on a first launch, so there is nothing to restart
+      // away from: start this computer's own server straight away.
+      if (mode.kind === 'unchosen') {
+        store.update({ server: { mode: 'local' } })
+        await mainWindow?.loadURL(loadingPage())
+        await startSupervised()
+      }
+      else {
+        restartInto({ mode: 'local' })
+      }
+      return
+    case 'test':
+    case 'connect': {
+      const normalized = normalizeServerUrl(action.url)
+      if (!normalized.ok) {
+        await showChoice({ url: action.url, message: { text: normalized.error, ok: false } })
+        return
+      }
+      if (action.kind === 'connect') {
+        restartInto({ mode: 'connected', url: normalized.url })
+        return
+      }
+      await showChoice({ url: normalized.url, message: await describeProbe(normalized.url) })
+      return
+    }
+    case 'retry':
+      if (mode.kind === 'connected') await connectTo(mode.url)
+      return
+    case 'change-server':
+      await showChoice()
+      return
+    case 'update':
+      await shell.openExternal(availableUpdate?.url ?? RELEASES_URL)
+  }
+}
+
+/** What **Test connection** found, as three different answers rather than one shrug. */
+async function describeProbe(url: string): Promise<{ text: string, ok: boolean }> {
+  const probe = await probeServer(url)
+  if (probe.state === 'unreachable') {
+    return { text: `Nothing answered at ${url}. Is the server on, and on this network?`, ok: false }
+  }
+  if (probe.state === 'not-akapela') {
+    return { text: `Something answered at ${url}, but it is not Akapela.`, ok: false }
+  }
+  if (compareServerVersion(probe.version, app.getVersion()) === 'newer') {
+    return { text: `Found Akapela ${probe.version}, which is newer than this app. Update the app before connecting.`, ok: false }
+  }
+  return { text: `Found Akapela${probe.version ? ` ${probe.version}` : ''} at ${url}.`, ok: true }
+}
+
+/** The one place the modes diverge: which Akapela the window opens, and what, if anything, is started for it. */
+async function start(): Promise<void> {
+  switch (mode.kind) {
+    case 'attached':
+      return startAttached(mode.url)
+    case 'local':
+      return startSupervised()
+    case 'connected':
+      return connectTo(mode.url)
+    case 'unchosen':
+      return showChoice()
+  }
+}
+
 /** Restarts the server against whatever `serverEnvironment()` now says, and reloads the window onto it. */
 async function restartServer(): Promise<void> {
   if (!server) return
@@ -320,10 +497,21 @@ async function chooseLibrary(): Promise<LibraryChange> {
   return { ok: true, dir: chosen }
 }
 
+/**
+ * Connected, the library is on the server and there is no folder here to
+ * show, choose, or open — an empty answer is what tells Settings to leave
+ * that section out, rather than pointing at a local folder nothing uses.
+ */
+const hasLocalLibrary = mode.kind !== 'connected'
+const CONNECTED_LIBRARY_MESSAGE = 'This app is connected to a server, and the library lives there.'
+
 function registerBridge(): void {
-  ipcMain.handle(BRIDGE_CHANNELS.libraryDir, () => libraryDir())
-  ipcMain.handle(BRIDGE_CHANNELS.chooseLibraryDir, () => chooseLibrary())
-  ipcMain.handle(BRIDGE_CHANNELS.revealLibraryDir, () => shell.openPath(libraryDir()))
+  ipcMain.handle(BRIDGE_CHANNELS.libraryDir, () => (hasLocalLibrary ? libraryDir() : ''))
+  ipcMain.handle(BRIDGE_CHANNELS.chooseLibraryDir, (): Promise<LibraryChange> | LibraryChange =>
+    hasLocalLibrary ? chooseLibrary() : { ok: false, dir: '', error: CONNECTED_LIBRARY_MESSAGE })
+  ipcMain.handle(BRIDGE_CHANNELS.revealLibraryDir, async () => {
+    if (hasLocalLibrary) await shell.openPath(libraryDir())
+  })
   ipcMain.handle(BRIDGE_CHANNELS.update, () => offeredUpdate(availableUpdate, store.read().skippedUpdate))
   ipcMain.handle(BRIDGE_CHANNELS.skipUpdate, (_event, version: unknown) => {
     if (typeof version === 'string' && version) store.update({ skippedUpdate: version })
@@ -414,17 +602,36 @@ process.on('uncaughtException', (error) => {
 void app.whenReady().then(async () => {
   registerBridge()
 
-  mainWindow = await createWindow(attachedServerUrl || 'http://127.0.0.1')
-  mainWindow.on('closed', () => { mainWindow = undefined })
+  const origin = mode.kind === 'connected' || mode.kind === 'attached' ? mode.url : 'http://127.0.0.1'
+  mainWindow = await createWindow(origin, (action) => { void onShellAction(action) })
+  mainWindow.on('closed', () => {
+    mainWindow = undefined
+    stopConnectionTimers()
+  })
+
+  if (mode.kind === 'connected') {
+    // A reload, or a click that navigates, while the server is gone: the
+    // waiting screen rather than Chromium's own error page. -3 is a navigation
+    // this shell cancelled itself, which is not a failure.
+    mainWindow.webContents.on('did-fail-load', (_event, errorCode, _description, url, isMainFrame) => {
+      if (isMainFrame && errorCode !== -3 && url.startsWith(mode.url)) void connectTo(mode.url, 0, true)
+    })
+  }
 
   buildMenu({
-    openLibraryFolder: () => { void shell.openPath(libraryDir()) },
-    chooseLibraryFolder: () => { void chooseLibrary() },
+    // Connected there is no local library folder to open or change.
+    ...(hasLocalLibrary && mode.kind !== 'unchosen'
+      ? {
+          openLibraryFolder: () => { void shell.openPath(libraryDir()) },
+          chooseLibraryFolder: () => { void chooseLibrary() },
+        }
+      : {}),
+    // A development window follows `AKAPELA_SERVER_URL`, not a stored choice.
+    ...(mode.kind === 'attached' ? {} : { changeServer: () => { void showChoice() } }),
     showLicenses: () => { void shell.openPath(layout.licensesDir) },
   })
 
-  if (attachedServerUrl) await startAttached(attachedServerUrl)
-  else await startSupervised()
+  await start()
 
   // Nobody is blocked on this: it settles whenever it settles, and the page
   // asks for the answer when it renders — the Update prompt and the Settings

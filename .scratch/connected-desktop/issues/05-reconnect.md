@@ -12,15 +12,15 @@ Nothing here is about a Take in progress — if the server vanishes mid-Take tha
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A server that is not answering at launch shows the screen, not a Chromium error
-- [ ] A server that dies mid-session shows the same screen
-- [ ] Retry works, and automatic retries continue while the screen is showing, backing off rather than hammering
-- [ ] A server that comes back is loaded without the singer touching anything
-- [ ] A server that comes back **upgraded** goes through ticket 04's check
-- [ ] **Change server…** is reachable from the screen
-- [ ] No local-server fallback happens at any point
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] A server that is not answering at launch shows the screen, not a Chromium error
+- [x] A server that dies mid-session shows the same screen
+- [x] Retry works, and automatic retries continue while the screen is showing, backing off rather than hammering
+- [x] A server that comes back is loaded without the singer touching anything
+- [x] A server that comes back **upgraded** goes through ticket 04's check
+- [x] **Change server…** is reachable from the screen
+- [x] No local-server fallback happens at any point
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

@@ -12,15 +12,15 @@ Anything in the shell that today assumes "there is a local server and a data dir
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Connected, no child process is spawned and no port is bound locally
-- [ ] Connected, no data directory is created and no existing one is touched
-- [ ] Connected, no bundled binary paths are resolved or passed anywhere
-- [ ] An unreachable server never falls back to a local one, at launch or later
-- [ ] Window bounds, title bar, bridge, single-instance lock, and menu all still work
-- [ ] The update check still runs and still offers a shell Update
-- [ ] The divergence between the two modes lives in one place, not spread through `main.ts`
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Connected, no child process is spawned and no port is bound locally
+- [x] Connected, no data directory is created and no existing one is touched
+- [x] Connected, no bundled binary paths are resolved or passed anywhere
+- [x] An unreachable server never falls back to a local one, at launch or later
+- [x] Window bounds, title bar, bridge, single-instance lock, and menu all still work
+- [x] The update check still runs and still offers a shell Update
+- [x] The divergence between the two modes lives in one place, not spread through `main.ts`
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

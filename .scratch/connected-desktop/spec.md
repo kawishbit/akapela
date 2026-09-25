@@ -10,11 +10,11 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 
 | # | Ticket | Status | Blocked by |
 | - | ------ | ------ | ---------- |
-| 01 | [Choosing where Akapela comes from](issues/01-choosing-a-server.md) | ready-for-agent | — |
-| 02 | [The secure-context grant](issues/02-secure-context-grant.md) | ready-for-agent | 01 |
-| 03 | [Connected starts nothing locally](issues/03-connected-starts-nothing.md) | ready-for-agent | 01 |
-| 04 | [Version skew](issues/04-version-skew.md) | ready-for-agent | 01 |
-| 05 | [When the server goes away](issues/05-reconnect.md) | ready-for-agent | 01 |
+| 01 | [Choosing where Akapela comes from](issues/01-choosing-a-server.md) | done | — |
+| 02 | [The secure-context grant](issues/02-secure-context-grant.md) | ready-for-human | 01 |
+| 03 | [Connected starts nothing locally](issues/03-connected-starts-nothing.md) | done | 01 |
+| 04 | [Version skew](issues/04-version-skew.md) | done | 01 |
+| 05 | [When the server goes away](issues/05-reconnect.md) | done | 01 |
 | 06 | [Singing needs a secure context (docs)](issues/06-secure-context-docs.md) | done | — |
 
 06 documents what is already true and can land immediately. 01 gates the rest.

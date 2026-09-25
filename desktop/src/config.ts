@@ -23,6 +23,12 @@ export interface DesktopConfig {
   skippedUpdate?: string
   /** Whether to look for an Update at launch. Unset means yes; `false` is the only thing that stops it. */
   automaticUpdateChecks?: boolean
+  /**
+   * Where Akapela comes from, chosen once on first launch: this computer, or
+   * a server elsewhere (Connected). Unset means nobody has chosen yet.
+   * `AKAPELA_SERVER_URL` wins over it; see `connection.ts`.
+   */
+  server?: { mode: 'local' | 'connected', url?: string }
 }
 
 export const CONFIG_FILENAME = 'desktop.json'

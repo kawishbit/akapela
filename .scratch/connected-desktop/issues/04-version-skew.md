@@ -13,14 +13,14 @@ Compare by Release version (`vMAJOR.MINOR.PATCH`, ADR 0011). The comparison is a
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A server newer than the shell is refused, naming both versions, offering the Update and Change server…
-- [ ] An older or equal server loads with no warning
-- [ ] A server that reports no version, or an unparseable one, loads rather than blocking
-- [ ] The comparison is a plain tested function, including pre-release and multi-digit versions
-- [ ] The check happens on connect and on a reconnect, not only at first launch
-- [ ] **Use this computer** mode is unaffected — there is nothing to compare
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] A server newer than the shell is refused, naming both versions, offering the Update and Change server…
+- [x] An older or equal server loads with no warning
+- [x] A server that reports no version, or an unparseable one, loads rather than blocking
+- [x] The comparison is a plain tested function, including pre-release and multi-digit versions
+- [x] The check happens on connect and on a reconnect, not only at first launch
+- [x] **Use this computer** mode is unaffected — there is nothing to compare
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

@@ -15,17 +15,17 @@ Keep the logic testable the way the rest of the shell is: URL normalisation (a b
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] First launch asks once; the answer is remembered and not asked again
-- [ ] **Use this computer** behaves exactly as today, including its data directory and port handling
-- [ ] **Connect to a server** stores the URL and opens the window on it
-- [ ] The URL field accepts `192.168.1.20:3000`, `http://host:3000`, and `https://karaoke.example` and normalises them
-- [ ] Test connection distinguishes: not an Akapela, host unreachable, unparseable URL
-- [ ] **Change server…** in the menu reopens the choice and restarts into the new mode
-- [ ] `AKAPELA_SERVER_URL` overrides the stored setting
-- [ ] The connect screen states that Akapela has no accounts, in one line
-- [ ] Normalisation and mode selection are plain functions covered by `tests/unit/desktop/`
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass at the root; `desktop/` lints and typechecks from inside itself
+- [x] First launch asks once; the answer is remembered and not asked again
+- [x] **Use this computer** behaves exactly as today, including its data directory and port handling
+- [x] **Connect to a server** stores the URL and opens the window on it
+- [x] The URL field accepts `192.168.1.20:3000`, `http://host:3000`, and `https://karaoke.example` and normalises them
+- [x] Test connection distinguishes: not an Akapela, host unreachable, unparseable URL
+- [x] **Change server…** in the menu reopens the choice and restarts into the new mode
+- [x] `AKAPELA_SERVER_URL` overrides the stored setting
+- [x] The connect screen states that Akapela has no accounts, in one line
+- [x] Normalisation and mode selection are plain functions covered by `tests/unit/desktop/`
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass at the root; `desktop/` lints and typechecks from inside itself
 
 ## Comments
