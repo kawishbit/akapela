@@ -13,7 +13,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 01 | [Two Lanes in the runner](issues/01-two-lanes-in-the-runner.md) | done | — |
 | 02 | [Cancelling a queued Job](issues/02-cancelling-a-queued-job.md) | done | 01 |
 | 03 | [Cancelling a running Job](issues/03-cancelling-a-running-job.md) | done | 02 |
-| 04 | [Real Separation progress](issues/04-real-separation-progress.md) | ready-for-agent | — |
+| 04 | [Real Separation progress](issues/04-real-separation-progress.md) | done | — |
 | 05 | [The Jobs page](issues/05-the-jobs-page.md) | ready-for-agent | 02 |
 | 06 | [Jobs link, badge, and the Library card's chip](issues/06-jobs-link-and-badge.md) | ready-for-agent | 05 |
 

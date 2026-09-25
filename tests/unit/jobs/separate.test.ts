@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { decodeWav } from '../../../app/audio/wav'
 import { probe, writeSineWav } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
-import { separateHandler, type Separator, type Stems } from '../../../server/lib/jobs/separate'
+import { separateHandler, type SeparateOptions, type Separator, type Stems } from '../../../server/lib/jobs/separate'
 import { JobsRunner } from '../../../server/lib/jobs-runner'
 
 const TRACK_ID = 't1'
@@ -67,6 +67,8 @@ class FakeSeparator implements Separator {
     fetchError?: string
     separateError?: string
     duringSeparation?: () => void
+    /** Fractions of the model run to report, the way `separate-cli.ts` reports its chunks. */
+    chunkFractions?: number[]
   } = {}) {}
 
   async fetchModel(modelsDir: string): Promise<void> {
@@ -78,8 +80,9 @@ class FakeSeparator implements Separator {
     writeFileSync(model, 'not a model')
   }
 
-  async separate(backingPath: string): Promise<Stems> {
+  async separate(backingPath: string, _modelsDir: string, options: SeparateOptions = {}): Promise<Stems> {
     if (this.options.separateError) throw new Error(this.options.separateError)
+    for (const fraction of this.options.chunkFractions ?? []) options.onProgress?.(fraction)
     this.separated.push(backingPath)
     const { channels, sampleRate } = decodeWav(await readFile(backingPath))
     const length = channels[0]!.length
@@ -166,6 +169,28 @@ describe('separateHandler', () => {
 
     expect(reported).toEqual([10, 30, 85])
     expect(getJob(t, 'j1').progress).toBe(100)
+  })
+
+  it('moves steadily between the model being ready and the Stems being written', async () => {
+    const t = setup()
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t)
+    const reported: number[] = []
+    const separator = new FakeSeparator({ chunkFractions: [0.1, 0.101, 0.5, 0.4, 1] })
+    const runner = new JobsRunner(t.akapela.sqlite, t.dataDir, {
+      handlers: {
+        separate: async (ctx) => {
+          const wrapped = { ...ctx, progress: (p: number) => { reported.push(p); ctx.progress(p) } }
+          await separateHandler(separator)(wrapped)
+        },
+      },
+    })
+
+    await runner.runOnce()
+
+    // Only when the number moves, never backwards, and short of the Stems-written milestone until they are.
+    expect(reported).toEqual([10, 30, 35, 57, 84, 85])
   })
 
   it('overwrites both Stems in place on re-separation', async () => {

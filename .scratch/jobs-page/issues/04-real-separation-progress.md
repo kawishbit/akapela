@@ -10,14 +10,14 @@ Parsing must be forgiving: an unrecognised stdout line is ignored, and a subproc
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The Track page's Separation progress moves steadily while a Separation runs
-- [ ] The percentage is monotonic and never exceeds the stems-written milestone before the Stems exist
-- [ ] Unparsable or absent stdout progress does not fail the Job
-- [ ] Nothing is written to the Job row per chunk more often than is reasonable for a long song (batch or throttle if a chunk is quick)
-- [ ] The error path is unchanged: stderr still carries the reason on a failure
-- [ ] Tests cover the parser and the mapping into the band
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] The Track page's Separation progress moves steadily while a Separation runs
+- [x] The percentage is monotonic and never exceeds the stems-written milestone before the Stems exist
+- [x] Unparsable or absent stdout progress does not fail the Job
+- [x] Nothing is written to the Job row per chunk more often than is reasonable for a long song (batch or throttle if a chunk is quick)
+- [x] The error path is unchanged: stderr still carries the reason on a failure
+- [x] Tests cover the parser and the mapping into the band
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
