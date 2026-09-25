@@ -8,14 +8,14 @@ A guest looking for a song that isn't in the Library at all is out of scope here
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] **Add a song** on the Queue page opens an inline Library search
-- [ ] Results match the Library's own search behaviour
-- [ ] Picking a result opens the name dialog and appends the entry, without leaving `/queue`
-- [ ] Tracks still importing are not offered
-- [ ] An empty result explains where importing happens
-- [ ] Works at phone width, with the on-screen keyboard up, and keyboard reachable
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] **Add a song** on the Queue page opens an inline Library search
+- [x] Results match the Library's own search behaviour
+- [x] Picking a result opens the name dialog and appends the entry, without leaving `/queue`
+- [x] Tracks still importing are not offered
+- [x] An empty result explains where importing happens
+- [x] Works at phone width, with the on-screen keyboard up, and keyboard reachable
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

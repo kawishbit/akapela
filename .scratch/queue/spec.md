@@ -1,6 +1,6 @@
 # Spec: Queue — the list of who sings next
 
-Status: ready-for-agent
+Status: done
 
 `ROADMAP.md`, item 2. Capitalised terms (Queue, Queue Entry, Track, Take, Separation, Backing Track) are defined in `CONTEXT.md`.
 
@@ -17,7 +17,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 05 | [Singing an entry](issues/05-singing-an-entry.md) | done | 02 |
 | 06 | [Up next](issues/06-up-next.md) | done | 05 |
 | 07 | [Entries whose Separation isn't finished](issues/07-not-ready-entries.md) | done | 02 |
-| 08 | [Adding from the Queue page](issues/08-add-from-the-queue-page.md) | ready-for-agent | 03 |
+| 08 | [Adding from the Queue page](issues/08-add-from-the-queue-page.md) | done | 03 |
 
 01 first, then 02 as the spine. 03–08 land independently on top of it.
 

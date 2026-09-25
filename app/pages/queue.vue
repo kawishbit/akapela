@@ -146,6 +146,8 @@ async function onClear() {
       {{ actionError ?? error }}
     </p>
 
+    <QueueAddSong />
+
     <div
       v-if="!loaded"
       class="flex items-center gap-2 text-sm text-text-muted"
