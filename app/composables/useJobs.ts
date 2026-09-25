@@ -75,7 +75,7 @@ export function useJobs() {
 
   async function act(path: string) {
     try {
-      await $fetch(path, { method: 'POST' })
+      await $fetch<unknown>(path, { method: 'POST' })
     }
     finally {
       await refresh()

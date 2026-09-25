@@ -14,16 +14,16 @@ The home screen is not touched.
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `/queue` lists entries in order, with cover, title, artist, and singer name where set
-- [ ] Remove takes an entry out; Clear empties the Queue behind a confirm
-- [ ] The list updates within a few seconds when another device adds or removes
-- [ ] Polling stops when the page unmounts; nothing polls from a screen that isn't showing the Queue
-- [ ] A header link with the count exists in the Library header and in `TitleBar`
-- [ ] The empty state shows when there are no entries
-- [ ] The Library home screen is unchanged
-- [ ] Works at phone width with no horizontal scroll; keyboard reachable; both themes
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] `/queue` lists entries in order, with cover, title, artist, and singer name where set
+- [x] Remove takes an entry out; Clear empties the Queue behind a confirm
+- [x] The list updates within a few seconds when another device adds or removes
+- [x] Polling stops when the page unmounts; nothing polls from a screen that isn't showing the Queue
+- [x] A header link with the count exists in the Library header and in `TitleBar`
+- [x] The empty state shows when there are no entries
+- [x] The Library home screen is unchanged
+- [x] Works at phone width with no horizontal scroll; keyboard reachable; both themes
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

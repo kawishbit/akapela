@@ -6,7 +6,8 @@ import { INVALID_YOUTUBE_URL_MESSAGE, youtubeVideoId } from '~~/shared/youtube'
 
 const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry } = useLibrary()
 // The Desktop App's title bar carries these links itself (`TitleBar.vue`); a
-// browser has no title bar, so this is its only way to Jobs and Settings.
+// browser has no title bar, so this is its only way to the Queue, Jobs, and
+// Settings.
 const { isDesktop } = useDesktop()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -155,6 +156,7 @@ async function onRetry(track: TrackWithJob) {
         Your Library
       </h1>
       <div class="flex flex-wrap items-center gap-2">
+        <QueueLink v-if="!isDesktop" />
         <JobsLink v-if="!isDesktop" />
         <NuxtLink
           v-if="!isDesktop"
