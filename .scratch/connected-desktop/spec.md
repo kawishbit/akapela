@@ -15,7 +15,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 03 | [Connected starts nothing locally](issues/03-connected-starts-nothing.md) | ready-for-agent | 01 |
 | 04 | [Version skew](issues/04-version-skew.md) | ready-for-agent | 01 |
 | 05 | [When the server goes away](issues/05-reconnect.md) | ready-for-agent | 01 |
-| 06 | [Singing needs a secure context (docs)](issues/06-secure-context-docs.md) | ready-for-agent | — |
+| 06 | [Singing needs a secure context (docs)](issues/06-secure-context-docs.md) | done | — |
 
 06 documents what is already true and can land immediately. 01 gates the rest.
 

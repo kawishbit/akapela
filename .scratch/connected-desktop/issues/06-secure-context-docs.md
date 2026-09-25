@@ -14,12 +14,12 @@ Do not oversell the Connected App: phones are not fixed by it.
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `docs/self-hosting.md` states the secure-context limit and names the three ways round it
-- [ ] `docs/troubleshooting.md` has the symptom entry pointing at it
-- [ ] The wording does not promise that the Connected Desktop App helps phones
-- [ ] No claim is made about HTTPS setup beyond pointing at a reverse proxy
-- [ ] Links resolve; the README stays unchanged (it is deliberately short)
+- [x] `docs/self-hosting.md` states the secure-context limit and names the three ways round it
+- [x] `docs/troubleshooting.md` has the symptom entry pointing at it
+- [x] The wording does not promise that the Connected Desktop App helps phones
+- [x] No claim is made about HTTPS setup beyond pointing at a reverse proxy
+- [x] Links resolve; the README stays unchanged (it is deliberately short)
 
 ## Comments
