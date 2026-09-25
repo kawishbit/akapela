@@ -88,6 +88,11 @@ function onDragStart(entry: QueueEntryWithTrack, event: PointerEvent) {
   handle.addEventListener('pointercancel', onEnd)
 }
 
+/** Sings an entry: its Track's Sing screen, carrying the entry so the turn uses it up. */
+function sing(entry: QueueEntryWithTrack) {
+  return navigateTo(`/tracks/${entry.trackId}/sing?entry=${encodeURIComponent(entry.id)}`)
+}
+
 async function onClear() {
   clearing.value = true
   actionError.value = null
@@ -187,6 +192,7 @@ async function onClear() {
         @rename="name => act(entry, () => rename(entry, name))"
         @move="index => onKeyboardMove(entry, index)"
         @drag-start="event => onDragStart(entry, event)"
+        @sing="sing(entry)"
       />
     </ol>
 

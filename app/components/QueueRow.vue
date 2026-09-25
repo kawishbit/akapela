@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronsUp, GripVertical, Pencil, Trash2 } from 'lucide-vue-next'
+import { ChevronsUp, GripVertical, Mic2, Pencil, Trash2 } from 'lucide-vue-next'
 import type { QueueEntryWithTrack } from '~~/server/lib/queue'
 
 /**
@@ -22,6 +22,7 @@ const emit = defineEmits<{
   'rename': [singerName: string]
   'move': [index: number]
   'drag-start': [event: PointerEvent]
+  'sing': []
 }>()
 
 const first = computed(() => props.index === 0)
@@ -79,7 +80,7 @@ function finishEditing(save: boolean) {
     <img
       :src="`/api/tracks/${entry.track.id}/cover?v=${entry.track.updatedAt}`"
       alt=""
-      class="size-12 shrink-0 rounded-[6px] bg-surface-mid object-cover sm:size-14"
+      class="hidden size-14 shrink-0 rounded-[6px] bg-surface-mid object-cover sm:block"
       loading="lazy"
       width="56"
       height="56"
@@ -130,7 +131,17 @@ function finishEditing(save: boolean) {
     </div>
 
     <div class="flex shrink-0 items-center">
-      <slot name="actions" />
+      <button
+        type="button"
+        class="mr-1 flex size-10 items-center justify-center rounded-full transition disabled:opacity-60"
+        :class="first ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-card text-text hover:bg-card-alt'"
+        :disabled="busy"
+        :aria-label="`Sing ${entry.track.title}${who}`"
+        title="Sing"
+        @click="emit('sing')"
+      >
+        <Mic2 class="size-4" />
+      </button>
       <button
         v-if="!first"
         type="button"

@@ -17,15 +17,15 @@ The entry id travels as a query parameter and nothing else depends on it, so a s
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] An entry's Sing opens the Sing screen for its Track, with `entry` in the URL
-- [ ] The singer's name shows on the Sing screen when the entry has one, and nothing shows when it doesn't
-- [ ] Finishing a Take removes the entry, and the Queue on another device reflects it within a poll
-- [ ] Leaving the Sing screen without recording removes the entry
-- [ ] Recording a second Take in the same visit does not re-add or re-remove anything
-- [ ] A reload or a closed tab still removes the entry, or removes it on the next visit — it never strands
-- [ ] A stale `entry=` id is ignored silently; Sing without `entry` is unchanged
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] An entry's Sing opens the Sing screen for its Track, with `entry` in the URL
+- [x] The singer's name shows on the Sing screen when the entry has one, and nothing shows when it doesn't
+- [x] Finishing a Take removes the entry, and the Queue on another device reflects it within a poll
+- [x] Leaving the Sing screen without recording removes the entry
+- [x] Recording a second Take in the same visit does not re-add or re-remove anything
+- [x] A reload or a closed tab still removes the entry, or removes it on the next visit — it never strands
+- [x] A stale `entry=` id is ignored silently; Sing without `entry` is unchanged
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

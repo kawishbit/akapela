@@ -14,7 +14,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 | 02 | [The Queue page](issues/02-the-queue-page.md) | done | 01 |
 | 03 | [Add to queue, with the singer's name](issues/03-add-to-queue.md) | done | 01 |
 | 04 | [Reorder, Play next, rename](issues/04-reorder-and-play-next.md) | done | 02 |
-| 05 | [Singing an entry](issues/05-singing-an-entry.md) | ready-for-agent | 02 |
+| 05 | [Singing an entry](issues/05-singing-an-entry.md) | done | 02 |
 | 06 | [Up next](issues/06-up-next.md) | ready-for-agent | 05 |
 | 07 | [Entries whose Separation isn't finished](issues/07-not-ready-entries.md) | ready-for-agent | 02 |
 | 08 | [Adding from the Queue page](issues/08-add-from-the-queue-page.md) | ready-for-agent | 03 |
