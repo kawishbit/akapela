@@ -419,7 +419,7 @@ jobs:
             [ -f "$meta" ] || continue
             while IFS= read -r name; do
               [ -f "$name" ] || missing+=("$name (named in $meta)")
-            done < <(sed -nE 's/^[[:space:]-]*(url|path):[[:space:]]*//p' "$meta" | tr -d "'\"")
+            done < <(sed -nE 's/^[[:space:]-]*(url|path):[[:space:]]*//p' "$meta" | tr -d "'\"\r")
           done
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::update metadata names files this Release will not carry: ${missing[*]}" >&2
