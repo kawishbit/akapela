@@ -81,6 +81,20 @@ The parts of the shell that are easy to get wrong — the port rules, the window
 
 Everything the server spawns or loads from outside its own bundle sits behind `server/lib/tools.ts`: ffmpeg, yt-dlp, the JavaScript runtime yt-dlp uses, the separation and stretch CLIs, and the Rubber Band wasm the stretch loads. Set no override and it resolves bare names off `PATH` exactly as compose does; the shell sets absolute paths. Anything that spawns a process from the server should go through `childEnv()`, which carries `ELECTRON_RUN_AS_NODE=1` — without it, a packaged app spawning `process.execPath` opens a second window instead of running the child.
 
+## The website
+
+`site/` is the **Website** (see `CONTEXT.md`): the one static page at `akapela.kawishbit.com` where a singer downloads the Desktop App. It is built with Astro and is not the app — nothing in it serves, reimplements, or talks to any part of Akapela. Like `desktop/`, it is installed and run **from inside its own directory**, and the root install never sees it. The root checks see exactly one part of it, `site/src/lib/` (below), and never build the page.
+
+```
+cd site && pnpm install
+pnpm dev                                     # the dev server
+pnpm build                                   # the static page, in site/dist
+```
+
+Vercel deploys it on every push to `main`, with the project's Root Directory set to `site/`; there is no workflow, token, or secret for it in this repo. The page never reads a Release at build time, so a new Release needs no rebuild: every download button links to the latest Release page, and in the browser the page asks GitHub's API for the latest Release and upgrades each button to its installer. The demo video, the font, the favicon, and the logo are copied in from the rest of the repo by `site/astro.config.mjs` on every dev and build rather than committed twice — Vercel clones the whole repo, so they are there. The poster frame and the link-preview image are committed.
+
+Which installer a visitor gets — detecting the platform and matching Release assets — is one plain module, `site/src/lib/downloads.ts`, covered by the **root** vitest suite in `tests/unit/site/`, the way `tests/unit/desktop/` covers the shell. Keep the logic there and the page thin. The page carries no analytics, and the only request it makes beyond its own files is that one call to GitHub's API.
+
 ## Branching and committing
 
 Branches are named with git-flow's prefixes off `main` (there is no long-lived `develop` branch — a solo-dev repo has no need for one, but the vocabulary is worth keeping): `feature/<slug>` for new capability, `chore/<slug>` for process/tooling/docs work, `fix/<slug>` or `bugfix/<slug>` for a bug fix, `release/<version>` for release-prep work, `hotfix/<slug>` for an urgent fix to something already shipped.

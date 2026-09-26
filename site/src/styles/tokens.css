@@ -1,0 +1,119 @@
+/*
+ * The Website's tokens. Colours and font are the app's own, copied from
+ * `app/assets/css/main.css` under the same names so the two read as one
+ * product: Dark is the base, Light overrides it either by the system's
+ * preference or by an explicit `data-theme`, the same way the app does it.
+ * Only the tokens the page uses are here.
+ */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('/fonts/figtree-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('/fonts/figtree-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --font-sans:
+    'Figtree', 'Helvetica Neue', Helvetica, Arial, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+    Meiryo, 'MS Gothic', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  --color-ground: #121212;
+  --color-surface: #181818;
+  --color-surface-mid: #1f1f1f;
+  --color-card: #252525;
+  --color-border: #4d4d4d;
+  --color-border-light: #7c7c7c;
+  --color-text: #ffffff;
+  --color-text-muted: #b3b3b3;
+  --color-text-soft: #cbcbcb;
+  --color-warning: #ffa42b;
+
+  /* Fixed across themes, as in the app: the green stays as bright in Light,
+     so the ink on it stays dark either way. */
+  --color-accent: #1ed760;
+  --color-accent-border: #1db954;
+  --color-accent-ink: #10150f;
+
+  /* Green used as a line or a ring rather than a fill. In Dark that is the
+     accent itself; in Light the accent is under 2:1 on white, so it darkens. */
+  --color-accent-line: #1ed760;
+  --color-bloom: rgba(30, 215, 96, 0.13);
+
+  --shadow-heavy: rgba(0, 0, 0, 0.5) 0px 8px 24px;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-pill: 9999px;
+
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  --text-display: clamp(2.5rem, 1.6rem + 3.6vw, 4.5rem);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+
+  --measure: 34rem;
+  --page: 72rem;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --color-ground: #ffffff;
+    --color-surface: #f5f5f3;
+    --color-surface-mid: #ececea;
+    --color-card: #dededa;
+    --color-border: #d6d6d3;
+    --color-border-light: #a3a39f;
+    --color-text: #17181a;
+    --color-text-muted: #5c5d5f;
+    --color-text-soft: #3f4042;
+    --color-warning: #8a5a00;
+    --color-accent-line: #0b7a35;
+    --color-bloom: rgba(30, 215, 96, 0.16);
+    --shadow-heavy: rgba(20, 20, 20, 0.16) 0px 8px 24px;
+  }
+}
+:root[data-theme='light'] {
+  --color-ground: #ffffff;
+  --color-surface: #f5f5f3;
+  --color-surface-mid: #ececea;
+  --color-card: #dededa;
+  --color-border: #d6d6d3;
+  --color-border-light: #a3a39f;
+  --color-text: #17181a;
+  --color-text-muted: #5c5d5f;
+  --color-text-soft: #3f4042;
+  --color-warning: #8a5a00;
+  --color-accent-line: #0b7a35;
+  --color-bloom: rgba(30, 215, 96, 0.16);
+  --shadow-heavy: rgba(20, 20, 20, 0.16) 0px 8px 24px;
+}

@@ -1,0 +1,285 @@
+---
+import '../styles/site.css'
+import { RELEASE_PAGE, REPO as repo, type Platform } from '../lib/downloads'
+
+const title = 'Akapela — self-hosted karaoke'
+const description = 'Import a song from YouTube or a file, remove the vocals, sing along to synced lyrics with the pitch and tempo you like, and keep the recording. Everything stays on your machine.'
+const url = new URL('/', Astro.site).href
+const image = new URL('/og.png', Astro.site).href
+
+// In the order shown when the visitor's platform is unknown. The script
+// reorders both lists once it knows it; without the script, this is the page.
+const installers: { platform: Platform, name: string, detail: string }[] = [
+  { platform: 'windows', name: 'Windows', detail: 'Installer (.exe)' },
+  { platform: 'mac', name: 'macOS', detail: 'Apple Silicon (.dmg)' },
+  { platform: 'linux', name: 'Linux', detail: 'AppImage' },
+]
+
+const features = [
+  { verb: 'Import', text: ' from a YouTube link or an mp3, m4a, wav, flac, or ogg file.' },
+  { verb: 'Remove the vocals', text: ' to get an instrumental.' },
+  { verb: 'Get lyrics', text: ' from LRCLIB or Genius, or paste your own. Synced lyrics scroll as you sing.' },
+  { verb: 'Change pitch and tempo', text: ', and add reverb.' },
+  { verb: 'Sing and record', text: ', then line your voice up, set the levels, and download the result as MP3 or WAV.' },
+]
+
+const commands = `git clone https://github.com/kawishbit/akapela.git
+cd akapela
+docker compose up -d`
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={url} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Akapela" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={url} />
+    <meta property="og:image" content={image} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Akapela: import a song, sing to synced lyrics, and mix down your Take." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+
+    <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preload" href="/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin />
+
+    <!-- Before first paint: an explicit choice, under the app's own key and
+         values, wins over the system. With no choice, or no storage at all
+         (a private window, blocked site data), no attribute is set and the
+         stylesheet's prefers-color-scheme rules carry the theme. -->
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('akapela:theme')
+          if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t)
+        } catch (e) {}
+      })()
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#download">Skip to downloads</a>
+
+    <header class="bar wrap">
+      <a class="bar__mark" href="/">
+        <img src="/logo.svg" alt="" width="32" height="32" />
+        Akapela
+      </a>
+      <div class="bar__controls">
+        <a class="bar__link" href={repo}>GitHub</a>
+        <button class="theme-toggle" type="button" data-theme-toggle hidden>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero wrap" aria-labelledby="pitch">
+        <div class="hero__text">
+          <h1 id="pitch">Self-hosted karaoke.</h1>
+          <p class="lede">
+            Import a song from YouTube or a file, remove the vocals, sing along to synced lyrics with the pitch and tempo you like, and keep the recording.
+          </p>
+          <p class="promise">
+            Everything stays on your machine. The only outside services Akapela talks to are the lyrics providers you choose to use.
+          </p>
+
+          <div class="get" id="download" data-downloads>
+            <ul class="installers" data-platform-list>
+              {installers.map(({ platform, name, detail }) => (
+                <li class="installer" data-platform={platform}>
+                  <a class="installer__link" href={RELEASE_PAGE} target="_blank" rel="noopener" data-installer-link>
+                    <span class="installer__name">Download for {name}</span>
+                    <span class="installer__detail">{detail}<span data-installer-version></span></span>
+                  </a>
+                  <a class="installer__sum" href={RELEASE_PAGE} aria-label={`SHA-256 checksum for the ${name} download`} data-installer-sum hidden>SHA-256</a>
+                </li>
+              ))}
+            </ul>
+            <p class="get__note" data-desktop-note hidden>
+              Akapela is a desktop app for Windows, macOS, and Linux. Open this page on your computer to install it.
+            </p>
+
+            <div class="firstrun">
+              <p class="firstrun__lead">The installers aren’t signed yet, so the first launch needs one extra click:</p>
+              <ul data-platform-list>
+                <li data-platform="windows"><b>Windows:</b> on “Windows protected your PC”, choose <b>More info → Run anyway</b>.</li>
+                <li data-platform="mac"><b>macOS:</b> choose <b>Done</b>, then <b>System Settings → Privacy &amp; Security → Open Anyway</b>.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <figure class="demo">
+          <video
+            controls
+            playsinline
+            preload="none"
+            poster="/demo-poster.webp"
+            width="1440"
+            height="1080"
+            aria-label="Akapela demo: importing a Track from YouTube, separating its vocals into Stems, singing to synced Lyrics and recording a Take, then reviewing it and rendering a Mix"
+          >
+            <source src="/demo.mp4" type="video/mp4" />
+          </video>
+        </figure>
+      </section>
+
+      <section class="section wrap" aria-labelledby="what">
+        <div class="section__head">
+          <h2 id="what">What it does</h2>
+        </div>
+        <ul class="features">
+          {features.map(({ verb, text }) => (
+            <li class="feature"><strong>{verb}</strong>{text}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section class="section wrap" aria-labelledby="server">
+        <div class="section__head">
+          <h2 id="server">On a server, with Docker</h2>
+          <p>To reach it from every device in the house, you need Docker with Compose and Git.</p>
+        </div>
+        <div class="server">
+          <div class="commands">
+            <pre><code data-commands>{commands}</code></pre>
+            <button class="copy" type="button" data-copy hidden>Copy</button>
+          </div>
+          <p class="server__then">Then open <code>http://localhost:3000</code>.</p>
+          <div class="warning" role="note">
+            <strong>There is no login.</strong>
+            <p>Anyone who can reach the port can see and use your library. Keep it on your own network, or put it behind a VPN or a reverse proxy with authentication.</p>
+          </div>
+          <p>
+            For the port, the data folder, the Genius token, updating, and backups, see
+            <a class="more" href={`${repo}/blob/main/docs/self-hosting.md`}>Self-hosting</a>.
+            If something breaks, see
+            <a class="more" href={`${repo}/blob/main/docs/troubleshooting.md`}>Troubleshooting</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot wrap">
+      <span class="foot__mark">Akapela</span>
+      <a href={repo}>Source on GitHub</a>
+      <a href={`${repo}/blob/main/LICENSE`}>GPL-3.0</a>
+    </footer>
+
+    <script>
+      import { isPlatform, LATEST_RELEASE_API, planDownloads, type Client, type Downloads } from '../lib/downloads'
+
+      interface UserAgentData { platform?: string, mobile?: boolean }
+
+      function client(): Client {
+        const data = (navigator as Navigator & { userAgentData?: UserAgentData }).userAgentData
+        return {
+          userAgent: navigator.userAgent,
+          platform: data?.platform || navigator.platform,
+          mobile: data?.mobile,
+          maxTouchPoints: navigator.maxTouchPoints,
+        }
+      }
+
+      /** The latest Release's body, or null: a failure of any kind leaves every button on the Release page. */
+      async function latestRelease(): Promise<unknown> {
+        try {
+          const response = await fetch(LATEST_RELEASE_API)
+          return response.ok ? await response.json() : null
+        } catch {
+          return null
+        }
+      }
+
+      function render(plan: Downloads): void {
+        for (const list of document.querySelectorAll<HTMLElement>('[data-platform-list]')) {
+          for (const platform of plan.order) {
+            const item = list.querySelector(`:scope > [data-platform="${platform}"]`)
+            if (item) list.append(item)
+          }
+        }
+
+        for (const item of document.querySelectorAll<HTMLElement>('.installer')) {
+          const platform = item.dataset.platform
+          if (!isPlatform(platform)) continue
+          const installer = plan.installers[platform]
+          item.classList.toggle('is-primary', platform === plan.primary)
+
+          const link = item.querySelector<HTMLAnchorElement>('[data-installer-link]')!
+          const version = item.querySelector<HTMLElement>('[data-installer-version]')!
+          const sum = item.querySelector<HTMLAnchorElement>('[data-installer-sum]')!
+          if (!installer) continue
+          // A direct link downloads rather than navigates, so it needs no new tab.
+          link.href = installer.href
+          link.removeAttribute('target')
+          link.removeAttribute('rel')
+          link.title = installer.fileName
+          if (plan.version) version.textContent = ` · ${plan.version}`
+          if (installer.sha256Href) {
+            sum.href = installer.sha256Href
+            sum.hidden = false
+          }
+        }
+
+        document.querySelector<HTMLElement>('[data-desktop-note]')!.hidden = plan.primary !== null
+      }
+
+      // The platform is known at once; the Release arrives when it arrives.
+      render(planDownloads(client(), null))
+      latestRelease().then(release => render(planDownloads(client(), release)))
+
+      // Theme: switch to whichever the page is not showing now, and remember
+      // it the way the app does. Storage that refuses still switches the page.
+      const toggle = document.querySelector<HTMLButtonElement>('[data-theme-toggle]')!
+      const systemLight = window.matchMedia('(prefers-color-scheme: light)')
+      const currentTheme = () => document.documentElement.dataset.theme ?? (systemLight.matches ? 'light' : 'dark')
+      const labelToggle = () => {
+        toggle.setAttribute('aria-label', currentTheme() === 'light' ? 'Switch to dark theme' : 'Switch to light theme')
+      }
+      toggle.addEventListener('click', () => {
+        const next = currentTheme() === 'light' ? 'dark' : 'light'
+        document.documentElement.dataset.theme = next
+        try {
+          localStorage.setItem('akapela:theme', next)
+        } catch {}
+        labelToggle()
+      })
+      systemLight.addEventListener('change', labelToggle)
+      labelToggle()
+      toggle.hidden = false
+
+      // Copy the Docker commands. The label says so for a moment; no toast.
+      const copy = document.querySelector<HTMLButtonElement>('[data-copy]')!
+      const commands = document.querySelector<HTMLElement>('[data-commands]')!.textContent ?? ''
+      if (navigator.clipboard) {
+        copy.hidden = false
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(commands)
+            copy.textContent = 'Copied'
+          } catch {
+            copy.textContent = 'Select and copy'
+          }
+          setTimeout(() => (copy.textContent = 'Copy'), 2000)
+        })
+      }
+    </script>
+  </body>
+</html>
