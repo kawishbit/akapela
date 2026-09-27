@@ -74,6 +74,20 @@ declare global {
   interface Window {
     akapela?: AkapelaDesktopBridge
   }
+
+  /**
+   * The Window Controls Overlay API, which TypeScript's DOM library does not
+   * carry yet — only the part `useTitleBar()` reads. Chromium-only; absent in
+   * every other browser, and `null`-ish outside an installed PWA's window.
+   */
+  interface WindowControlsOverlay extends EventTarget {
+    readonly visible: boolean
+    getTitlebarAreaRect: () => DOMRect
+  }
+
+  interface Navigator {
+    readonly windowControlsOverlay?: WindowControlsOverlay
+  }
 }
 
 export {}

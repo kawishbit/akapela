@@ -48,6 +48,10 @@ _Avoid_: Playlist, setlist, Job queue (that is Jobs)
 One place in the Queue: a Track, and optionally the name of who will sing it. The same Track can have several.
 _Avoid_: Request, slot, item
 
+**Up next**:
+The prompt that offers the Queue's first Queue Entry when a turn at singing ends — on Review after a Take, or on the Track page after leaving the Sing screen without recording. It only offers: the singer chooses Sing or Not now, and nothing starts on its own. The prompt, not the entry it names.
+_Avoid_: Next song, autoplay, now playing
+
 ### Lyrics
 
 **Lyrics**:
@@ -95,7 +99,7 @@ _Avoid_: Playback, feedback, loopback
 ### Background work
 
 **Job**:
-A unit of long-running work the app runs itself, such as an import or producing a Mix. Moves through queued, running, and then succeeded or failed. Jobs run one at a time per Lane, in the order they were created.
+A unit of long-running work the app runs itself, such as an import or producing a Mix. Moves through queued, running, and then succeeded, failed, or cancelled. Cancelled means the singer stopped it; whatever it was working on goes back to how it was before it was asked for. Jobs run one at a time per Lane, in the order they were created.
 _Avoid_: Task, process, operation
 
 **Lane**:
@@ -105,8 +109,12 @@ _Avoid_: Worker, queue, channel
 ### Development
 
 **Desktop App**:
-The packaged Akapela you download and open on one machine; the same app compose serves, in a window of its own.
+The packaged Akapela you download and open on one machine; the same app compose serves, in a window of its own. Either it runs the Akapela it starts itself, or it is Connected.
 _Avoid_: Electron app, native app, client
+
+**Connected**:
+A Desktop App pointed at an Akapela running elsewhere — a compose install on the household server — instead of the one it would start itself. Connected, it starts nothing of its own and has no library of its own; what it adds over a browser on the same machine is that singing works at all, since it can make that address a secure context.
+_Avoid_: Remote mode, client mode, thin client
 
 **AppHost**:
 The Aspire program in `apphost/` that starts the app for local development, hands it its configuration, and reports it to the Dashboard. Development only: it is not part of what a self-hoster deploys (ADR 0007).

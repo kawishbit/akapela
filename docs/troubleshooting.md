@@ -14,6 +14,10 @@ Akapela fetches YouTube audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp). Y
 
 If that gets you nothing newer, the breakage is probably too fresh for a fix. Check [yt-dlp's issue tracker](https://github.com/yt-dlp/yt-dlp/issues) and try again once a fix lands. Importing an audio file is unaffected either way.
 
+## The Sing screen can't reach my microphone
+
+If Akapela is open at an address like `http://192.168.1.20:3000`, the browser won't give it a microphone: recording needs `https://` or `http://localhost`. See [Singing from another device](self-hosting.md#singing-from-another-device) for the three ways round it. Browsing, importing, and queueing work either way.
+
 ## macOS says Akapela can't be verified
 
 The app isn't notarized by Apple yet. The first time you open it, macOS says **Apple could not verify "Akapela" is free of malware**. Choose **Done**, then:

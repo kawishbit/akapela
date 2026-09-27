@@ -34,3 +34,7 @@ The shell gets a little thicker, and the choices below keep that as small as pos
 - **The release job now publishes the update metadata** (`latest.yml`, `latest-linux.yml`, and the blockmaps) next to the installers. Without them there is nothing to install from.
 
 Considered: letting `electron-updater` do the check on Windows and Linux too, and keeping `update-check.ts` for macOS only. Rejected, because two checks would disagree about skipped versions and the off switch. Also considered: waiting to sign macOS before building any of this. Rejected, because it would keep the two platforms that can update in place waiting on the one that can't.
+
+## Amendment: the shell can be Connected to a server elsewhere
+
+The Desktop App no longer always wraps a server of its own. Connected, it points at an Akapela running on another machine and starts nothing locally, and it grants that one origin secure-context status so singing works over plain HTTP. See ADR 0015.

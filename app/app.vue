@@ -5,9 +5,11 @@ const route = useRoute()
 const showPlayerBar = computed(() => route.meta.playerBar !== false)
 
 const { theme } = useTheme()
-const { isDesktop } = useDesktop()
+const { shown: hasTitleBar } = useTitleBar()
 
-// In the Desktop App the window itself never scrolls. The title bar is a fixed
+// Wherever Akapela draws its own title bar — the Desktop App, or the installed
+// PWA with its window controls overlaid (`useTitleBar()`) — the window itself
+// never scrolls. The title bar is a fixed
 // row and the page scrolls inside the element below it, so the scrollbar starts
 // under the bar instead of running up alongside the window controls — on every
 // platform, since the bar reserves that strip everywhere (`TitleBar.vue`). A
@@ -31,16 +33,18 @@ useHead(() => ({
 <template>
   <div
     class="bg-ground text-text"
-    :class="isDesktop ? 'flex h-dvh flex-col overflow-hidden' : 'min-h-dvh'"
+    :class="hasTitleBar ? 'flex h-dvh flex-col overflow-hidden' : 'min-h-dvh'"
   >
     <TitleBar />
     <div
       ref="scroller"
-      :class="isDesktop ? 'relative min-h-0 flex-1 overflow-y-auto' : 'contents'"
+      :class="hasTitleBar ? 'relative min-h-0 flex-1 overflow-y-auto' : 'contents'"
     >
       <NuxtPage />
     </div>
     <PlayerBar v-if="showPlayerBar" />
     <UpdatePrompt />
+    <AddToQueueDialog />
+    <SingChoiceDialog />
   </div>
 </template>

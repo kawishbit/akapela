@@ -268,8 +268,10 @@ useHead({ title: 'Settings · Akapela' })
         </div>
       </section>
 
+      <!-- A Connected Desktop App answers an empty folder: its library is on the
+           server, so there is nothing here to show or change. -->
       <section
-        v-if="isDesktop"
+        v-if="isDesktop && libraryDir !== ''"
         class="rounded-[8px] bg-surface p-4 sm:p-5"
       >
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
