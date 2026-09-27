@@ -15,11 +15,12 @@ const SAVE_DEBOUNCE_MS = 400
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const player = usePlayer()
-// The page fills the viewport in a browser. In the Desktop App it fills only
-// the space below the title bar instead (`app.vue` makes that space its
-// positioning box): the bar is a row of the page rather than something floating
-// over it, so pinned to the whole window this header would sit under the bar.
-const { isDesktop } = useDesktop()
+// The page fills the viewport in a browser tab. Under Akapela's own title bar
+// — the Desktop App, or the installed PWA — it fills only the space below the
+// bar instead (`app.vue` makes that space its positioning box): the bar is a
+// row of the page rather than something floating over it, so pinned to the
+// whole window this header would sit under the bar.
+const { shown: hasTitleBar } = useTitleBar()
 const playerState = player.state
 
 const { track, notFound, refresh } = useTrackDetail(id)
@@ -152,7 +153,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
 <template>
   <main
     class="inset-0 flex flex-col overflow-hidden bg-ground"
-    :class="isDesktop ? 'absolute' : 'fixed'"
+    :class="hasTitleBar ? 'absolute' : 'fixed'"
   >
     <!-- The cover art is the only colour on the page (DESIGN.md §1). -->
     <div

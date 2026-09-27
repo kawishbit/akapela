@@ -7,7 +7,7 @@ import { ListMusic } from 'lucide-vue-next'
  * the thing people want to glance at. It never polls: it asks on arrival, on
  * every navigation, and on focus (`useQueue`).
  */
-withDefaults(defineProps<{ size?: 'sm' | 'md' }>(), { size: 'md' })
+withDefaults(defineProps<{ size?: 'xs' | 'sm' | 'md' }>(), { size: 'md' })
 
 const { count, refresh } = useQueue()
 
@@ -24,10 +24,10 @@ const label = computed(() => {
   <NuxtLink
     to="/queue"
     class="relative flex shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
-    :class="size === 'sm' ? 'size-9' : 'size-11'"
+    :class="{ xs: 'size-7', sm: 'size-9', md: 'size-11' }[size]"
     :aria-label="label"
   >
-    <ListMusic class="size-5" />
+    <ListMusic :class="size === 'xs' ? 'size-4' : 'size-5'" />
     <span
       v-if="count > 0"
       class="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-pill bg-text px-1 text-[11px] font-bold leading-none text-ground"

@@ -8,7 +8,7 @@ import { ListChecks } from 'lucide-vue-next'
  * new appears on an idle install. The count comes from the same shared poll
  * the Jobs page uses (`useJobs`), never a timer of its own.
  */
-withDefaults(defineProps<{ size?: 'sm' | 'md' }>(), { size: 'md' })
+withDefaults(defineProps<{ size?: 'xs' | 'sm' | 'md' }>(), { size: 'md' })
 
 const { activeCount, refresh } = useJobs()
 
@@ -26,10 +26,10 @@ const label = computed(() => activeCount.value === 0
   <NuxtLink
     to="/jobs"
     class="relative flex shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
-    :class="size === 'sm' ? 'size-9' : 'size-11'"
+    :class="{ xs: 'size-7', sm: 'size-9', md: 'size-11' }[size]"
     :aria-label="label"
   >
-    <ListChecks class="size-5" />
+    <ListChecks :class="size === 'xs' ? 'size-4' : 'size-5'" />
     <span
       v-if="activeCount > 0"
       class="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-pill bg-accent px-1 text-[11px] font-bold leading-none text-accent-ink"
