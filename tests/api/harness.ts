@@ -12,6 +12,7 @@ import jobsBusyGet from '../../server/api/jobs/busy.get'
 import jobsIdGet from '../../server/api/jobs/[id].get'
 import jobsGet from '../../server/api/jobs.get'
 import queueGet from '../../server/api/queue.get'
+import versionGet from '../../server/api/version.get'
 import queuePost from '../../server/api/queue.post'
 import queueClearPost from '../../server/api/queue/clear.post'
 import queueIdDelete from '../../server/api/queue/[id].delete'
@@ -134,6 +135,7 @@ export async function createTestApi() {
   router.post('/api/jobs/:id/cancel', jobsIdCancelPost)
   router.post('/api/jobs/:id/retry', jobsIdRetryPost)
   router.get('/api/queue', queueGet)
+  router.get('/api/version', versionGet)
   router.post('/api/queue', queuePost)
   router.post('/api/queue/clear', queueClearPost)
   router.delete('/api/queue/:id', queueIdDelete)

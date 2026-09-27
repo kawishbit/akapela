@@ -5,10 +5,10 @@ import { UNSUPPORTED_UPLOAD_MESSAGE, UPLOAD_ACCEPT, UPLOAD_EXTENSIONS_SENTENCE, 
 import { INVALID_YOUTUBE_URL_MESSAGE, youtubeVideoId } from '~~/shared/youtube'
 
 const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry } = useLibrary()
-// The Desktop App's title bar carries these links itself (`TitleBar.vue`); a
-// browser has no title bar, so this is its only way to the Queue, Jobs, and
-// Settings.
-const { isDesktop } = useDesktop()
+// Akapela's own title bar carries these links itself (`TitleBar.vue`); a
+// browser tab has no title bar, so this is its only way to the Queue, Jobs,
+// and Settings.
+const { shown: hasTitleBar } = useTitleBar()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const pendingDelete = ref<TrackWithJob | null>(null)
@@ -168,10 +168,10 @@ async function onRetry(track: TrackWithJob) {
         Your Library
       </h1>
       <div class="flex flex-wrap items-center gap-2">
-        <QueueLink v-if="!isDesktop" />
-        <JobsLink v-if="!isDesktop" />
+        <QueueLink v-if="!hasTitleBar" />
+        <JobsLink v-if="!hasTitleBar" />
         <NuxtLink
-          v-if="!isDesktop"
+          v-if="!hasTitleBar"
           to="/settings"
           class="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
           aria-label="Settings"

@@ -12,8 +12,11 @@ import { Menu, shell, type MenuItemConstructorOptions } from 'electron'
  */
 
 export interface MenuActions {
-  openLibraryFolder: () => void
-  chooseLibraryFolder: () => void
+  /** Absent when there is no library folder here: Connected, it is on the server. */
+  openLibraryFolder?: () => void
+  chooseLibraryFolder?: () => void
+  /** Reopens the choice between this computer and a server. Absent for a development window. */
+  changeServer?: () => void
   showLicenses: () => void
 }
 
@@ -40,8 +43,9 @@ export function buildMenu(actions: MenuActions): void {
     {
       label: 'File',
       submenu: [
-        { label: 'Open Library Folder', click: actions.openLibraryFolder },
-        { label: 'Change Library Folder…', click: actions.chooseLibraryFolder },
+        ...(actions.openLibraryFolder ? [{ label: 'Open Library Folder', click: actions.openLibraryFolder }] : []),
+        ...(actions.chooseLibraryFolder ? [{ label: 'Change Library Folder…', click: actions.chooseLibraryFolder }] : []),
+        ...(actions.changeServer ? [{ label: 'Change Server…', click: actions.changeServer }] : []),
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },
       ],

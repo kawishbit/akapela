@@ -37,6 +37,16 @@ You can still copy the data folder by hand while the stack is stopped.
 
 There is no login. Anyone who can reach the port can see your library and everything you've recorded. Akapela is built for a machine on your own network. To reach it from outside, put it behind a reverse proxy with authentication, or a VPN, and let that handle TLS too.
 
+## Singing from another device
+
+Browsing your library, importing, and adding to the Queue work from any device on your network. **Recording a Take doesn't**, unless the address is secure. Browsers only give a page the microphone and the audio processing a Take needs on `https://` or on `http://localhost`. So an install reached at `http://192.168.1.20:3000` can be used from the sofa, but only sung on from the server machine itself.
+
+There are three ways round it:
+
+- **A reverse proxy with TLS** in front of Akapela. This is the general answer, and the only one that works for phones and tablets.
+- **Tailscale, or a similar VPN**, where the machine gets an `https://` address.
+- **The Desktop App, Connected to your server.** On first launch choose **Connect to a server** and type the address, such as `192.168.1.20:3000`. The app makes that one address a secure context, so a laptop can sing with no certificates at all. **Change server…** in its File menu switches later. It doesn't help a phone.
+
 ## Hardware
 
 `docker-compose.yml` allots two cores and 2 GB. That's a starting point, not a hard limit; rendering a Mix of a normal-length song takes a couple of seconds within it.

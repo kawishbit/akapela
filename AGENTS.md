@@ -64,7 +64,7 @@ cd desktop && pnpm install
 AKAPELA_SERVER_URL=http://localhost:3000 pnpm dev
 ```
 
-Hot reload survives, and under `aspire run` the Dashboard keeps collecting the app's logs and traces — the shell stays out of the way. With `AKAPELA_SERVER_URL` unset the shell starts `.output/server/index.mjs` itself and supervises it, which is the production shape; that one needs a `pnpm build` at the root first, and the bundled binaries below.
+Hot reload survives, and under `aspire run` the Dashboard keeps collecting the app's logs and traces — the shell stays out of the way. With `AKAPELA_SERVER_URL` unset the shell does what the singer chose on first launch: **Use this computer** starts `.output/server/index.mjs` itself and supervises it, which is the production shape and needs a `pnpm build` at the root first and the bundled binaries below; **Connect to a server** points the window at an Akapela elsewhere and starts nothing (ADR 0015). `main.ts`'s `start()` is the one place the modes diverge.
 
 Building an actual installer:
 
@@ -77,7 +77,7 @@ pnpm pack:app
 
 `pnpm fetch-binaries -- --platform win32 --arch x64` cross-fetches for another platform; the checksums are pinned and a mismatch fails loudly. Installers are built on a GitHub Actions matrix (`.github/workflows/desktop-release.yml`) rather than a development machine, because a macOS DMG has to be built on a macOS runner.
 
-The parts of the shell that are easy to get wrong — the port rules, the window bounds, the config store, the packaged layout, the version check — are plain functions with no Electron import, covered by the **root** vitest suite in `tests/unit/desktop/`. Keep them that way; there is no e2e harness and there is not meant to be one (ADR 0009).
+The parts of the shell that are easy to get wrong — the port rules, the window bounds, the config store, the packaged layout, the version check, the connection rules — are plain functions with no Electron import, covered by the **root** vitest suite in `tests/unit/desktop/`. Keep them that way; there is no e2e harness and there is not meant to be one (ADR 0009).
 
 Everything the server spawns or loads from outside its own bundle sits behind `server/lib/tools.ts`: ffmpeg, yt-dlp, the JavaScript runtime yt-dlp uses, the separation and stretch CLIs, and the Rubber Band wasm the stretch loads. Set no override and it resolves bare names off `PATH` exactly as compose does; the shell sets absolute paths. Anything that spawns a process from the server should go through `childEnv()`, which carries `ELECTRON_RUN_AS_NODE=1` — without it, a packaged app spawning `process.execPath` opens a second window instead of running the child.
 

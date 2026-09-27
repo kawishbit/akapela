@@ -55,6 +55,11 @@ export default defineNuxtConfig({
       description: 'Self-hosted karaoke: import, sing, mix.',
       theme_color: '#121212',
       background_color: '#121212',
+      // Installed, the window gives its title bar to the page, which draws
+      // the same one the Desktop App does (`TitleBar.vue`); the browser keeps
+      // only its own window controls over one end of it. Where the overlay is
+      // unsupported — Safari, Firefox, mobile — it is a plain standalone window.
+      display_override: ['window-controls-overlay'],
       display: 'standalone',
       start_url: '/',
       icons: [
