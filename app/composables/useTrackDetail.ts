@@ -14,5 +14,13 @@ export function useTrackDetail(id: Ref<string>) {
 
   const notFound = computed(() => (error.value as { statusCode?: number } | null)?.statusCode === 404)
 
-  return { track, error, notFound, refresh }
+  // Every action on these pages that starts a Job — a Separation, a Mix, a
+  // retry — refreshes the Track afterwards, so refreshing the shared Jobs list
+  // alongside is what keeps the Jobs badge in the title bar current.
+  const { refresh: refreshJobs } = useJobs()
+  async function refreshBoth() {
+    await Promise.all([refresh(), refreshJobs()])
+  }
+
+  return { track, error, notFound, refresh: refreshBoth }
 }

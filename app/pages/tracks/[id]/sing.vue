@@ -15,17 +15,26 @@ const SAVE_DEBOUNCE_MS = 400
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const player = usePlayer()
-// The page fills the viewport in a browser. In the Desktop App it fills only
-// the space below the title bar instead (`app.vue` makes that space its
-// positioning box): the bar is a row of the page rather than something floating
-// over it, so pinned to the whole window this header would sit under the bar.
-const { isDesktop } = useDesktop()
+// The page fills the viewport in a browser tab. Under Akapela's own title bar
+// — the Desktop App, or the installed PWA — it fills only the space below the
+// bar instead (`app.vue` makes that space its positioning box): the bar is a
+// row of the page rather than something floating over it, so pinned to the
+// whole window this header would sit under the bar.
+const { shown: hasTitleBar } = useTitleBar()
 const playerState = player.state
 
 const { track, notFound, refresh } = useTrackDetail(id)
 
 const recorder = useTakeRecorder(id)
 onBeforeUnmount(() => recorder.destroy())
+
+// Sung from the Queue (`?entry=`): the singer's name shows beside the title,
+// and the entry is used up when this visit ends. Either way, how the visit
+// ended is what decides where Up next is offered.
+const entryId = computed(() => (typeof route.query.entry === 'string' ? route.query.entry : null))
+const turn = useQueueTurn(id, entryId)
+let recordedATake = false
+onBeforeUnmount(() => turn.end(recordedATake))
 // A saved Take lands on its Review screen (ticket 08) rather than staying here.
 // The Take page reads the Track through the same cached `track-<id>` entry
 // this page does — refreshing it first (rather than letting the Take page's
@@ -34,6 +43,7 @@ onBeforeUnmount(() => recorder.destroy())
 // on a "Take not found" screen for a Take that has, in fact, been saved.
 watch(() => recorder.state.value.savedTake, async (take) => {
   if (!take) return
+  recordedATake = true
   await refresh()
   navigateTo(`/tracks/${id.value}/takes/${take.id}`)
 })
@@ -143,7 +153,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
 <template>
   <main
     class="inset-0 flex flex-col overflow-hidden bg-ground"
-    :class="isDesktop ? 'absolute' : 'fixed'"
+    :class="hasTitleBar ? 'absolute' : 'fixed'"
   >
     <!-- The cover art is the only colour on the page (DESIGN.md §1). -->
     <div
@@ -169,7 +179,10 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
       </NuxtLink>
       <div class="min-w-0 flex-1 text-center">
         <p class="truncate text-sm font-bold text-text">
-          {{ songLabel }}
+          {{ songLabel }}<span
+            v-if="turn.entry.value?.singerName"
+            class="font-normal text-text-muted"
+          > · {{ turn.entry.value.singerName }}</span>
         </p>
         <p
           v-if="adjustments"

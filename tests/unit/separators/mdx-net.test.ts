@@ -46,6 +46,25 @@ describe('MdxNetModel', () => {
     expect(maxErr).toBeLessThan(0.01)
   })
 
+  it('reports each chunk it finishes, out of the total, ending on the total', async () => {
+    let calls = 0
+    const counting: ModelSession = { run: async (feeds) => {
+      calls++
+      return identitySession.run(feeds)
+    } }
+    const model = new MdxNetModel('unused', SMALL_CONFIG, counting)
+    const length = SMALL_CONFIG.hopLength * (SMALL_CONFIG.segmentSize - 1) * 3
+    const reports: Array<[number, number]> = []
+
+    await model.separate([sineSignal(length, 440), sineSignal(length, 660)], {
+      onChunk: (done, total) => reports.push([done, total]),
+    })
+
+    expect(reports.length).toBe(calls)
+    expect(reports.map(([done]) => done)).toEqual(Array.from({ length: calls }, (_, i) => i + 1))
+    expect(reports.every(([, total]) => total === calls)).toBe(true)
+  })
+
   it('produces silence end to end when the model always outputs silence', async () => {
     const model = new MdxNetModel('unused', SMALL_CONFIG, silentSession)
     const length = SMALL_CONFIG.hopLength * (SMALL_CONFIG.segmentSize - 1) * 2

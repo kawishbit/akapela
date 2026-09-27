@@ -14,7 +14,12 @@ import type { SongProviderIds } from '../../shared/song'
 export const JOB_TYPES = ['noop', 'import', 'render', 'separate'] as const
 export type JobType = (typeof JOB_TYPES)[number]
 
-export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed'] as const
+/**
+ * `succeeded`, `failed`, and `cancelled` are terminal. `cancelled` means the
+ * singer stopped it, and whatever it was working on was put back the way it
+ * was before it was asked for (`server/lib/job-actions.ts`).
+ */
+export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const
 export type JobState = (typeof JOB_STATES)[number]
 
 /**
@@ -283,3 +288,23 @@ export const settings = sqliteTable('settings', {
 })
 
 export type Settings = typeof settings.$inferSelect
+
+/**
+ * The Queue: who sings next. One per install, so there is no queue id — the
+ * table is the Queue. Each row is a Queue Entry, a Track and optionally the
+ * name of who will sing it; the same Track may have any number. `position`
+ * orders them, rewritten for the rows a move touches in one transaction; a
+ * house Queue is tens of entries, so plain integers never need rebalancing.
+ */
+export const queueEntries = sqliteTable('queue_entries', {
+  id: text('id').primaryKey(),
+  trackId: text('track_id')
+    .notNull()
+    .references(() => tracks.id, { onDelete: 'cascade' }),
+  /** Free text, since there are no accounts; null when nobody said. */
+  singerName: text('singer_name'),
+  position: integer('position').notNull(),
+  createdAt: integer('created_at').notNull(),
+})
+
+export type QueueEntry = typeof queueEntries.$inferSelect

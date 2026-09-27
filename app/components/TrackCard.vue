@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Loader2, RotateCcw, Trash2, XCircle } from 'lucide-vue-next'
+import { AudioLines, ListPlus, Loader2, RotateCcw, Trash2, XCircle } from 'lucide-vue-next'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 
 const props = defineProps<{ track: TrackWithJob }>()
@@ -18,6 +18,15 @@ const importLabel = computed(() => {
 })
 
 const failure = computed(() => errorSummary(props.track.job?.error))
+
+// A separating Track can be queued; its entry says how far along it is. One
+// still importing cannot be sung at all.
+const { ask: askToQueue } = useAddToQueue()
+
+/** A Job's own row on the Jobs page, which highlights it on arrival. */
+function jobLink(jobId: string | null | undefined): string {
+  return jobId ? `/jobs#${jobId}` : '/jobs'
+}
 </script>
 
 <template>
@@ -47,22 +56,40 @@ const failure = computed(() => errorSummary(props.track.job?.error))
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center"
       >
         <Loader2 class="size-7 animate-spin text-accent" />
-        <p class="text-xs font-bold text-text">
-          {{ importLabel }}
-        </p>
-        <div
-          class="h-1 w-full max-w-32 overflow-hidden rounded-pill bg-black/50"
-          role="progressbar"
-          :aria-valuenow="progress"
-          aria-valuemin="0"
-          aria-valuemax="100"
+        <!-- The chip is its own way in: to this import's row on the Jobs page.
+             Everywhere else on the card still opens the Track. -->
+        <NuxtLink
+          :to="jobLink(track.job?.id)"
+          class="pointer-events-auto flex w-full max-w-32 flex-col items-center gap-3 rounded-[6px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-text"
+          :aria-label="`${importLabel}: show on the Jobs page`"
         >
-          <div
-            class="h-full rounded-pill bg-accent transition-[width] duration-500"
-            :style="{ width: `${progress}%` }"
-          />
-        </div>
+          <span class="text-xs font-bold text-text">
+            {{ importLabel }}
+          </span>
+          <span
+            class="block h-1 w-full overflow-hidden rounded-pill bg-black/50"
+            role="progressbar"
+            :aria-valuenow="progress"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <span
+              class="block h-full rounded-pill bg-accent transition-[width] duration-500"
+              :style="{ width: `${progress}%` }"
+            />
+          </span>
+        </NuxtLink>
       </div>
+
+      <NuxtLink
+        v-else-if="track.separationState === 'separating'"
+        :to="jobLink(track.separationJobId)"
+        class="pointer-events-auto absolute bottom-2 left-2 inline-flex items-center gap-1.5 rounded-pill bg-black/70 px-3 py-1.5 text-xs font-bold text-white outline-none hover:bg-black/85 focus-visible:ring-2 focus-visible:ring-text"
+        :aria-label="`Separating ${track.title}: show on the Jobs page`"
+      >
+        <AudioLines class="size-3.5 text-accent" />
+        Separating
+      </NuxtLink>
 
       <div
         v-else-if="track.importState === 'failed'"
@@ -103,6 +130,17 @@ const failure = computed(() => errorSummary(props.track.job?.error))
         </button>
       </div>
     </div>
+
+    <button
+      v-if="track.importState === 'ready'"
+      type="button"
+      class="absolute right-16 top-4 flex size-10 items-center justify-center rounded-full bg-black/60 text-white shadow-[var(--shadow-medium)] transition hover:bg-black/80 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+      :aria-label="`Add ${track.title} to the Queue`"
+      title="Add to queue"
+      @click="askToQueue(track)"
+    >
+      <ListPlus class="size-4" />
+    </button>
 
     <button
       type="button"

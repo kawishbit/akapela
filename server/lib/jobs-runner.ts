@@ -5,6 +5,10 @@ import { runRender } from './jobs/render'
 import { MdxNetSeparator, separateHandler } from './jobs/separate'
 import { YtDlpFetcher } from './sources'
 import type { Telemetry } from './telemetry'
+import { HEAVY_JOB_TYPE, type Lane } from './jobs'
+import { RunningJobs } from './running-jobs'
+
+export type { Lane }
 
 /**
  * Claims queued Jobs one at a time and runs them to a terminal state, in
@@ -23,6 +27,13 @@ export interface JobContext {
   readonly sqlite: Database.Database
   /** Puts `percent` (clamped 0-100) on the Job row. */
   progress(percent: number): void
+  /**
+   * Aborts when the singer cancels this Job. A handler kills whatever it
+   * spawned, removes its partial output, and returns or throws; the row is
+   * already `cancelled`, and the cleanup that puts its target back runs once
+   * the handler has let go. Never aborted by shutdown.
+   */
+  readonly signal: AbortSignal
 }
 
 /**
@@ -83,24 +94,46 @@ const NO_TELEMETRY: Telemetry = {
   shutdown: async () => {},
 }
 
+/** The `claimNext` filter for one Lane, or for both when a runner is given none. */
+function laneFilter(lane: Lane | undefined): string {
+  if (lane === 'heavy') return `AND type = '${HEAVY_JOB_TYPE}'`
+  if (lane === 'light') return `AND type != '${HEAVY_JOB_TYPE}'`
+  return ''
+}
+
 export class JobsRunner {
   private readonly sqlite: Database.Database
   private readonly dataDir: string
   private readonly handlers: Partial<Record<JobType, Handler>>
   private readonly telemetry: Telemetry
+  private readonly lane: Lane | undefined
+  private readonly running: RunningJobs
 
   constructor(
     sqlite: Database.Database,
     dataDir: string,
-    options: { handlers?: Partial<Record<JobType, Handler>>, telemetry?: Telemetry } = {},
+    options: {
+      handlers?: Partial<Record<JobType, Handler>>
+      telemetry?: Telemetry
+      /** Which Lane this runner claims from. Left out, it claims from both — what a test running one Job wants. */
+      lane?: Lane
+      /** Where a running Job registers, so a cancel can reach it. Shared with the API through `Akapela`. */
+      running?: RunningJobs
+    } = {},
   ) {
     this.sqlite = sqlite
     this.dataDir = dataDir
     this.handlers = options.handlers ?? DEFAULT_HANDLERS
     this.telemetry = options.telemetry ?? NO_TELEMETRY
+    this.lane = options.lane
+    this.running = options.running ?? new RunningJobs()
   }
 
-  /** Requeues any Job left `running` by a previous process that died. Returns how many. */
+  /**
+   * Requeues any Job left `running` by a previous process that died. Returns
+   * how many. Across both Lanes, so it is called once at startup before
+   * either loop starts, never per Lane.
+   */
   recoverStaleJobs(): number {
     const result = this.sqlite
       .prepare(`UPDATE jobs SET state = 'queued', started_at = NULL, progress = 0 WHERE state = 'running'`)
@@ -108,13 +141,13 @@ export class JobsRunner {
     return result.changes
   }
 
-  /** Atomically moves the oldest queued Job to running and returns it, or null when the queue is empty. */
+  /** Atomically moves this Lane's oldest queued Job to running and returns it, or null when there is none. */
   private claimNext(): Job | null {
     const row = this.sqlite
       .prepare(
         `UPDATE jobs SET state = 'running', started_at = ?
          WHERE id = (
-           SELECT id FROM jobs WHERE state = 'queued'
+           SELECT id FROM jobs WHERE state = 'queued' ${laneFilter(this.lane)}
            ORDER BY created_at, rowid LIMIT 1
          )
          RETURNING id, type, target_id, state, progress, error, created_at, started_at, finished_at, trace_parent`,
@@ -133,11 +166,13 @@ export class JobsRunner {
     const job = this.claimNext()
     if (!job) return false
 
+    const run = this.running.start(job.id)
     const ctx: JobContext = {
       job,
       dataDir: this.dataDir,
       sqlite: this.sqlite,
       progress: percent => this.setProgress(job.id, percent),
+      signal: run.signal,
     }
 
     // The span wraps the terminal UPDATE as well as the handler, so what the
@@ -148,18 +183,24 @@ export class JobsRunner {
       const handler = this.handlers[job.type]
       if (!handler) throw new Error(`no handler for job type '${job.type}'`)
       await handler(ctx)
+      // `AND state = 'running'` throughout: a cancelled Job's row already says
+      // so, and whatever the handler did after its signal aborted must not
+      // turn that into a success or a failure.
       this.sqlite
-        .prepare(`UPDATE jobs SET state = 'succeeded', progress = 100, finished_at = ? WHERE id = ?`)
+        .prepare(`UPDATE jobs SET state = 'succeeded', progress = 100, finished_at = ? WHERE id = ? AND state = 'running'`)
         .run(Date.now(), job.id)
     }
     catch (error) {
-      span?.failed(error)
-      const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
-      this.sqlite
-        .prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ?`)
-        .run(message, Date.now(), job.id)
+      if (!run.signal.aborted) {
+        span?.failed(error)
+        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+        this.sqlite
+          .prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ? AND state = 'running'`)
+          .run(message, Date.now(), job.id)
+      }
     }
     finally {
+      run.finished()
       span?.finish()
     }
     return true
@@ -169,9 +210,10 @@ export class JobsRunner {
    * Polls forever, `pollIntervalMs` apart whenever the queue is empty. Stops
    * as soon as `signal` aborts — checked between Jobs, never mid-Job, so a
    * shutdown lets whatever is running finish rather than tearing it down.
+   * Stale Jobs are not recovered here: that is `recoverStaleJobs`, called
+   * once for both Lanes before either loop starts.
    */
   async runForever(pollIntervalMs: number, signal: AbortSignal): Promise<void> {
-    this.recoverStaleJobs()
     while (!signal.aborted) {
       const ran = await this.runOnce()
       if (!ran && !signal.aborted) await sleep(pollIntervalMs, signal)

@@ -20,6 +20,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { decodeWav, encodeWav } from '../../../app/audio/wav.ts'
 import { MdxNetModel } from './mdx-net.ts'
+import { formatChunkProgress } from './progress.ts'
 
 async function main(): Promise<void> {
   const [modelPath, backingPath, instrumentalOutPath, vocalsOutPath] = process.argv.slice(2)
@@ -33,7 +34,9 @@ async function main(): Promise<void> {
   const right = Float64Array.from(channels[1] ?? channels[0]!)
 
   const model = new MdxNetModel(modelPath)
-  const { instrumental, vocals } = await model.separate([left, right])
+  const { instrumental, vocals } = await model.separate([left, right], {
+    onChunk: (done, total) => process.stdout.write(formatChunkProgress(done, total)),
+  })
 
   await writeFile(instrumentalOutPath, encodeWav({
     channels: [Float32Array.from(instrumental[0]), Float32Array.from(instrumental[1])],

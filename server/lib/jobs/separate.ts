@@ -5,7 +5,8 @@ import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { decodeWav, encodeWav } from '../../../app/audio/wav'
 import { fetchModel } from '../separators/download-model'
-import { childEnv, separateCliPath } from '../tools'
+import { chunkProgressReader } from '../separators/progress'
+import { childEnv, killOnAbort, separateCliPath } from '../tools'
 import type { Handler } from '../jobs-runner'
 import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir, trackExists } from './track-paths'
 
@@ -23,11 +24,18 @@ export interface Stems {
   sampleRate: number
 }
 
+export interface SeparateOptions {
+  /** Stops the model run when it aborts, killing its subprocess; the Separation is then rejected. */
+  signal?: AbortSignal
+  /** Receives how far the model run has got, 0 to 1, as it goes. May never be called. */
+  onProgress?: (fraction: number) => void
+}
+
 export interface Separator {
   /** Puts the separation model in `modelsDir`, or does nothing if it is already there. */
   fetchModel: (modelsDir: string) => Promise<void>
   /** Runs the model over the Backing Track WAV at `backingPath`. */
-  separate: (backingPath: string, modelsDir: string) => Promise<Stems>
+  separate: (backingPath: string, modelsDir: string, options?: SeparateOptions) => Promise<Stems>
 }
 
 export class MdxNetSeparator implements Separator {
@@ -37,13 +45,13 @@ export class MdxNetSeparator implements Separator {
     this.modelPath = await fetchModel(modelsDir)
   }
 
-  async separate(backingPath: string, modelsDir: string): Promise<Stems> {
+  async separate(backingPath: string, modelsDir: string, options: SeparateOptions = {}): Promise<Stems> {
     const modelPath = this.modelPath ?? await fetchModel(modelsDir)
     const scratchDir = await mkdtemp(join(tmpdir(), 'akapela-separate-'))
     const instrumentalPath = join(scratchDir, 'instrumental.wav')
     const vocalsPath = join(scratchDir, 'vocals.wav')
     try {
-      await runSeparateCli(modelPath, backingPath, instrumentalPath, vocalsPath)
+      await runSeparateCli(modelPath, backingPath, instrumentalPath, vocalsPath, options)
       const instrumentalWav = decodeWav(await readFile(instrumentalPath))
       const vocalsWav = decodeWav(await readFile(vocalsPath))
       return {
@@ -63,6 +71,7 @@ function runSeparateCli(
   backingPath: string,
   instrumentalOutPath: string,
   vocalsOutPath: string,
+  { signal, onProgress }: SeparateOptions,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // `separate-cli.ts`, run as its own subprocess — CPU isolation for the
@@ -76,6 +85,8 @@ function runSeparateCli(
       [separateCliPath(), modelPath, backingPath, instrumentalOutPath, vocalsOutPath],
       { env: childEnv() },
     )
+    killOnAbort(child, signal)
+    if (onProgress) child.stdout.on('data', chunkProgressReader(onProgress))
     let stderr = ''
     child.stderr.on('data', d => (stderr += d))
     child.on('error', error => reject(new Error(`could not start the separation subprocess: ${error.message}`)))
@@ -112,12 +123,22 @@ const SEPARATION_DIRNAME = 'stems.part'
 const MODELS_DIRNAME = 'cache/models'
 const LEGACY_MODELS_DIRNAME = 'models'
 
-// Progress milestones. Deliberately coarse — the model reports nothing
-// usable in between, which is why the UI renders separation as an elapsed
-// timer rather than a bar. The runner writes the final 100.
+// Progress milestones. The model run fills the band between the second and
+// third, a chunk at a time; the runner writes the final 100.
 const PROGRESS_STARTED = 10
 const PROGRESS_MODEL_READY = 30
 const PROGRESS_STEMS_WRITTEN = 85
+
+/**
+ * Where a model run that is `fraction` done puts the Job: inside the band
+ * between the model being ready and the Stems being written, and always short
+ * of the latter, which only the Stems existing may claim.
+ */
+export function separationPercent(fraction: number): number {
+  const band = PROGRESS_STEMS_WRITTEN - PROGRESS_MODEL_READY
+  const percent = PROGRESS_MODEL_READY + Math.floor(band * Math.max(0, Math.min(1, fraction)))
+  return Math.min(percent, PROGRESS_STEMS_WRITTEN - 1)
+}
 
 /**
  * Where model weights are cached, migrating a pre-cache-split layout in
@@ -157,9 +178,21 @@ async function runSeparateWith(ctx: Parameters<Handler>[0], separator: Separator
 
     const models = await modelsDir(ctx.dataDir)
     await separator.fetchModel(models)
+    ctx.signal.throwIfAborted()
     ctx.progress(PROGRESS_MODEL_READY)
 
-    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models)
+    // Only when the number moves, and never backwards: a long song is a few
+    // hundred chunks, and the row need not hear about every one.
+    let reported = PROGRESS_MODEL_READY
+    const onProgress = (fraction: number) => {
+      const percent = separationPercent(fraction)
+      if (percent > reported) {
+        reported = percent
+        ctx.progress(percent)
+      }
+    }
+    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models, { signal: ctx.signal, onProgress })
+    ctx.signal.throwIfAborted()
 
     const scratch = join(directory, SEPARATION_DIRNAME)
     await rm(scratch, { recursive: true, force: true })
@@ -177,6 +210,9 @@ async function runSeparateWith(ctx: Parameters<Handler>[0], separator: Separator
       }))
 
       await ensureNotDeleted(ctx.sqlite, trackId, directory, 'separation')
+      // The last moment a cancel can still keep the Track's existing Stems:
+      // nothing before this has touched them.
+      ctx.signal.throwIfAborted()
       await rename(instrumentalPath, join(directory, INSTRUMENTAL_STEM_FILE))
       await rename(vocalsPath, join(directory, VOCALS_STEM_FILE))
     }
@@ -191,6 +227,8 @@ async function runSeparateWith(ctx: Parameters<Handler>[0], separator: Separator
       .run(Date.now(), trackId)
   }
   catch (error) {
+    // Cancelled: the cancel puts the Track's state back once this returns.
+    if (ctx.signal.aborted) throw error
     // The job row carries the message; the Track carries the state a card
     // renders, and it is `failed` that puts the error and its retry button
     // on the Track.

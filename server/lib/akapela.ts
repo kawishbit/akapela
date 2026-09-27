@@ -7,6 +7,7 @@ import * as schema from '../db/schema'
 import { createGeniusProvider } from '../lyrics/genius'
 import { createLrclibProvider } from '../lyrics/lrclib'
 import type { LyricsProvider } from '../lyrics/provider'
+import { RunningJobs } from './running-jobs'
 
 export interface AkapelaOptions {
   /** Directory holding the database and every Track's files. */
@@ -29,6 +30,8 @@ export interface Akapela {
   lyricsProviders: readonly LyricsProvider[]
   /** Fetches things that belong to no provider, such as album art. */
   fetch: typeof globalThis.fetch
+  /** The Jobs this process is running, which is how a cancel reaches one mid-run. */
+  runningJobs: RunningJobs
   close(): void
 }
 
@@ -54,6 +57,7 @@ export function createAkapela(options: AkapelaOptions): Akapela {
     lyricsProviders: options.lyricsProviders
       ?? [createLrclibProvider(), createGeniusProvider({ token: options.geniusToken ?? '' })],
     fetch: options.fetch ?? ((...args) => globalThis.fetch(...args)),
+    runningJobs: new RunningJobs(),
     close() {
       sqlite.close()
     },

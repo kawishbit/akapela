@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { trackDir as trackDirFor } from './jobs/track-paths'
 import {
   jobs,
@@ -53,7 +53,15 @@ export const BACKING_SOURCE_FILES: Record<BackingSource, string> = {
 const VOCALS_STEM_FILE = 'vocals.wav'
 
 /** A Track together with its most recent import Job, which carries import progress and error. */
-export type TrackWithJob = Track & { job: Job | null }
+export type TrackWithJob = Track & {
+  job: Job | null
+  /**
+   * The id of the most recent separate Job, so a Library card that is
+   * separating can link to its row on the Jobs page without the whole Job.
+   * Null until separation has ever been asked for.
+   */
+  separationJobId: string | null
+}
 
 /** What the separate routes answer with: the Track as it now is, and the Job that will do the work. */
 export type TrackWithSeparationJob = TrackWithJob & { separationJob: Job }
@@ -173,7 +181,7 @@ function startImport(
   }
   akapela.db.insert(tracks).values(track).run()
   const job = enqueueJob(akapela, { type: 'import', targetId: input.id })
-  return { ...track, job }
+  return { ...track, job, separationJobId: null }
 }
 
 /**
@@ -189,9 +197,16 @@ const latestImportJobId = sql<string | null>`(
   limit 1
 )`
 
+const latestSeparationJobId = sql<string | null>`(
+  select j.id from jobs j
+  where j.target_id = ${tracks.id} and j.type = 'separate'
+  order by j.created_at desc, j.rowid desc
+  limit 1
+)`
+
 function selectTracksWithJob(akapela: Akapela) {
   return akapela.db
-    .select({ track: tracks, job: jobs })
+    .select({ track: tracks, job: jobs, separationJobId: latestSeparationJobId })
     .from(tracks)
     .leftJoin(jobs, eq(jobs.id, latestImportJobId))
 }
@@ -205,8 +220,13 @@ function selectTracksWithJob(akapela: Akapela) {
  * phase-one Track still loads (and plays as a straight wire) instead of
  * handing the engine `undefined` Effects and a non-finite AudioParam.
  */
-function withParsedAdjustments(row: { track: Track, job: Job | null }): TrackWithJob {
-  return { ...row.track, adjustments: parseAdjustments(row.track.adjustments), job: row.job }
+function withParsedAdjustments(row: { track: Track, job: Job | null, separationJobId: string | null }): TrackWithJob {
+  return {
+    ...row.track,
+    adjustments: parseAdjustments(row.track.adjustments),
+    job: row.job,
+    separationJobId: row.separationJobId,
+  }
 }
 
 /**
@@ -423,12 +443,17 @@ export function saveLyricsOffset(akapela: Akapela, track: TrackWithJob, lyricsOf
   return { ...track, lyricsOffsetMs, updatedAt: now }
 }
 
-/** Deletes the Track's rows, its jobs, and its directory. Returns false when no such Track exists. */
-export function deleteTrack(akapela: Akapela, id: string): boolean {
+/**
+ * Deletes the Track's rows, its jobs, and its directory. Returns false when no
+ * such Track exists. `keepJobId` spares one Job row: a cancelled import deletes
+ * its Track, but the Job the singer cancelled stays until they clear it.
+ */
+export function deleteTrack(akapela: Akapela, id: string, options: { keepJobId?: string } = {}): boolean {
   const deleted = akapela.db.transaction((tx) => {
     const removed = tx.delete(tracks).where(eq(tracks.id, id)).returning({ id: tracks.id }).all()
     if (removed.length === 0) return false
-    tx.delete(jobs).where(eq(jobs.targetId, id)).run()
+    const targeting = eq(jobs.targetId, id)
+    tx.delete(jobs).where(options.keepJobId ? and(targeting, ne(jobs.id, options.keepJobId)) : targeting).run()
     return true
   })
   if (deleted) rmSync(trackDir(akapela, id), { recursive: true, force: true })
@@ -529,7 +554,7 @@ export function saveBackingSource(
 }
 
 /** Puts a failed Track back into importing state and enqueues a fresh import job. */
-export function retryImport(akapela: Akapela, track: Track): TrackWithJob {
+export function retryImport(akapela: Akapela, track: TrackWithJob): TrackWithJob {
   const now = Date.now()
   akapela.db
     .update(tracks)
@@ -565,5 +590,5 @@ export function startSeparation(akapela: Akapela, track: TrackWithJob): TrackWit
     .where(eq(tracks.id, track.id))
     .run()
   const separationJob = enqueueJob(akapela, { type: 'separate', targetId: track.id })
-  return { ...track, separationState: 'separating', updatedAt: now, separationJob }
+  return { ...track, separationState: 'separating', updatedAt: now, separationJob, separationJobId: separationJob.id }
 }

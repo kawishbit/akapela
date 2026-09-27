@@ -9,7 +9,7 @@ import {
   REVERB_AMOUNT_MIN,
   type EffectsTarget,
 } from '../../shared/adjustments'
-import { childEnv, ffmpegPath, rubberBandWasmPath, stretchCliPath } from './tools'
+import { childEnv, ffmpegPath, killOnAbort, rubberBandWasmPath, stretchCliPath } from './tools'
 
 /**
  * Thin wrappers over ffmpeg, ported from `worker/akapela_worker/audio.py`
@@ -24,10 +24,11 @@ export const BACKING_CHANNELS = 2
 
 export class AudioError extends Error {}
 
-/** Runs ffmpeg and rejects with `AudioError` on a non-zero exit. */
-function run(bin: 'ffmpeg', args: string[]): Promise<string> {
+/** Runs ffmpeg and rejects with `AudioError` on a non-zero exit, or once `signal` has killed it. */
+function run(bin: 'ffmpeg', args: string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(ffmpegPath(), args)
+    killOnAbort(child, signal)
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', d => (stdout += d))
@@ -50,7 +51,7 @@ function cleanFfmpegStderr(stderr: string): string {
 }
 
 /** Decodes any Source audio and writes it as the 44.1 kHz stereo 16-bit WAV Backing Track. */
-export async function normalizeToBackingTrack(src: string, dst: string): Promise<void> {
+export async function normalizeToBackingTrack(src: string, dst: string, signal?: AbortSignal): Promise<void> {
   await mkdir(dirname(dst), { recursive: true })
   const tmp = dst.replace(/\.wav$/, '.part.wav')
   try {
@@ -70,7 +71,7 @@ export async function normalizeToBackingTrack(src: string, dst: string): Promise
       '-c:a',
       'pcm_s16le',
       tmp,
-    ])
+    ], signal)
   }
   catch (error) {
     await rm(tmp, { force: true })
@@ -165,6 +166,8 @@ export interface RenderMixOptions extends MixFilterGraphOptions {
   dstWav: string | null
   tempo: number
   pitch: number
+  /** Kills whichever subprocess is running when it aborts; the partial files go with it. */
+  signal?: AbortSignal
 }
 
 /**
@@ -204,7 +207,7 @@ export function appendEffects(
 }
 
 /** Runs the stretch subprocess and rejects with `AudioError` on a non-zero exit. */
-function runStretch(src: string, dst: string, timeRatio: number, pitchScale: number): Promise<void> {
+function runStretch(src: string, dst: string, timeRatio: number, pitchScale: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     // `childEnv` carries `ELECTRON_RUN_AS_NODE=1`, without which
     // `process.execPath` under the packaged desktop app is the GUI binary.
@@ -213,6 +216,7 @@ function runStretch(src: string, dst: string, timeRatio: number, pitchScale: num
       [stretchCliPath(), rubberBandWasmPath(), src, dst, String(timeRatio), String(pitchScale)],
       { env: childEnv() },
     )
+    killOnAbort(child, signal)
     let stderr = ''
     child.stderr.on('data', d => (stderr += d))
     child.on('error', error => reject(new AudioError(`could not start the stretch subprocess: ${error.message}`)))
@@ -322,7 +326,7 @@ export function buildMixFilterGraph(options: MixFilterGraphOptions): { filterCom
  * Ported from `worker/akapela_worker/audio.py`'s `render_mix` (ticket 04).
  */
 export async function renderMix(options: RenderMixOptions): Promise<void> {
-  const { backing, vocal, dstMp3, dstWav, tempo, pitch } = options
+  const { backing, vocal, dstMp3, dstWav, tempo, pitch, signal } = options
 
   await mkdir(dirname(dstMp3), { recursive: true })
 
@@ -332,7 +336,7 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
     let backingInput = backing
     if (tempo !== 1 || pitch !== 1) {
       try {
-        await runStretch(backing, stretchedWav, 1 / tempo, pitch)
+        await runStretch(backing, stretchedWav, 1 / tempo, pitch, signal)
       }
       catch (error) {
         throw error instanceof AudioError
@@ -356,7 +360,7 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
         '-ac', String(BACKING_CHANNELS),
         '-c:a', 'pcm_s16le',
         tmpWav,
-      ])
+      ], signal)
     }
     catch (error) {
       await rm(tmpWav, { force: true })
@@ -377,7 +381,7 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
       '-c:a', 'libmp3lame',
       '-b:a', '320k',
       tmpMp3,
-    ])
+    ], signal)
   }
   catch (error) {
     await rm(tmpWav, { force: true })

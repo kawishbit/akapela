@@ -52,8 +52,9 @@ Roughly in order. Details in [ROADMAP.md](ROADMAP.md).
 - [x] Backup and restore
 - [x] Desktop app
 - [x] Shorter README
-- [ ] Jobs page: see and manage everything that's processing
-- [ ] Queue: line up songs to sing
+- [x] Jobs page: see and manage everything that's processing
+- [x] Queue: line up songs to sing
+- [x] Connect the desktop app to your own server
 - [ ] Faster vocal removal, including GPU support
 - [ ] Spotify playlist import
 - [ ] More languages

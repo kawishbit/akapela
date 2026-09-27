@@ -83,6 +83,11 @@ export interface ModelSession {
   run: (feeds: Record<string, ort.Tensor>) => Promise<Record<string, ort.Tensor>>
 }
 
+export interface SeparationProgressOptions {
+  /** Called after each chunk's model call, with how many are done out of how many there are. */
+  onChunk?: (done: number, total: number) => void
+}
+
 export class MdxNetModel {
   private readonly modelPath: string
   private readonly config: MdxNetConfig
@@ -155,7 +160,10 @@ export class MdxNetModel {
    * mix: chunked with overlap, each chunk run through the model, crossfaded
    * back together with a Hanning window exactly the way `demix` does it.
    */
-  async demixPrimary(mix: [Float64Array, Float64Array]): Promise<[Float64Array, Float64Array]> {
+  async demixPrimary(
+    mix: [Float64Array, Float64Array],
+    options: SeparationProgressOptions = {},
+  ): Promise<[Float64Array, Float64Array]> {
     const { nFft, hopLength, segmentSize, overlap } = this.config
     const trim = nFft / 2
     const chunkSize = hopLength * (segmentSize - 1)
@@ -172,6 +180,8 @@ export class MdxNetModel {
     const result: [Float64Array, Float64Array] = [new Float64Array(paddedLength), new Float64Array(paddedLength)]
     const divider: [Float64Array, Float64Array] = [new Float64Array(paddedLength), new Float64Array(paddedLength)]
 
+    const totalChunks = Math.ceil(paddedLength / step)
+    let doneChunks = 0
     for (let start = 0; start < paddedLength; start += step) {
       const end = Math.min(start + chunkSize, paddedLength)
       const actualSize = end - start
@@ -194,6 +204,7 @@ export class MdxNetModel {
         divider[0]![start + n]! += w
         divider[1]![start + n]! += w
       }
+      options.onChunk?.(++doneChunks, totalChunks)
     }
 
     const out: [Float64Array, Float64Array] = [new Float64Array(originalLength), new Float64Array(originalLength)]
@@ -231,7 +242,7 @@ export class MdxNetModel {
    * `invert_using_spec=True` branch — skipped here since it changes nothing
    * this model's output depends on.
    */
-  async separate(mix: [Float64Array, Float64Array]): Promise<{
+  async separate(mix: [Float64Array, Float64Array], options: SeparationProgressOptions = {}): Promise<{
     instrumental: [Float64Array, Float64Array]
     vocals: [Float64Array, Float64Array]
   }> {
@@ -239,7 +250,7 @@ export class MdxNetModel {
     const normalizedMix: [Float64Array, Float64Array] = [mix[0].slice(), mix[1].slice()]
     normalizePeak(normalizedMix, 0.9)
 
-    const demixed = await this.demixPrimary(normalizedMix)
+    const demixed = await this.demixPrimary(normalizedMix, options)
     const instrumental: [Float64Array, Float64Array] = [
       demixed[0].map(v => v * peak),
       demixed[1].map(v => v * peak),

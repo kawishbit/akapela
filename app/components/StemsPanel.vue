@@ -12,11 +12,10 @@ const state = computed(() => props.track.separationState)
 const separating = computed(() => state.value === 'separating')
 
 /**
- * Separation is minutes long and the model reports nothing usable in between,
- * so this counts up rather than filling a bar (spec, phase two): a bar sitting
- * at 10 percent for four minutes reads as broken, and the remaining time
- * genuinely is not knowable. Ticking starts after hydration so the server and
- * the client render the same markup.
+ * Separation is minutes long. Its Job reports a real percentage now, a chunk
+ * of the song at a time, and the elapsed time sits beside it so a slow machine
+ * still visibly moves between chunks. Ticking starts after hydration so the
+ * server and the client render the same markup.
  */
 const now = ref<number | null>(null)
 let ticker: ReturnType<typeof setInterval> | undefined
@@ -39,7 +38,8 @@ const separatingLabel = computed(() => {
   // The worker claimed it, so time it from when it did rather than from when
   // the singer asked, which may have been behind another job in the queue.
   const since = job.startedAt ?? job.createdAt
-  return now.value === null ? 'Separating…' : `Separating… ${formatDuration(now.value - since)}`
+  const elapsed = now.value === null ? '' : ` · ${formatDuration(now.value - since)}`
+  return `Separating… ${job.progress}%${elapsed}`
 })
 
 const failure = computed(() => errorSummary(props.track.separationJob?.error, 'Separation failed'))

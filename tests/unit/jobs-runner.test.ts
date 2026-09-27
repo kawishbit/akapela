@@ -122,6 +122,80 @@ describe('JobsRunner', () => {
     expect(t.getJob('second').state).toBe('succeeded')
   })
 
+  it('runs only Separations in the heavy Lane, and everything else in the light one', async () => {
+    const t = setup()
+    t.enqueue('separate', { id: 'sep', createdAt: 1000 })
+    t.enqueue('render', { id: 'mix', createdAt: 2000 })
+    t.enqueue('import', { id: 'imp', createdAt: 3000 })
+    const ran: string[] = []
+    const record: Handler = async (ctx) => {
+      ran.push(ctx.job.id)
+    }
+    const handlers = { separate: record, render: record, import: record, noop: record }
+    const heavy = new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'heavy', handlers })
+    const light = new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'light', handlers })
+
+    await light.runOnce()
+    await light.runOnce()
+    await expect(light.runOnce()).resolves.toBe(false)
+    expect(ran).toEqual(['mix', 'imp'])
+    expect(t.getJob('sep').state).toBe('queued')
+
+    await heavy.runOnce()
+    await expect(heavy.runOnce()).resolves.toBe(false)
+    expect(ran).toEqual(['mix', 'imp', 'sep'])
+  })
+
+  it('puts a Job type it does not know in the light Lane', async () => {
+    const t = setup()
+    // @ts-expect-error - a type added after this test was written
+    t.enqueue('teleport', { id: 'j1', createdAt: 1000 })
+
+    await expect(new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'heavy' }).runOnce()).resolves.toBe(false)
+    await expect(new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'light' }).runOnce()).resolves.toBe(true)
+  })
+
+  it('starts a queued Mix while a Separation is running', async () => {
+    const t = setup()
+    t.enqueue('separate', { id: 'sep1', createdAt: 1000 })
+    t.enqueue('separate', { id: 'sep2', createdAt: 1500 })
+    t.enqueue('render', { id: 'mix', createdAt: 2000 })
+    let finishSeparation!: () => void
+    const separationHeld = new Promise<void>(resolve => (finishSeparation = resolve))
+    const handlers = {
+      separate: async () => separationHeld,
+      render: async () => {},
+    }
+    const heavy = new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'heavy', handlers })
+    const light = new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'light', handlers })
+
+    const running = heavy.runOnce()
+    await light.runOnce()
+
+    expect(t.getJob('sep1').state).toBe('running')
+    expect(t.getJob('mix').state).toBe('succeeded')
+    // The heavy Lane is still busy with the first, so the second waits.
+    expect(t.getJob('sep2').state).toBe('queued')
+
+    finishSeparation()
+    await running
+    expect(t.getJob('sep1').state).toBe('succeeded')
+  })
+
+  it('leaves stale running jobs to recoverStaleJobs rather than recovering them per Lane', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    t.akapela.sqlite.prepare(`UPDATE jobs SET state = 'running', started_at = 1500 WHERE id = 'j1'`).run()
+    const controller = new AbortController()
+
+    const finished = new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'light' }).runForever(5, controller.signal)
+    await new Promise(resolve => setTimeout(resolve, 20))
+    controller.abort()
+    await finished
+
+    expect(t.getJob('j1').state).toBe('running')
+  })
+
   it('requeues a stale running job on startup', () => {
     const t = setup()
     t.enqueue('noop', { id: 'j1', createdAt: 1000 })
@@ -156,7 +230,7 @@ describe('JobsRunner', () => {
     expect(t.getJob('j1').progress).toBe(100)
   })
 
-  it('runForever processes what is queued, checkpoints stale jobs, and stops when aborted', async () => {
+  it('runForever processes what is queued and stops when aborted', async () => {
     const t = setup()
     t.enqueue('noop', { id: 'j1', createdAt: 1000 })
     t.enqueue('noop', { id: 'j2', createdAt: 2000 })
