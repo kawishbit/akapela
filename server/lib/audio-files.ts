@@ -43,6 +43,7 @@ export function audioFormatOf(path: string): AudioFormat | null {
 const CONTENT_TYPES: Record<AudioFormat, string> = {
   wav: 'audio/wav',
   flac: 'audio/flac',
+  mp3: 'audio/mpeg',
 }
 
 /** What a stored audio file is served as, so the browser decodes it as what it is. */

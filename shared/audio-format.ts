@@ -8,7 +8,7 @@
  * Shared because Settings shows the same list the server accepts.
  */
 
-export const AUDIO_FORMATS = ['wav', 'flac'] as const
+export const AUDIO_FORMATS = ['wav', 'flac', 'mp3'] as const
 export type AudioFormat = (typeof AUDIO_FORMATS)[number]
 
 export const DEFAULT_AUDIO_FORMAT: AudioFormat = 'wav'
@@ -16,11 +16,13 @@ export const DEFAULT_AUDIO_FORMAT: AudioFormat = 'wav'
 export const AUDIO_FORMAT_LABELS: Record<AudioFormat, string> = {
   wav: 'WAV',
   flac: 'FLAC',
+  mp3: 'MP3',
 }
 
 export const AUDIO_FORMAT_DESCRIPTIONS: Record<AudioFormat, string> = {
   wav: 'Uncompressed. The largest, and what every Track used before.',
   flac: 'Lossless, about half the size.',
+  mp3: 'Smallest, lossy. 320 kbps.',
 }
 
 export function isAudioFormat(value: unknown): value is AudioFormat {

@@ -100,10 +100,10 @@ describe('CPU cores saved on bigger hardware', () => {
 })
 
 describe('the Audio Format', () => {
-  test('is WAV when never set, with WAV and FLAC on offer', async () => {
+  test('is WAV when never set, with WAV, FLAC, and MP3 on offer', async () => {
     expect(await (await api.get('/api/settings')).json()).toMatchObject({
       audioFormat: 'wav',
-      audioFormats: ['wav', 'flac'],
+      audioFormats: ['wav', 'flac', 'mp3'],
     })
   })
 
@@ -112,7 +112,7 @@ describe('the Audio Format', () => {
     expect((await (await api.get('/api/settings')).json()).audioFormat).toBe('flac')
   })
 
-  test.each(['ogg', 'FLAC', 1])('%j is rejected', async (audioFormat) => {
+  test.each(['ogg', 'FLAC', 'opus', 1])('%j is rejected', async (audioFormat) => {
     expect((await api.put('/api/settings', { audioFormat })).status).toBe(400)
   })
 })

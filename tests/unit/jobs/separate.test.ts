@@ -482,4 +482,20 @@ describe('separateHandler', () => {
     expect(separator.separated).toEqual([join(dir, 'backing.flac')])
     expect(existsSync(join(dir, 'instrumental.wav'))).toBe(true)
   })
+
+  it('stores the Stems as 320 kbps MP3 when MP3 is chosen', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    t.akapela.sqlite.prepare(`INSERT INTO settings (id, audio_format, updated_at) VALUES (1, 'mp3', 0)`).run()
+    enqueueSeparate(t)
+
+    await runTheJob(t, new FakeSeparator())
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    expect(probe(join(dir, 'instrumental.mp3')).streams[0]!.codec_name).toBe('mp3')
+    expect(probe(join(dir, 'vocals.mp3')).streams[0]!.codec_name).toBe('mp3')
+    expect(existsSync(join(dir, 'backing.wav'))).toBe(true)
+  })
 })

@@ -686,4 +686,34 @@ describe('renderMix', () => {
 
     expect(await mixOn('flac')).toEqual(await mixOn('wav'))
   })
+
+  it('places a Take on an MP3 Backing Track exactly where it lands on the WAV one', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { decodeWav } = await import('../../../app/audio/wav')
+    const { storeWavAs } = await import('../../../server/lib/audio')
+    const mixOn = async (format: 'wav' | 'mp3') => {
+      const t = setup()
+      const dir = trackDir(t)
+      writeSineWav(join(dir, 'instrumental.wav'), { frequency: 330, seconds: 2 })
+      if (format === 'mp3') await storeWavAs(join(dir, 'instrumental.wav'), join(dir, 'instrumental.mp3'))
+      writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 2 })
+      writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
+      insertTrack(t)
+      insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 700, durationMs: 500 })
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'instrumental', wavRequested: true, backingGain: 0 })
+      enqueueRender(t, 'm1')
+      await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
+      expect(getJob(t, 'j1').state).toBe('succeeded')
+      const channels = decodeWav(readFileSync(join(dir, 'mixes', 'm1.wav'))).channels
+      t.close()
+      db = undefined
+      return channels[0]!
+    }
+
+    const onWav = await mixOn('wav')
+    const onMp3 = await mixOn('mp3')
+    // The backing is muted, so what is left is the Take: same length, same place.
+    expect(onMp3.length).toBe(onWav.length)
+    expect(onMp3).toEqual(onWav)
+  })
 })

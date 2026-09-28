@@ -62,6 +62,10 @@ function codecArgs(format: AudioFormat): string[] {
   switch (format) {
     case 'wav': return ['-c:a', 'pcm_s16le']
     case 'flac': return ['-c:a', 'flac', '-sample_fmt', 's16']
+    // Always 320 kbps CBR (ADR 0016). ffmpeg writes an Info frame carrying
+    // the LAME tag's encoder delay and padding, which is what lets a decoder —
+    // ffmpeg's, and the browser's — trim them and land on sample 0.
+    case 'mp3': return ['-c:a', 'libmp3lame', '-b:a', '320k']
   }
 }
 
@@ -163,6 +167,73 @@ export async function audioDurationMs(path: string): Promise<number> {
   switch (formatOfStored(path)) {
     case 'wav': return wavDurationMs(path)
     case 'flac': return flacDurationMs(path)
+    case 'mp3': return mp3DurationMs(path)
+  }
+}
+
+/**
+ * The duration of an MP3 file Akapela wrote, from its Xing/Info frame: the
+ * number of audio frames times the samples each holds, less the encoder delay
+ * and padding the LAME tag after it records — the samples a gapless decoder
+ * trims, and so exactly the source's own sample count. A file without that
+ * frame is refused rather than estimated from its bitrate.
+ */
+export async function mp3DurationMs(path: string): Promise<number> {
+  const fail = (why: string) => new AudioError(`could not read the duration of ${path}: ${why}`)
+  const handle = await open(path, 'r').catch((error: Error) => {
+    throw fail(error.message)
+  })
+  try {
+    const head = Buffer.alloc(10)
+    await handle.read(head, 0, 10, 0)
+    // An ID3v2 tag, if there is one, comes first: a synchsafe size, plus a
+    // footer when its flag says so.
+    let offset = 0
+    if (head.toString('latin1', 0, 3) === 'ID3') {
+      offset = 10 + ((head[6]! << 21) | (head[7]! << 14) | (head[8]! << 7) | head[9]!) + ((head[5]! & 0x10) ? 10 : 0)
+    }
+
+    const frame = Buffer.alloc(4 + 32 + 120 + 36)
+    const { bytesRead } = await handle.read(frame, 0, frame.length, offset)
+    if (bytesRead < 4) throw fail('it has no audio frames')
+    const header = frame.readUInt32BE(0)
+    if ((header >>> 21) !== 0x7FF) throw fail('it does not start with an MP3 frame')
+    const version = (header >>> 19) & 3
+    const layer = (header >>> 17) & 3
+    const channelMode = (header >>> 6) & 3
+    if (layer !== 1) throw fail('it is not MPEG layer III')
+    const mpeg1 = version === 3
+    const mono = channelMode === 3
+    const sideInfo = mpeg1 ? (mono ? 17 : 32) : (mono ? 9 : 17)
+
+    let at = 4 + sideInfo
+    const tag = frame.toString('latin1', at, at + 4)
+    if (tag !== 'Xing' && tag !== 'Info') throw fail('it has no Xing or Info frame to say how long it is')
+    const flags = frame.readUInt32BE(at + 4)
+    at += 8
+    if (!(flags & 1)) throw fail('its Info frame does not count its frames')
+    const frames = frame.readUInt32BE(at)
+    at += 4
+    if (flags & 2) at += 4
+    if (flags & 4) at += 100
+    if (flags & 8) at += 4
+
+    // The LAME tag: bytes 21-23 hold 12 bits of delay, then 12 of padding.
+    let delay = 0
+    let padding = 0
+    if (bytesRead >= at + 24) {
+      delay = (frame[at + 21]! << 4) | (frame[at + 22]! >> 4)
+      padding = ((frame[at + 22]! & 0x0F) << 8) | frame[at + 23]!
+    }
+
+    const sampleRates = mpeg1 ? [44100, 48000, 32000] : version === 2 ? [22050, 24000, 16000] : [11025, 12000, 8000]
+    const sampleRate = sampleRates[(header >>> 10) & 3]
+    if (!sampleRate) throw fail('its sample rate is not one MP3 has')
+    const samples = frames * (mpeg1 ? 1152 : 576) - delay - padding
+    return Math.round((samples / sampleRate) * 1000)
+  }
+  finally {
+    await handle.close()
   }
 }
 
