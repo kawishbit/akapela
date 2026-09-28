@@ -25,7 +25,7 @@
 [CmdletBinding()]
 param(
   [switch]$SkipInstall,
-  [int]$TimeoutSeconds = 30
+  [int]$TimeoutSeconds = 120
 )
 
 $ErrorActionPreference = 'Stop'
@@ -61,6 +61,9 @@ try {
   while ((Get-Date) -lt $deadline) {
     if (Test-Path $outLog) {
       $content = Get-Content $outLog -Raw -ErrorAction SilentlyContinue
+      # Nuxt colours its output when the terminal supports it, and the escape
+      # codes land between "localhost:" and the port — strip them first.
+      $content = $content -replace "`e\[[0-9;]*[A-Za-z]", ''
       if ($content -match 'localhost:(\d+)') {
         $port = $Matches[1]
         break
@@ -74,7 +77,9 @@ try {
   }
 
   if (-not $port) {
-    throw "Timed out after $TimeoutSeconds seconds waiting for the dev server to report its port. Check $outLog."
+    # The logs are deleted on the way out, so show them now or they're lost.
+    Get-Content $outLog, $errLog -ErrorAction SilentlyContinue | Write-Host
+    throw "Timed out after $TimeoutSeconds seconds waiting for the dev server to report its port — see the output above."
   }
 
   Write-Host "Dev server is up on http://localhost:$port" -ForegroundColor Green

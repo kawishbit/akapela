@@ -21,9 +21,9 @@ suite covers, not buried in window construction (ADR 0009).
 
 - [x] `pnpm icons:generate` writes a 1024 × 1024 full-bleed desktop icon, and
       running it twice leaves the working tree clean
-- [ ] A packaged Windows build shows the mark on the installer, the executable
+- [x] A packaged Windows build shows the mark on the installer, the executable
       and the taskbar (needs a packaged build)
-- [ ] A packaged Linux AppImage shows the mark on the running window and its
+- [x] A packaged Linux AppImage shows the mark on the running window and its
       taskbar entry (needs a packaged build)
 - [x] The rule for when a window icon is set is a plain function with no
       Electron import, covered by the root vitest suite
