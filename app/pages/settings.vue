@@ -12,12 +12,15 @@ const {
   ytDlpUpdatable,
   cpuCores,
   hardware,
+  separationModel,
+  separationModels,
   saving,
   saveError,
   setDefaultLyricsProvider,
   setMicProcessingDefault,
   setMonitoringDefault,
   setCpuCores,
+  setSeparationModel,
 } = useSettings()
 
 /** Whose hardware every Separation choice is about — the server's, even from a Connected Desktop App. */
@@ -289,6 +292,37 @@ useHead({ title: 'Settings · Akapela' })
           <Cpu class="size-4 shrink-0 text-text-muted" />
           {{ hardwareLine }}
         </p>
+
+        <h3 class="mt-4 text-sm font-bold">
+          Separation Model
+        </h3>
+        <p class="mt-1 text-sm text-text-muted">
+          What a Track is separated with unless you pick another for it. Each model downloads the first
+          time it's used. A Separation already waiting keeps the model it was asked for.
+        </p>
+        <div
+          class="mt-3 flex flex-col gap-1"
+          role="radiogroup"
+          aria-label="Separation Model"
+        >
+          <button
+            v-for="model in separationModels"
+            :key="model.name"
+            type="button"
+            role="radio"
+            class="flex min-h-12 flex-col items-start rounded-[6px] px-4 py-2 text-left transition disabled:opacity-60"
+            :class="model.name === separationModel ? 'bg-text text-ground' : 'bg-surface-mid text-text hover:bg-card'"
+            :aria-checked="model.name === separationModel"
+            :disabled="saving"
+            @click="model.name !== separationModel && setSeparationModel(model.name)"
+          >
+            <span class="text-sm font-bold">{{ model.name }}</span>
+            <span
+              class="text-sm"
+              :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
+            >{{ model.description }}</span>
+          </button>
+        </div>
 
         <h3 class="mt-4 text-sm font-bold">
           CPU cores

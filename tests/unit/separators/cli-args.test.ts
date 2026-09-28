@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { formatSeparateCliArgs, parseSeparateCliArgs, type SeparateCliArgs } from '../../../server/lib/separators/cli-args'
 
 const ARGS: SeparateCliArgs = {
+  modelName: 'Inst_HQ_3',
   modelPath: '/cache/models/UVR-MDX-NET-Inst_Main.onnx',
   inputPath: '/tracks/t1/backing.wav',
   instrumentalPath: '/tmp/instrumental.wav',

@@ -1,5 +1,6 @@
 import type { AppSettings, SettingsChanges } from '~~/server/lib/settings'
 import { DEFAULT_LYRICS_PROVIDER, type LyricsProviderName } from '~~/shared/lyrics'
+import type { SeparationModelName } from '~~/server/lib/separators/models'
 
 /**
  * The choices that apply to every Track, and the Lyrics Providers this Akapela
@@ -14,6 +15,8 @@ export function useSettings() {
     micProcessingDefault: false,
     monitoringDefault: false,
     ytDlpUpdatable: false,
+    separationModel: 'Inst_Main',
+    separationModels: [],
     cpuCores: 1,
     hardware: { cores: 1 },
   }
@@ -57,6 +60,11 @@ export function useSettings() {
     return save({ monitoringDefault })
   }
 
+  /** The Separation Model a Separation is asked for with from now on; those already asked for keep theirs. */
+  function setSeparationModel(separationModel: SeparationModelName) {
+    return save({ separationModel })
+  }
+
   /** How many cores a Separation may use, from the next one to start. */
   function setCpuCores(cpuCores: number) {
     return save({ cpuCores })
@@ -69,6 +77,8 @@ export function useSettings() {
     micProcessingDefault: computed(() => data.value?.micProcessingDefault ?? false),
     monitoringDefault: computed(() => data.value?.monitoringDefault ?? false),
     ytDlpUpdatable: computed(() => data.value?.ytDlpUpdatable ?? false),
+    separationModel: computed(() => data.value?.separationModel ?? 'Inst_Main'),
+    separationModels: computed(() => data.value?.separationModels ?? []),
     cpuCores: computed(() => data.value?.cpuCores ?? 1),
     hardware: computed(() => data.value?.hardware ?? beforeLoaded.hardware),
     saving,
@@ -76,6 +86,7 @@ export function useSettings() {
     setDefaultLyricsProvider,
     setMicProcessingDefault,
     setMonitoringDefault,
+    setSeparationModel,
     setCpuCores,
     refresh,
   }

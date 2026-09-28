@@ -2,6 +2,12 @@ import { eq } from 'drizzle-orm'
 import { SETTINGS_ROW_ID, settings } from '../db/schema'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_PROVIDERS, type LyricsProviderName } from '../../shared/lyrics'
 import { cpuCoresFor } from '../../shared/separation'
+import {
+  DEFAULT_SEPARATION_MODEL,
+  SEPARATION_MODEL_NAMES,
+  SEPARATION_MODELS,
+  type SeparationModelName,
+} from './separators/models'
 import { ytDlpIsManaged } from './tools'
 import type { Akapela } from './akapela'
 
@@ -25,6 +31,10 @@ export interface AppSettings {
    * control on the Settings page, or leaves it off.
    */
   ytDlpUpdatable: boolean
+  /** The Separation Model a Separation is asked for with unless it names another. */
+  separationModel: SeparationModelName
+  /** Every Separation Model there is to choose from, in the order they are shown. */
+  separationModels: Array<{ name: SeparationModelName, description: string }>
   /** How many cores a Separation may use: the singer's choice, or all but one, clamped to this machine. */
   cpuCores: number
   /**
@@ -60,6 +70,11 @@ export function defaultLyricsProviderOf(akapela: Akapela): LyricsProviderName {
   return availableLyricsProviders(akapela).includes(chosen) ? chosen : DEFAULT_LYRICS_PROVIDER
 }
 
+/** The Separation Model a Separation is asked for with when it names none. */
+export function defaultSeparationModelOf(akapela: Akapela): SeparationModelName {
+  return settingsRow(akapela)?.separationModel ?? DEFAULT_SEPARATION_MODEL
+}
+
 /** The singer's choices, and the machine they are choosing for. */
 export async function getSettings(akapela: Akapela): Promise<AppSettings> {
   const row = settingsRow(akapela)
@@ -70,6 +85,8 @@ export async function getSettings(akapela: Akapela): Promise<AppSettings> {
     micProcessingDefault: row?.micProcessingDefault ?? false,
     monitoringDefault: row?.monitoringDefault ?? false,
     ytDlpUpdatable: ytDlpIsManaged(),
+    separationModel: defaultSeparationModelOf(akapela),
+    separationModels: SEPARATION_MODEL_NAMES.map(name => ({ name, description: SEPARATION_MODELS[name].description })),
     cpuCores: cpuCoresFor(row?.cpuCores ?? null, hardware.cores),
     hardware: { cores: hardware.cores },
   }
@@ -81,6 +98,7 @@ export interface SettingsChanges {
   micProcessingDefault?: boolean
   monitoringDefault?: boolean
   cpuCores?: number
+  separationModel?: SeparationModelName
 }
 
 /** Saves whichever choices changed. */

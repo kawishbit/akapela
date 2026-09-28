@@ -3,52 +3,19 @@ import * as ort from 'onnxruntime-node'
 // (`separate-cli.ts`, for CPU isolation), which needs it — plain Node's ESM
 // resolver, unlike Nitro/Vite's bundler, requires one for a relative import.
 import { Stft, type Spectrogram } from './stft.ts'
+import { SEPARATION_MODELS, type MdxNetConfig } from './models.ts'
 
 /**
  * The MDX-Net inference pipeline: chunking, the ONNX model call, and
  * overlap-add reconstruction. Ported from `mdx_separator.py`'s `demix` and
- * `run_model` (ticket 05, `.scratch/worker-to-typescript/`) for the model's
- * primary output only — for UVR-MDX-NET-Inst_Main that is the Instrumental
- * Stem, which is the only one this ticket validates. The Vocals Stem (the
- * model's secondary output, a time-domain subtraction against the primary)
- * is ticket 06's concern once this is trusted.
- *
- * Config values below are not guessed: `dimF`/`segmentSize` were read off
- * the real, downloaded model's own ONNX graph, which declares input/output
- * shape `[batch, 4, 2048, 256]`; `nFft` and `compensate` come from
- * `audio-separator`'s hash-keyed `mdx_model_data` registry entry for this
- * exact file (`1c56ec0224f1d559c42fd6fd2a67b154`, the partial-MD5 of its
- * last 10MB — `calculate-model-hashes.py`'s own scheme); `hopLength`,
- * `segmentSize`, and `overlap` are `Separator`'s library-wide MDX defaults
- * (`separator.py`'s `mdx_params`), the same ones `Inst_HQ_3` used, since
- * they're not per-model entries in that registry at all.
- *
- * `Inst_Main` was chosen over `Inst_HQ_3` (ADR 0008's original pick) to cut
- * CPU cost: its `[4, 2048, 256]` tensor is two-thirds the size of
- * `Inst_HQ_3`'s `[4, 3072, 256]`, and its `nFft` (5120 vs 6144) is smaller
- * too. The trade: `dimF: 2048` band-limits the reconstructed spectrum to
- * `2048 * (44100 / 5120) ≈ 17.6 kHz`, versus `Inst_HQ_3`'s full 22.05 kHz
- * Nyquist — content above that lands in the Vocals Stem's mix-minus-
- * instrumental subtraction instead of being separated cleanly.
+ * `run_model` (ticket 05, `.scratch/worker-to-typescript/`). Which model runs,
+ * and every number that shapes its chunks, comes from the catalog in
+ * `models.ts`, where each is checked against the registry and the model's own
+ * graph.
  */
-export interface MdxNetConfig {
-  nFft: number
-  hopLength: number
-  dimF: number
-  segmentSize: number
-  overlap: number
-  /** Only used computing the Vocals Stem — a scalar correction on the Instrumental subtracted from the mix. */
-  compensate: number
-}
+export type { MdxNetConfig }
 
-export const UVR_MDX_NET_INST_MAIN_CONFIG: MdxNetConfig = {
-  nFft: 5120,
-  hopLength: 1024,
-  dimF: 2048,
-  segmentSize: 256,
-  overlap: 0.25,
-  compensate: 1.025,
-}
+export const UVR_MDX_NET_INST_MAIN_CONFIG: MdxNetConfig = SEPARATION_MODELS.Inst_Main.config
 
 /** `numpy.hanning`: the symmetric convention (divides by `length - 1`), distinct from `torch.hann_window`'s periodic one the STFT class uses internally. */
 function hanningSymmetric(length: number): Float64Array {
@@ -187,28 +154,31 @@ export class MdxNetModel {
   }
 
   /**
-   * The full Instrumental path: normalize before demixing (never amplifies,
-   * only prevents clipping), demix, then rescale by the mix's own original
-   * peak — mirroring `MDXSeparator.separate`'s `demix(mix) * peak` exactly,
-   * arithmetic quirk and all: the original code multiplies by the raw peak
-   * rather than `peak / max_peak`, so this does too rather than "fixing" a
-   * widely-used, community-vetted implementation this is meant to reproduce.
-   * A final normalize matches `write_audio`'s own pre-write pass.
+   * The Instrumental Stem alone. For a model whose primary output is the
+   * Vocals Stem, that is still the subtraction `separate` does.
    */
   async separateInstrumental(mix: [Float64Array, Float64Array]): Promise<[Float64Array, Float64Array]> {
     return (await this.separate(mix)).instrumental
   }
 
   /**
-   * Both Stems. The Vocals Stem is the model's secondary output — for this
-   * model, everything the Instrumental didn't account for — computed as a
-   * time-domain subtraction against the (peak-normalized, not rescaled) mix,
-   * matching `MDXSeparator.separate`'s `invert_using_spec=False` branch,
-   * which is what this model runs under (confirmed off the real model's
-   * resolved config). The `is_match_mix=True` demix pass Python's code also
-   * runs before that branch is real computation whose result only feeds the
-   * `invert_using_spec=True` branch — skipped here since it changes nothing
-   * this model's output depends on.
+   * Both Stems. The primary one is the model's own output: normalize before
+   * demixing (never amplifies, only prevents clipping), demix, then rescale by
+   * the mix's original peak — mirroring `MDXSeparator.separate`'s
+   * `demix(mix) * peak` exactly, arithmetic quirk and all: the original
+   * multiplies by the raw peak rather than `peak / max_peak`, so this does too
+   * rather than "fixing" a widely-used, community-vetted implementation this is
+   * meant to reproduce. A final normalize matches `write_audio`'s own pass.
+   *
+   * The secondary Stem is everything the primary didn't account for,
+   * computed as a time-domain subtraction against the (peak-normalized, not
+   * rescaled) mix — `MDXSeparator.separate`'s `invert_using_spec=False`
+   * branch, which is what these models run under. The `is_match_mix=True`
+   * demix pass Python's code also runs before that branch only feeds the
+   * `invert_using_spec=True` one, so it is skipped here.
+   *
+   * Which is which is the model's `primaryStem`: the Instrumental for the
+   * `Inst_` models, the Vocals for `Kim_Vocal_2`.
    */
   async separate(mix: [Float64Array, Float64Array], options: SeparationProgressOptions = {}): Promise<{
     instrumental: [Float64Array, Float64Array]
@@ -219,24 +189,26 @@ export class MdxNetModel {
     normalizePeak(normalizedMix, 0.9)
 
     const demixed = await this.demixPrimary(normalizedMix, options)
-    const instrumental: [Float64Array, Float64Array] = [
+    const primary: [Float64Array, Float64Array] = [
       demixed[0].map(v => v * peak),
       demixed[1].map(v => v * peak),
     ]
-    normalizePeak(instrumental, 0.9)
+    normalizePeak(primary, 0.9)
 
-    const { compensate } = this.config
-    const vocals: [Float64Array, Float64Array] = [
+    const { compensate, primaryStem } = this.config
+    const secondary: [Float64Array, Float64Array] = [
       new Float64Array(normalizedMix[0].length),
       new Float64Array(normalizedMix[1].length),
     ]
     for (let channel = 0; channel < 2; channel++) {
-      for (let n = 0; n < vocals[channel]!.length; n++) {
-        vocals[channel]![n] = -instrumental[channel]![n]! * compensate + normalizedMix[channel]![n]!
+      for (let n = 0; n < secondary[channel]!.length; n++) {
+        secondary[channel]![n] = -primary[channel]![n]! * compensate + normalizedMix[channel]![n]!
       }
     }
-    normalizePeak(vocals, 0.9)
+    normalizePeak(secondary, 0.9)
 
-    return { instrumental, vocals }
+    return primaryStem === 'instrumental'
+      ? { instrumental: primary, vocals: secondary }
+      : { instrumental: secondary, vocals: primary }
   }
 }

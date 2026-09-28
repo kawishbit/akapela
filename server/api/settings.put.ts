@@ -5,6 +5,7 @@ import {
   unavailableProviderMessage,
 } from '../../shared/lyrics'
 import { invalidCpuCoresMessage, parseCpuCores } from '../../shared/separation'
+import { INVALID_SEPARATION_MODEL_MESSAGE, isSeparationModelName } from '../lib/separators/models'
 import { availableLyricsProviders, saveSettings, type SettingsChanges } from '../lib/settings'
 
 const NOTHING_TO_SAVE_MESSAGE = 'Nothing to save.'
@@ -13,8 +14,8 @@ const INVALID_MONITORING_DEFAULT_MESSAGE = 'The Monitoring default is true or fa
 
 /**
  * Save whichever of the singer's choices changed: the default Lyrics
- * Provider, the microphone processing default, the Monitoring default, and how
- * many cores a Separation may use.
+ * Provider, the microphone processing default, the Monitoring default, the
+ * default Separation Model, and how many cores a Separation may use.
  * Each is optional, so a control can be saved on its own without resending
  * the others.
  */
@@ -25,6 +26,7 @@ export default defineEventHandler(async (event) => {
     micProcessingDefault?: unknown
     monitoringDefault?: unknown
     cpuCores?: unknown
+    separationModel?: unknown
   } | null
 
   const changes: SettingsChanges = {}
@@ -62,6 +64,13 @@ export default defineEventHandler(async (event) => {
     const cpuCores = parseCpuCores(body.cpuCores, cores)
     if (cpuCores === null) throw createError({ statusCode: 400, statusMessage: invalidCpuCoresMessage(cores) })
     changes.cpuCores = cpuCores
+  }
+
+  if (body?.separationModel !== undefined) {
+    if (!isSeparationModelName(body.separationModel)) {
+      throw createError({ statusCode: 400, statusMessage: INVALID_SEPARATION_MODEL_MESSAGE })
+    }
+    changes.separationModel = body.separationModel
   }
 
   if (Object.keys(changes).length === 0) {

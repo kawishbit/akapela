@@ -1,9 +1,18 @@
 import * as ort from 'onnxruntime-node'
 import { describe, expect, it } from 'vitest'
 import { MdxNetModel, normalizePeak, type MdxNetConfig, type ModelSession } from '../../../server/lib/separators/mdx-net'
+import { SEPARATION_MODELS } from '../../../server/lib/separators/models'
 
 /** Small enough to run fast in CI; exercises the same chunking/windowing code paths as the real 6144/1024/3072/256 config. */
-const SMALL_CONFIG: MdxNetConfig = { nFft: 512, hopLength: 128, dimF: 256, segmentSize: 32, overlap: 0.25 }
+const SMALL_CONFIG: MdxNetConfig = {
+  nFft: 512,
+  hopLength: 128,
+  dimF: 256,
+  segmentSize: 32,
+  overlap: 0.25,
+  compensate: 1.025,
+  primaryStem: 'instrumental',
+}
 
 function sineSignal(length: number, frequency: number, sampleRate = 44100): Float64Array {
   const out = new Float64Array(length)
@@ -88,6 +97,36 @@ describe('MdxNetModel', () => {
     expect(outLeft.length).toBe(length)
     for (const v of outLeft) expect(Math.abs(v)).toBeLessThanOrEqual(1)
     for (const v of outRight) expect(Math.abs(v)).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('MdxNetModel with a catalog config', () => {
+  it.each(['Inst_HQ_4', 'Kim_Vocal_2'] as const)("shapes every chunk the way %s's graph expects", async (name) => {
+    const config = SEPARATION_MODELS[name].config
+    const dims: number[][] = []
+    const shapes: ModelSession = { run: async (feeds) => {
+      dims.push([...feeds.input!.dims])
+      return identitySession.run(feeds)
+    } }
+    const model = new MdxNetModel(config, shapes)
+
+    // As short as a mix gets; full-size chunks are still what it is cut into.
+    await model.demixPrimary([sineSignal(1000, 440), sineSignal(1000, 660)])
+
+    expect(dims.length).toBeGreaterThan(0)
+    for (const d of dims) expect(d).toEqual([1, 4, config.dimF, config.segmentSize])
+  }, 30_000)
+
+  it("gives the model's output as the Vocals Stem when that is its primary Stem", async () => {
+    const length = SMALL_CONFIG.hopLength * (SMALL_CONFIG.segmentSize - 1) * 2
+    const mix: [Float64Array, Float64Array] = [sineSignal(length, 440), sineSignal(length, 660)]
+    const asInstrumental = await new MdxNetModel(SMALL_CONFIG, silentSession).separate(mix)
+    const asVocals = await new MdxNetModel({ ...SMALL_CONFIG, primaryStem: 'vocals' }, silentSession).separate(mix)
+
+    // A model that hears nothing leaves everything to the other Stem.
+    expect(Array.from(asInstrumental.instrumental[0]).every(v => v === 0)).toBe(true)
+    expect(Array.from(asVocals.vocals[0]).every(v => v === 0)).toBe(true)
+    expect(asVocals.instrumental[0]).toEqual(asInstrumental.vocals[0])
   })
 })
 

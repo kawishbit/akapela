@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Ban, CircleCheck, Loader2, RotateCcw, X, XCircle } from 'lucide-vue-next'
 import type { JobListEntry } from '~~/server/lib/job-actions'
+import { DEFAULT_SEPARATION_MODEL } from '~~/server/lib/separators/models'
 
 /**
  * One Job on the Jobs page. Keyed by the Job's id, with its actions on the
@@ -16,8 +17,8 @@ const title = computed(() => props.job.track?.title ?? (props.job.targetId ? 'Re
 const stateLabel = computed(() => {
   switch (props.job.state) {
     case 'queued': return queuedBehind(props.job.lane)
-    case 'running': return `${props.job.progress}%`
-    case 'succeeded': return 'Done'
+    case 'running': return props.job.detail ? `${props.job.detail} · ${props.job.progress}%` : `${props.job.progress}%`
+    case 'succeeded': return props.job.detail ?? 'Done'
     case 'failed': return errorSummary(props.job.error, `${jobActivity(props.job.type)} failed`)
     case 'cancelled': return 'Cancelled'
     default: return props.job.state
@@ -68,6 +69,14 @@ const active = computed(() => isActiveJob(props.job))
         class="truncate text-sm text-text-muted"
       >
         {{ takeLabel(job.take) }}
+      </p>
+      <!-- Fixed when the Separation was asked for, so a row queued before the
+           default changed still says what it will actually run. -->
+      <p
+        v-if="job.type === 'separate'"
+        class="truncate text-sm text-text-muted"
+      >
+        {{ job.separationModel ?? DEFAULT_SEPARATION_MODEL }}
       </p>
 
       <div

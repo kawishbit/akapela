@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { decodeWav, encodeWav } from '../../../app/audio/wav'
-import { fetchModel } from '../separators/download-model'
+import { fetchModel, modelPath, type FetchModelOptions } from '../separators/download-model'
+import { DEFAULT_SEPARATION_MODEL, SEPARATION_MODELS, type SeparationModel } from '../separators/models'
 import { formatSeparateCliArgs } from '../separators/cli-args'
 import { cliOutputReader } from '../separators/progress'
 import { childEnv, killOnAbort, separateCliPath } from '../tools'
@@ -28,6 +29,8 @@ export interface Stems {
 }
 
 export interface SeparateOptions {
+  /** Which Separation Model to run. `Inst_Main` when left out. */
+  model?: SeparationModel
   /** How many cores the model may use: the core limit in force when this Separation started. */
   threads?: number
   /** Stops the model run when it aborts, killing its subprocess; the Separation is then rejected. */
@@ -37,26 +40,25 @@ export interface SeparateOptions {
 }
 
 export interface Separator {
-  /** Puts the separation model in `modelsDir`, or does nothing if it is already there. */
-  fetchModel: (modelsDir: string) => Promise<void>
+  /** Puts `model` in `modelsDir`, or does nothing if it is already there. */
+  fetchModel: (modelsDir: string, model: SeparationModel, options?: FetchModelOptions) => Promise<void>
   /** Runs the model over the Backing Track WAV at `backingPath`. */
   separate: (backingPath: string, modelsDir: string, options?: SeparateOptions) => Promise<Stems>
 }
 
 export class MdxNetSeparator implements Separator {
-  private modelPath: string | undefined
-
-  async fetchModel(modelsDir: string): Promise<void> {
-    this.modelPath = await fetchModel(modelsDir)
+  async fetchModel(modelsDir: string, model: SeparationModel, options?: FetchModelOptions): Promise<void> {
+    await fetchModel(modelsDir, model, options)
   }
 
   async separate(backingPath: string, modelsDir: string, options: SeparateOptions = {}): Promise<Stems> {
-    const modelPath = this.modelPath ?? await fetchModel(modelsDir)
+    const model = options.model ?? SEPARATION_MODELS[DEFAULT_SEPARATION_MODEL]
+    const path = await fetchModel(modelsDir, model)
     const scratchDir = await mkdtemp(join(tmpdir(), 'akapela-separate-'))
     const instrumentalPath = join(scratchDir, 'instrumental.wav')
     const vocalsPath = join(scratchDir, 'vocals.wav')
     try {
-      await runSeparateCli(modelPath, backingPath, instrumentalPath, vocalsPath, options)
+      await runSeparateCli(model, path, backingPath, instrumentalPath, vocalsPath, options)
       const instrumentalWav = decodeWav(await readFile(instrumentalPath))
       const vocalsWav = decodeWav(await readFile(vocalsPath))
       return {
@@ -85,6 +87,7 @@ function logNoticeOnce(text: string): void {
 }
 
 function runSeparateCli(
+  model: SeparationModel,
   modelPath: string,
   backingPath: string,
   instrumentalOutPath: string,
@@ -101,6 +104,7 @@ function runSeparateCli(
     const child = spawn(
       process.execPath,
       [separateCliPath(), ...formatSeparateCliArgs({
+        modelName: model.name,
         modelPath,
         inputPath: backingPath,
         instrumentalPath: instrumentalOutPath,
@@ -181,6 +185,32 @@ async function modelsDir(dataDir: string): Promise<string> {
   return current
 }
 
+/**
+ * Downloads the model if it is not cached yet, saying so on the Job row and
+ * filling the band up to the model being ready as it arrives. A model already
+ * on disk says nothing, since there is nothing to wait for.
+ */
+async function fetchWithDetail(ctx: JobContext, separator: Separator, models: string, model: SeparationModel): Promise<void> {
+  if (existsSync(modelPath(models, model))) return
+  ctx.detail(`Downloading ${model.name}`)
+  let reported = PROGRESS_STARTED
+  try {
+    await separator.fetchModel(models, model, {
+      signal: ctx.signal,
+      onProgress: (fraction) => {
+        const percent = PROGRESS_STARTED + Math.floor((PROGRESS_MODEL_READY - PROGRESS_STARTED) * fraction)
+        if (percent > reported && percent < PROGRESS_MODEL_READY) {
+          reported = percent
+          ctx.progress(percent)
+        }
+      },
+    })
+  }
+  finally {
+    ctx.detail(null)
+  }
+}
+
 /** This machine as far as a Separation is concerned, when nobody has said otherwise. */
 async function thisMachine(): Promise<Hardware> {
   return { cores: hostCores() }
@@ -222,8 +252,11 @@ async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: 
     if (!existsSync(backing)) throw new Error(`Track ${trackId} has no Backing Track to separate`)
     ctx.progress(PROGRESS_STARTED)
 
+    // Fixed when the Separation was asked for; a row from before there was a
+    // choice ran the only model there was.
+    const model = SEPARATION_MODELS[ctx.job.separationModel ?? DEFAULT_SEPARATION_MODEL]
     const models = await modelsDir(ctx.dataDir)
-    await separator.fetchModel(models)
+    await fetchWithDetail(ctx, separator, models, model)
     ctx.signal.throwIfAborted()
     ctx.progress(PROGRESS_MODEL_READY)
 
@@ -238,7 +271,12 @@ async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: 
       }
     }
     const { threads } = await startingOptions(ctx, hardware)
-    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models, { signal: ctx.signal, onProgress, threads })
+    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models, {
+      model,
+      signal: ctx.signal,
+      onProgress,
+      threads,
+    })
     ctx.signal.throwIfAborted()
 
     const scratch = join(directory, SEPARATION_DIRNAME)
@@ -270,8 +308,8 @@ async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: 
 
     await ensureNotDeleted(ctx.sqlite, trackId, directory, 'separation')
     ctx.sqlite
-      .prepare(`UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental', updated_at = ? WHERE id = ?`)
-      .run(Date.now(), trackId)
+      .prepare(`UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental', stems_model = ?, updated_at = ? WHERE id = ?`)
+      .run(model.name, Date.now(), trackId)
   }
   catch (error) {
     // Cancelled: the cancel puts the Track's state back once this returns.

@@ -39,7 +39,8 @@ const separatingLabel = computed(() => {
   // the singer asked, which may have been behind another job in the queue.
   const since = job.startedAt ?? job.createdAt
   const elapsed = now.value === null ? '' : ` · ${formatDuration(now.value - since)}`
-  return `Separating… ${job.progress}%${elapsed}`
+  // A model's first use downloads it, which the Job says in its own words.
+  return `${job.detail ?? 'Separating'}… ${job.progress}%${elapsed}`
 })
 
 const failure = computed(() => errorSummary(props.track.separationJob?.error, 'Separation failed'))
@@ -155,7 +156,7 @@ function useSource(backingSource: BackingSource) {
         class="flex min-w-0 flex-1 items-center gap-2 text-sm text-text-muted"
       >
         <CircleCheck class="size-4 shrink-0 text-accent" />
-        This Track has an Instrumental Stem and a Vocals Stem.
+        Separated with {{ track.stemsModel }}: an Instrumental Stem and a Vocals Stem.
       </p>
       <p
         v-else-if="state === 'failed'"

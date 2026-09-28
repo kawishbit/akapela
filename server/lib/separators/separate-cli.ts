@@ -19,13 +19,14 @@
  * threads as the core limit in force when the Separation started — both read
  * by the Job and passed in, never by this process (`cli-args.ts`).
  *
- * Usage: `node separate-cli.ts --model <model.onnx> --input <backing.wav>
+ * Usage: `node separate-cli.ts --model-name <Inst_Main> --model <model.onnx> --input <backing.wav>
  * --instrumental <out.wav> --vocals <out.wav> --threads <n>`
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { decodeWav, encodeWav } from '../../../app/audio/wav.ts'
 import { parseSeparateCliArgs } from './cli-args.ts'
-import { MdxNetModel, UVR_MDX_NET_INST_MAIN_CONFIG } from './mdx-net.ts'
+import { MdxNetModel } from './mdx-net.ts'
+import { SEPARATION_MODELS } from './models.ts'
 import { lowerOwnPriority } from './priority.ts'
 import { formatChunkProgress, formatNotice } from './progress.ts'
 import { createCpuSession } from './session.ts'
@@ -45,7 +46,7 @@ async function main(): Promise<void> {
   const right = Float64Array.from(channels[1] ?? channels[0]!)
 
   const session = await createCpuSession(args.modelPath, args.threads)
-  const model = new MdxNetModel(UVR_MDX_NET_INST_MAIN_CONFIG, session)
+  const model = new MdxNetModel(SEPARATION_MODELS[args.modelName].config, session)
   const { instrumental, vocals } = await model.separate([left, right], {
     onChunk: (done, total) => process.stdout.write(formatChunkProgress(done, total)),
   })

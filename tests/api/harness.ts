@@ -292,8 +292,12 @@ export async function createTestApi(options: { hardware?: Hardware } = {}) {
       this.finishJob(jobId, state, error)
       if (state === 'succeeded') {
         akapela.sqlite
-          .prepare(`UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental' WHERE id = ?`)
-          .run(trackId)
+          .prepare(
+            `UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental',
+               stems_model = (SELECT separation_model FROM jobs WHERE id = ?)
+             WHERE id = ?`,
+          )
+          .run(jobId, trackId)
       }
       else {
         akapela.sqlite.prepare(`UPDATE tracks SET separation_state = 'failed' WHERE id = ?`).run(trackId)

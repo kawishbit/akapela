@@ -29,7 +29,8 @@ import { enqueueJob } from './jobs'
 import { getLyrics } from './lyrics'
 import { listMixesForTrack, type MixWithJob } from './mixes'
 import type { Akapela } from './akapela'
-import { defaultLyricsProviderOf } from './settings'
+import { defaultLyricsProviderOf, defaultSeparationModelOf } from './settings'
+import { DEFAULT_SEPARATION_MODEL, type SeparationModelName } from './separators/models'
 import { listTakes } from './takes'
 
 /**
@@ -80,6 +81,11 @@ export type TrackDetail = TrackWithJob & {
    * what decides whether there is a Backing Source to choose between at all.
    */
   hasStems: boolean
+  /**
+   * The Separation Model that made the Stems on disk, so the Track page can
+   * say "Separated with Inst_HQ_3". Null without Stems.
+   */
+  stemsModel: SeparationModelName | null
   /** Combined size of both Stem files on disk, in bytes; 0 once there are none. Delete Stems reads this to say what it will reclaim. */
   stemsBytes: number
   /** Newest first. */
@@ -165,6 +171,7 @@ function startImport(
     importState: 'importing',
     separationState: 'none',
     backingSource: DEFAULT_BACKING_SOURCE,
+    stemsModel: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
     songArtist: null,
     songTitle: null,
@@ -261,6 +268,7 @@ export function trackDetail(akapela: Akapela, track: TrackWithJob): TrackDetail 
     ...track,
     separationJob: latestSeparationJob(akapela, track.id),
     hasStems: hasStems(akapela, track),
+    stemsModel: hasStems(akapela, track) ? (track.stemsModel ?? DEFAULT_SEPARATION_MODEL) : null,
     stemsBytes: stemsBytes(akapela, track),
     lyrics: getLyrics(akapela, track.id),
     takes: listTakes(akapela, track.id),
@@ -526,10 +534,10 @@ export function deleteStems(akapela: Akapela, track: TrackWithJob): TrackWithJob
   const now = Date.now()
   akapela.db
     .update(tracks)
-    .set({ backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', updatedAt: now })
+    .set({ backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', stemsModel: null, updatedAt: now })
     .where(eq(tracks.id, track.id))
     .run()
-  return { ...track, backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', updatedAt: now }
+  return { ...track, backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', stemsModel: null, updatedAt: now }
 }
 
 /**
@@ -581,14 +589,21 @@ function latestSeparationJob(akapela: Akapela, trackId: string): Job | null {
  * its Stems. Both asking for the first separation and retrying a failed one end
  * here; only the guard in front of them differs, since re-separating is
  * deliberately allowed (a better model later should not mean re-importing).
+ *
+ * The Separation Model is fixed here, when the Separation is asked for — the
+ * default unless one was named — and never read again from Settings.
  */
-export function startSeparation(akapela: Akapela, track: TrackWithJob): TrackWithSeparationJob {
+export function startSeparation(
+  akapela: Akapela,
+  track: TrackWithJob,
+  separationModel: SeparationModelName = defaultSeparationModelOf(akapela),
+): TrackWithSeparationJob {
   const now = Date.now()
   akapela.db
     .update(tracks)
     .set({ separationState: 'separating', updatedAt: now })
     .where(eq(tracks.id, track.id))
     .run()
-  const separationJob = enqueueJob(akapela, { type: 'separate', targetId: track.id })
+  const separationJob = enqueueJob(akapela, { type: 'separate', targetId: track.id, separationModel })
   return { ...track, separationState: 'separating', updatedAt: now, separationJob, separationJobId: separationJob.id }
 }

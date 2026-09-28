@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createTestApi, type TestApi } from './harness'
 
 let api: TestApi
@@ -168,5 +170,89 @@ describe('the Track through a separation', () => {
     expect((await api.del(`/api/tracks/${track.id}`)).status).toBe(204)
 
     expect((await api.get(`/api/jobs/${started.separationJob.id}`)).status).toBe(404)
+  })
+})
+
+describe('the Separation Model', () => {
+  /** A Track with Stems on disk, the way a finished Separation leaves it. */
+  async function separatedTrack(separationModel?: string) {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel })).json()
+    writeFileSync(join(api.dataDir, 'tracks', track.id, 'instrumental.wav'), 'the instrumental')
+    api.finishSeparation(track.id, separationJob.id, 'succeeded')
+    return track
+  }
+
+  test('is the default when a Separation names none', async () => {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+    expect(separationJob.separationModel).toBe('Inst_Main')
+  })
+
+  test('is the one a Separation names', async () => {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    expect(separationJob.separationModel).toBe('Inst_HQ_3')
+  })
+
+  test('refuses one that is not in the catalog, and queues nothing', async () => {
+    const track = await importedTrack()
+    const res = await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Roformer' })
+    expect(res.status).toBe(400)
+    expect(api.jobsTargeting(track.id, 'separate')).toEqual([])
+  })
+
+  test('is fixed when asked for: changing the default leaves a queued Separation alone', async () => {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+
+    await api.put('/api/settings', { separationModel: 'Inst_HQ_4' })
+
+    const job = await (await api.get(`/api/jobs/${separationJob.id}`)).json()
+    expect(job.separationModel).toBe('Inst_Main')
+    const [row] = (await (await api.get('/api/jobs')).json()).filter((j: { id: string }) => j.id === separationJob.id)
+    expect(row.separationModel).toBe('Inst_Main')
+  })
+
+  test('a new default applies to the next Separation asked for', async () => {
+    await api.put('/api/settings', { separationModel: 'Kim_Vocal_2' })
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+    expect(separationJob.separationModel).toBe('Kim_Vocal_2')
+  })
+
+  test('is recorded with the Stems it made', async () => {
+    const track = await separatedTrack('Inst_HQ_3')
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsModel).toBe('Inst_HQ_3')
+  })
+
+  test('reads as Inst_Main for Stems made before there was a choice', async () => {
+    const track = await separatedTrack()
+    api.akapela.sqlite.prepare(`UPDATE tracks SET stems_model = NULL WHERE id = ?`).run(track.id)
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsModel).toBe('Inst_Main')
+  })
+
+  test('is nothing once the Stems are deleted', async () => {
+    const track = await separatedTrack('Inst_HQ_4')
+    await api.del(`/api/tracks/${track.id}/stems`)
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsModel).toBeNull()
+  })
+
+  test('a retried Separation keeps the model it was asked for', async () => {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    api.finishSeparation(track.id, separationJob.id, 'failed', 'Error: no network')
+    await api.put('/api/settings', { separationModel: 'Inst_HQ_4' })
+
+    const retried = await (await api.post(`/api/jobs/${separationJob.id}/retry`, {})).json()
+    expect(retried.separationModel).toBe('Inst_HQ_3')
+  })
+
+  test('is a setting, Inst_Main when never set, with every model on offer', async () => {
+    const settings = await (await api.get('/api/settings')).json()
+    expect(settings.separationModel).toBe('Inst_Main')
+    expect(settings.separationModels.map((m: { name: string }) => m.name))
+      .toEqual(['Inst_Main', 'Inst_HQ_3', 'Inst_HQ_4', 'Kim_Vocal_2'])
+    expect((await api.put('/api/settings', { separationModel: 'nope' })).status).toBe(400)
   })
 })

@@ -1,3 +1,5 @@
+import { isSeparationModelName, SEPARATION_MODEL_NAMES, type SeparationModelName } from './models.ts'
+
 /**
  * The command line `separate-cli.ts` takes, both ends written down once the
  * way `progress.ts` does for what it prints: the separate Job formats it, the
@@ -5,6 +7,8 @@
  * setting a Separation reads when it starts ends up here.
  */
 export interface SeparateCliArgs {
+  /** Which catalog entry the file at `modelPath` is, which is what decides how its chunks are shaped. */
+  modelName: SeparationModelName
   modelPath: string
   inputPath: string
   instrumentalPath: string
@@ -14,6 +18,7 @@ export interface SeparateCliArgs {
 }
 
 const FLAGS = {
+  modelName: '--model-name',
   modelPath: '--model',
   inputPath: '--input',
   instrumentalPath: '--instrumental',
@@ -38,10 +43,14 @@ export function parseSeparateCliArgs(argv: string[]): SeparateCliArgs | string {
   const missing = Object.values(FLAGS).filter(flag => !values.has(flag))
   if (missing.length > 0) return `missing ${missing.join(', ')}`
 
+  const modelName = values.get(FLAGS.modelName)
+  if (!isSeparationModelName(modelName)) return `${FLAGS.modelName} is one of ${SEPARATION_MODEL_NAMES.join(', ')}`
+
   const threads = Number(values.get(FLAGS.threads))
   if (!Number.isInteger(threads) || threads < 1) return `${FLAGS.threads} is a whole number of at least 1`
 
   return {
+    modelName,
     modelPath: values.get(FLAGS.modelPath)!,
     inputPath: values.get(FLAGS.inputPath)!,
     instrumentalPath: values.get(FLAGS.instrumentalPath)!,
