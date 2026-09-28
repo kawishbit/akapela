@@ -5,8 +5,12 @@
 overrides:
   '@types/node': 24.13.3
 
+# better-sqlite3 is denied its build on purpose: v13 loads the prebuilt binary
+# it ships for every platform (`lib/binding.js`), and running its node-gyp
+# build puts a C++ toolchain and Python on the critical path — which the
+# Dockerfile's build stage deliberately doesn't have (see its comment).
 allowBuilds:
-  better-sqlite3: true
+  better-sqlite3: false
   esbuild: true
   onnxruntime-node: true
   protobufjs: true
