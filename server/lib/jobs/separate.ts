@@ -11,6 +11,7 @@ import { cliOutputReader } from '../separators/progress'
 import { childEnv, killOnAbort, separateCliPath } from '../tools'
 import { cpuCoresFor } from '../../../shared/separation'
 import { hostCores, type Hardware } from '../hardware'
+import type { Accelerator } from '../separators/accelerator'
 import type { Handler, JobContext } from '../jobs-runner'
 import { decodeToWav, storeWavAs } from '../audio'
 import {
@@ -36,6 +37,8 @@ export interface Stems {
   instrumental: [Float64Array, Float64Array]
   vocals: [Float64Array, Float64Array]
   sampleRate: number
+  /** Why the GPU failed, when the Separation started on it and finished on the CPU. */
+  gpuFailure?: string
 }
 
 export interface SeparateOptions {
@@ -43,6 +46,8 @@ export interface SeparateOptions {
   model?: SeparationModel
   /** How many cores the model may use: the core limit in force when this Separation started. */
   threads?: number
+  /** The GPU backend to try first, when acceleration was on as this Separation started. */
+  accelerator?: Accelerator | null
   /** Stops the model run when it aborts, killing its subprocess; the Separation is then rejected. */
   signal?: AbortSignal
   /** Receives how far the model run has got, 0 to 1, as it goes. May never be called. */
@@ -75,13 +80,14 @@ export class MdxNetSeparator implements Separator {
         input = join(scratchDir, 'backing.wav')
         await decodeToWav(backingPath, input, options.signal)
       }
-      await runSeparateCli(model, path, input, instrumentalPath, vocalsPath, options)
+      const { gpuFailure } = await runSeparateCli(model, path, input, instrumentalPath, vocalsPath, options)
       const instrumentalWav = decodeWav(await readFile(instrumentalPath))
       const vocalsWav = decodeWav(await readFile(vocalsPath))
       return {
         instrumental: [Float64Array.from(instrumentalWav.channels[0]!), Float64Array.from(instrumentalWav.channels[1]!)],
         vocals: [Float64Array.from(vocalsWav.channels[0]!), Float64Array.from(vocalsWav.channels[1]!)],
         sampleRate: instrumentalWav.sampleRate,
+        ...(gpuFailure === undefined ? {} : { gpuFailure }),
       }
     }
     finally {
@@ -109,8 +115,8 @@ function runSeparateCli(
   backingPath: string,
   instrumentalOutPath: string,
   vocalsOutPath: string,
-  { signal, onProgress, threads = hostCores() }: SeparateOptions,
-): Promise<void> {
+  { signal, onProgress, threads = hostCores(), accelerator }: SeparateOptions,
+): Promise<{ gpuFailure?: string }> {
   return new Promise((resolve, reject) => {
     // `separate-cli.ts`, run as its own subprocess — CPU isolation for the
     // ONNX inference, the same shape as every other heavy external dependency
@@ -127,16 +133,22 @@ function runSeparateCli(
         instrumentalPath: instrumentalOutPath,
         vocalsPath: vocalsOutPath,
         threads,
+        ...(accelerator ? { accelerator } : {}),
       })],
       { env: childEnv() },
     )
     killOnAbort(child, signal)
-    child.stdout.on('data', cliOutputReader({ onFraction: onProgress, onNotice: logNoticeOnce }))
+    let gpuFailure: string | undefined
+    child.stdout.on('data', cliOutputReader({
+      onFraction: onProgress,
+      onNotice: logNoticeOnce,
+      onFallback: reason => (gpuFailure = reason),
+    }))
     let stderr = ''
     child.stderr.on('data', d => (stderr += d))
     child.on('error', error => reject(new Error(`could not start the separation subprocess: ${error.message}`)))
     child.on('close', (code) => {
-      if (code === 0) resolve()
+      if (code === 0) resolve(gpuFailure === undefined ? {} : { gpuFailure })
       else reject(new Error(stderr.trim() || `separation subprocess exited with code ${code}`))
     })
   })
@@ -165,6 +177,9 @@ const SEPARATION_DIRNAME = 'stems.part'
 
 const MODELS_DIRNAME = 'cache/models'
 const LEGACY_MODELS_DIRNAME = 'models'
+
+/** What the Jobs page row says of a Separation the GPU started and the CPU finished. */
+export const GPU_FAILED_DETAIL = 'Finished on CPU: the GPU failed'
 
 // Progress milestones. The model run fills the band between the second and
 // third, a chunk at a time; the runner writes the final 100.
@@ -228,7 +243,7 @@ async function fetchWithDetail(ctx: JobContext, separator: Separator, models: st
 
 /** This machine as far as a Separation is concerned, when nobody has said otherwise. */
 async function thisMachine(): Promise<Hardware> {
-  return { cores: hostCores() }
+  return { cores: hostCores(), accelerator: null }
 }
 
 /**
@@ -246,11 +261,18 @@ export function separateHandler(separator: Separator, hardware: () => Promise<Ha
  * amendment): a limit lowered while thirty Separations wait applies to the
  * next one to start, never to the one already running.
  */
-async function startingOptions(ctx: JobContext, hardware: () => Promise<Hardware>): Promise<{ threads: number }> {
-  const row = ctx.sqlite.prepare(`SELECT cpu_cores FROM settings WHERE id = 1`).get() as
-    { cpu_cores: number | null } | undefined
-  const { cores } = await hardware()
-  return { threads: cpuCoresFor(row?.cpu_cores ?? null, cores) }
+async function startingOptions(
+  ctx: JobContext,
+  hardware: () => Promise<Hardware>,
+): Promise<{ threads: number, accelerator: Accelerator | null }> {
+  const row = ctx.sqlite.prepare(`SELECT cpu_cores, hardware_acceleration FROM settings WHERE id = 1`).get() as
+    { cpu_cores: number | null, hardware_acceleration: number } | undefined
+  const { cores, accelerator } = await hardware()
+  const accelerate = row === undefined || Boolean(row.hardware_acceleration)
+  return {
+    threads: cpuCoresFor(row?.cpu_cores ?? null, cores),
+    accelerator: accelerate ? accelerator : null,
+  }
 }
 
 async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: () => Promise<Hardware>): Promise<void> {
@@ -285,13 +307,19 @@ async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: 
         ctx.progress(percent)
       }
     }
-    const { threads } = await startingOptions(ctx, hardware)
-    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models, {
+    const { threads, accelerator } = await startingOptions(ctx, hardware)
+    const { instrumental, vocals, sampleRate, gpuFailure } = await separator.separate(backing, models, {
       model,
       signal: ctx.signal,
       onProgress,
       threads,
+      accelerator,
     })
+    if (gpuFailure !== undefined) {
+      // Finished anyway; the row says it took the long way, the log says why.
+      console.warn(`separation of Track ${trackId}: the GPU failed, finishing on the CPU: ${gpuFailure}`)
+      ctx.detail(GPU_FAILED_DETAIL)
+    }
     ctx.signal.throwIfAborted()
 
     const scratch = join(directory, SEPARATION_DIRNAME)

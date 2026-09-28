@@ -320,6 +320,11 @@ export const settings = sqliteTable('settings', {
    * written (ADR 0016). Files already written keep theirs.
    */
   audioFormat: text('audio_format', { enum: AUDIO_FORMATS }).notNull().default(DEFAULT_AUDIO_FORMAT),
+  /**
+   * Whether a Separation runs on the GPU backend this machine has, when it has
+   * one. On until the singer turns it off; read when each Separation starts.
+   */
+  hardwareAcceleration: integer('hardware_acceleration', { mode: 'boolean' }).notNull().default(true),
   updatedAt: integer('updated_at').notNull(),
 })
 

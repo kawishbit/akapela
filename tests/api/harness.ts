@@ -109,7 +109,7 @@ export async function createTestApi(options: { hardware?: Hardware } = {}) {
     lyricsProviders: [lrclib.provider, genius.provider],
     fetch: images.fetch,
     // A fixed machine, so what Settings says about it does not depend on the one running the suite.
-    hardware: async () => options.hardware ?? { cores: 8 },
+    hardware: async () => options.hardware ?? { cores: 8, accelerator: null },
   })
 
   // Telemetry is off in every real test run, so the relay's sink stands in for

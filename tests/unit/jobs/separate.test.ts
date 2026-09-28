@@ -7,6 +7,7 @@ import { flacOf, probe, writeSineWav } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
 import { separateHandler, type SeparateOptions, type Separator, type Stems } from '../../../server/lib/jobs/separate'
 import type { FetchModelOptions } from '../../../server/lib/separators/download-model'
+import type { Accelerator } from '../../../server/lib/separators/accelerator'
 import type { SeparationModel, SeparationModelName } from '../../../server/lib/separators/models'
 import { JobsRunner } from '../../../server/lib/jobs-runner'
 
@@ -69,6 +70,7 @@ class FakeSeparator implements Separator {
   separated: string[] = []
   threads: Array<number | undefined> = []
   models: Array<SeparationModelName | undefined> = []
+  accelerators: Array<Accelerator | null | undefined> = []
   /** The Job row's detail at the moment the model was being fetched. */
   detailsWhileFetching: Array<unknown> = []
 
@@ -80,6 +82,8 @@ class FakeSeparator implements Separator {
     duringFetch?: () => void
     /** Fractions of the model run to report, the way `separate-cli.ts` reports its chunks. */
     chunkFractions?: number[]
+    /** Why the GPU failed, as though the Separation finished on the CPU. */
+    gpuFailure?: string
   } = {}) {}
 
   async fetchModel(modelsDir: string, model: SeparationModel, options: FetchModelOptions = {}): Promise<void> {
@@ -99,6 +103,7 @@ class FakeSeparator implements Separator {
     this.separated.push(backingPath)
     this.threads.push(options.threads)
     this.models.push(options.model?.name)
+    this.accelerators.push(options.accelerator)
     // The real separator decodes any Audio Format; a stand-in only needs a length.
     const { channels, sampleRate } = backingPath.endsWith('.wav')
       ? decodeWav(await readFile(backingPath))
@@ -114,12 +119,17 @@ class FakeSeparator implements Separator {
     }
     // The model run is the minutes-long window a Track can be deleted in.
     this.options.duringSeparation?.()
-    return { instrumental, vocals, sampleRate }
+    return { instrumental, vocals, sampleRate, ...(this.options.gpuFailure ? { gpuFailure: this.options.gpuFailure } : {}) }
   }
 }
 
-function runTheJob(t: JobTestDb, separator: FakeSeparator, cores = 8): Promise<boolean> {
-  const handlers = { separate: separateHandler(separator, async () => ({ cores })) }
+function runTheJob(
+  t: JobTestDb,
+  separator: FakeSeparator,
+  cores = 8,
+  accelerator: Accelerator | null = null,
+): Promise<boolean> {
+  const handlers = { separate: separateHandler(separator, async () => ({ cores, accelerator })) }
   return new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers }).runOnce()
 }
 
@@ -497,5 +507,42 @@ describe('separateHandler', () => {
     expect(probe(join(dir, 'instrumental.mp3')).streams[0]!.codec_name).toBe('mp3')
     expect(probe(join(dir, 'vocals.mp3')).streams[0]!.codec_name).toBe('mp3')
     expect(existsSync(join(dir, 'backing.wav'))).toBe(true)
+  })
+
+  it('runs on the GPU this machine has, when acceleration is on', async () => {
+    const t = setup()
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 8, { backend: 'dml', deviceId: 1 })
+
+    expect(separator.accelerators).toEqual([{ backend: 'dml', deviceId: 1 }])
+  })
+
+  it('runs on the CPU when acceleration is off, read as it starts', async () => {
+    const t = setup()
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t)
+    t.akapela.sqlite.prepare(`INSERT INTO settings (id, hardware_acceleration, updated_at) VALUES (1, 0, 0)`).run()
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 8, { backend: 'dml', deviceId: 1 })
+
+    expect(separator.accelerators).toEqual([null])
+  })
+
+  it('succeeds and says so on its row when the GPU failed and the CPU finished', async () => {
+    const t = setup()
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t)
+
+    await runTheJob(t, new FakeSeparator({ gpuFailure: 'device removed' }), 8, { backend: 'cuda' })
+
+    expect(getJob(t, 'j1')).toMatchObject({ state: 'succeeded', detail: 'Finished on CPU: the GPU failed' })
+    expect(existsSync(join(trackDir(t), 'instrumental.wav'))).toBe(true)
   })
 })

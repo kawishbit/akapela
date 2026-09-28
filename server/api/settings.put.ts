@@ -12,12 +12,14 @@ import { availableLyricsProviders, saveSettings, type SettingsChanges } from '..
 const NOTHING_TO_SAVE_MESSAGE = 'Nothing to save.'
 const INVALID_MIC_PROCESSING_DEFAULT_MESSAGE = 'The microphone processing default is true or false.'
 const INVALID_MONITORING_DEFAULT_MESSAGE = 'The Monitoring default is true or false.'
+const INVALID_HARDWARE_ACCELERATION_MESSAGE = 'Hardware acceleration is true or false.'
 
 /**
  * Save whichever of the singer's choices changed: the default Lyrics
  * Provider, the microphone processing default, the Monitoring default, the
  * default Separation Model, how many cores a Separation may use, and the
- * Audio Format new masters and Stems are stored in.
+ * Audio Format new masters and Stems are stored in, and whether a Separation
+ * uses the GPU.
  * Each is optional, so a control can be saved on its own without resending
  * the others.
  */
@@ -30,6 +32,7 @@ export default defineEventHandler(async (event) => {
     cpuCores?: unknown
     separationModel?: unknown
     audioFormat?: unknown
+    hardwareAcceleration?: unknown
   } | null
 
   const changes: SettingsChanges = {}
@@ -81,6 +84,13 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: INVALID_AUDIO_FORMAT_MESSAGE })
     }
     changes.audioFormat = body.audioFormat
+  }
+
+  if (body?.hardwareAcceleration !== undefined) {
+    if (typeof body.hardwareAcceleration !== 'boolean') {
+      throw createError({ statusCode: 400, statusMessage: INVALID_HARDWARE_ACCELERATION_MESSAGE })
+    }
+    changes.hardwareAcceleration = body.hardwareAcceleration
   }
 
   if (Object.keys(changes).length === 0) {

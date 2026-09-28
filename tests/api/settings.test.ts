@@ -66,7 +66,7 @@ describe('CPU cores', () => {
   test('describes the machine hosting Akapela, and starts at all its cores but one', async () => {
     expect(await (await api.get('/api/settings')).json()).toMatchObject({
       cpuCores: 7,
-      hardware: { cores: 8 },
+      hardware: { cores: 8, gpu: null },
     })
   })
 
@@ -86,7 +86,7 @@ describe('CPU cores', () => {
 
 describe('CPU cores saved on bigger hardware', () => {
   test('is clamped to the machine it is read on, and kept as it was', async () => {
-    const small = await createTestApi({ hardware: { cores: 4 } })
+    const small = await createTestApi({ hardware: { cores: 4, accelerator: null } })
     try {
       // What a library restored from a 16-core server brings with it.
       small.akapela.sqlite.prepare(`INSERT INTO settings (id, cpu_cores, updated_at) VALUES (1, 12, 0)`).run()
@@ -114,5 +114,26 @@ describe('the Audio Format', () => {
 
   test.each(['ogg', 'FLAC', 'opus', 1])('%j is rejected', async (audioFormat) => {
     expect((await api.put('/api/settings', { audioFormat })).status).toBe(400)
+})
+  })
+
+describe('hardware acceleration', () => {
+  test('names the GPU this server has, and is on by default', async () => {
+    const gpu = await createTestApi({ hardware: { cores: 8, accelerator: { backend: 'dml', deviceId: 1 } } })
+    try {
+      expect(await (await gpu.get('/api/settings')).json()).toMatchObject({
+        hardware: { cores: 8, gpu: 'DirectML' },
+        hardwareAcceleration: true,
+      })
+      expect((await (await gpu.put('/api/settings', { hardwareAcceleration: false })).json()).hardwareAcceleration).toBe(false)
+      expect((await gpu.put('/api/settings', { hardwareAcceleration: 'no' })).status).toBe(400)
+    }
+    finally {
+      await gpu.close()
+    }
+  })
+
+  test('names no GPU on a server without one', async () => {
+    expect((await (await api.get('/api/settings')).json()).hardware.gpu).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, CloudDownload, CloudUpload, Cpu, ExternalLink, FolderOpen, Headphones, Loader2, Minus, Monitor, Moon, Plus, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
+import { ArrowLeft, CloudDownload, CloudUpload, Cpu, Gauge, ExternalLink, FolderOpen, Headphones, Loader2, Minus, Monitor, Moon, Plus, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
 import { LYRICS_PROVIDER_LABELS, type LyricsProviderName } from '~~/shared/lyrics'
 import { AUDIO_FORMAT_DESCRIPTIONS, AUDIO_FORMAT_LABELS } from '~~/shared/audio-format'
 import { RELEASES_URL } from '~/utils/update-prompt'
@@ -15,6 +15,7 @@ const {
   hardware,
   separationModel,
   separationModels,
+  hardwareAcceleration,
   audioFormat,
   audioFormats,
   saving,
@@ -25,12 +26,13 @@ const {
   setCpuCores,
   setSeparationModel,
   setAudioFormat,
+  setHardwareAcceleration,
 } = useSettings()
 
 /** Whose hardware every Separation choice is about — the server's, even from a Connected Desktop App. */
 const hardwareLine = computed(() => {
-  const { cores } = hardware.value
-  return `On this server: ${cores} ${cores === 1 ? 'core' : 'cores'}`
+  const { cores, gpu } = hardware.value
+  return `On this server: ${cores} ${cores === 1 ? 'core' : 'cores'}, ${gpu ? `GPU: ${gpu}` : 'no GPU found'}`
 })
 
 const { isDesktop, version: desktopVersion, libraryDir, chooseLibraryDir, revealLibraryDir, openExternal } = useDesktop()
@@ -296,6 +298,30 @@ useHead({ title: 'Settings · Akapela' })
           <Cpu class="size-4 shrink-0 text-text-muted" />
           {{ hardwareLine }}
         </p>
+
+        <!-- Only where a GPU backend was proven to work here. A Connected
+             Desktop App on a laptop with a GPU, pointed at a server with none,
+             shows nothing, because the server is what separates. -->
+        <template v-if="hardware.gpu">
+          <h3 class="mt-4 text-sm font-bold">
+            Hardware acceleration
+          </h3>
+          <p class="mt-1 text-sm text-text-muted">
+            Separate on the GPU. If it fails partway through, the Separation carries on and finishes on
+            the CPU. A change applies from the next Separation to start.
+          </p>
+          <button
+            type="button"
+            class="mt-3 inline-flex h-12 items-center gap-1.5 rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition disabled:opacity-60"
+            :class="hardwareAcceleration ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
+            :aria-pressed="hardwareAcceleration"
+            :disabled="saving"
+            @click="setHardwareAcceleration(!hardwareAcceleration)"
+          >
+            <Gauge class="size-3.5" />
+            {{ hardware.gpu }} {{ hardwareAcceleration ? 'on' : 'off' }}
+          </button>
+        </template>
 
         <h3 class="mt-4 text-sm font-bold">
           Separation Model

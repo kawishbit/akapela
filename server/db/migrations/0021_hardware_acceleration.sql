@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `hardware_acceleration` integer DEFAULT true NOT NULL;

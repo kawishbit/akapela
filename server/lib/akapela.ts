@@ -55,7 +55,7 @@ export function createAkapela(options: AkapelaOptions): Akapela {
   const db = drizzle(sqlite, { schema })
   migrate(db, { migrationsFolder: options.migrationsDir })
 
-  const detect = options.hardware ?? (async () => ({ cores: hostCores() }))
+  const detect = options.hardware ?? (async () => ({ cores: hostCores(), accelerator: null }))
   let hardware: Promise<Hardware> | undefined
 
   return {

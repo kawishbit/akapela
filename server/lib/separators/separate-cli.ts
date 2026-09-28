@@ -20,18 +20,27 @@
  * by the Job and passed in, never by this process (`cli-args.ts`).
  *
  * Usage: `node separate-cli.ts --model-name <Inst_Main> --model <model.onnx> --input <backing.wav>
- * --instrumental <out.wav> --vocals <out.wav> --threads <n>`
+ * --instrumental <out.wav> --vocals <out.wav> --threads <n> [--accelerator dml:1]`,
+ * or `node separate-cli.ts --detect dml` to find which GPU backend works here.
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { decodeWav, encodeWav } from '../../../app/audio/wav.ts'
-import { parseSeparateCliArgs } from './cli-args.ts'
+import { formatAccelerator, parseBackendList } from './accelerator.ts'
+import { DETECT_FLAG, parseSeparateCliArgs } from './cli-args.ts'
 import { MdxNetModel } from './mdx-net.ts'
 import { SEPARATION_MODELS } from './models.ts'
 import { lowerOwnPriority } from './priority.ts'
-import { formatChunkProgress, formatNotice } from './progress.ts'
-import { createCpuSession } from './session.ts'
+import { formatChunkProgress, formatDetected, formatFallback, formatNotice } from './progress.ts'
+import { acceleratedSessionOptions, createCpuSession, detectAccelerator, FallbackSession } from './session.ts'
+import * as ort from 'onnxruntime-node'
 
 async function main(): Promise<void> {
+  if (process.argv[2] === DETECT_FLAG) {
+    const detected = await detectAccelerator(parseBackendList(process.argv[3] ?? ''))
+    process.stdout.write(formatDetected(detected ? formatAccelerator(detected) : null))
+    return
+  }
+
   const priorityProblem = lowerOwnPriority()
   if (priorityProblem) process.stdout.write(formatNotice(priorityProblem))
 
@@ -45,7 +54,14 @@ async function main(): Promise<void> {
   const left = Float64Array.from(channels[0]!)
   const right = Float64Array.from(channels[1] ?? channels[0]!)
 
-  const session = await createCpuSession(args.modelPath, args.threads)
+  const { accelerator, modelPath, threads } = args
+  const session = accelerator
+    ? new FallbackSession(
+        () => ort.InferenceSession.create(modelPath, acceleratedSessionOptions(accelerator, threads)),
+        () => createCpuSession(modelPath, threads),
+        error => process.stdout.write(formatFallback(error instanceof Error ? error.message : String(error))),
+      )
+    : await createCpuSession(modelPath, threads)
   const model = new MdxNetModel(SEPARATION_MODELS[args.modelName].config, session)
   const { instrumental, vocals } = await model.separate([left, right], {
     onChunk: (done, total) => process.stdout.write(formatChunkProgress(done, total)),

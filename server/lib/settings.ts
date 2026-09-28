@@ -9,6 +9,7 @@ import {
   SEPARATION_MODELS,
   type SeparationModelName,
 } from './separators/models'
+import { GPU_BACKEND_LABELS } from './separators/accelerator'
 import { ytDlpIsManaged } from './tools'
 import type { Akapela } from './akapela'
 
@@ -48,7 +49,14 @@ export interface AppSettings {
    */
   hardware: {
     cores: number
+    /** The GPU backend a Separation can use here, as Settings names it, or null when there is none. */
+    gpu: string | null
   }
+  /**
+   * Whether a Separation runs on that GPU. Only meaningful when there is one;
+   * the switch is not shown otherwise.
+   */
+  hardwareAcceleration: boolean
 }
 
 /** What a singer may pick: Manual always, plus every remote provider this instance can reach. */
@@ -95,7 +103,11 @@ export async function getSettings(akapela: Akapela): Promise<AppSettings> {
     audioFormat: row?.audioFormat ?? DEFAULT_AUDIO_FORMAT,
     audioFormats: AUDIO_FORMATS,
     cpuCores: cpuCoresFor(row?.cpuCores ?? null, hardware.cores),
-    hardware: { cores: hardware.cores },
+    hardware: {
+      cores: hardware.cores,
+      gpu: hardware.accelerator ? GPU_BACKEND_LABELS[hardware.accelerator.backend] : null,
+    },
+    hardwareAcceleration: row?.hardwareAcceleration ?? true,
   }
 }
 
@@ -107,6 +119,7 @@ export interface SettingsChanges {
   cpuCores?: number
   separationModel?: SeparationModelName
   audioFormat?: AudioFormat
+  hardwareAcceleration?: boolean
 }
 
 /** Saves whichever choices changed. */

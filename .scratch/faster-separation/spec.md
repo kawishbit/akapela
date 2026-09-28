@@ -13,7 +13,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they shoul
 | 01 | [A core limit, and a Separation that yields](issues/01-core-limit-and-priority.md) | done | — |
 | 02 | [The Separation Model catalog](issues/02-separation-model-catalog.md) | done | — |
 | 03 | [Separate again with another Separation Model](issues/03-separate-again.md) | done | 02 |
-| 04 | [Hardware acceleration in the Desktop App](issues/04-acceleration-desktop.md) | ready-for-agent | 01 |
+| 04 | [Hardware acceleration in the Desktop App](issues/04-acceleration-desktop.md) | done | 01 |
 | 05 | [Hardware acceleration in Docker, on NVIDIA](issues/05-acceleration-docker-nvidia.md) | ready-for-agent | 04 |
 | 06 | [Audio Format: FLAC](issues/06-audio-format-flac.md) | done | — |
 | 07 | [Audio Format: MP3](issues/07-audio-format-mp3.md) | done | 06 |

@@ -21,7 +21,8 @@ export function useSettings() {
     audioFormat: DEFAULT_AUDIO_FORMAT,
     audioFormats: [DEFAULT_AUDIO_FORMAT],
     cpuCores: 1,
-    hardware: { cores: 1 },
+    hardware: { cores: 1, gpu: null },
+    hardwareAcceleration: true,
   }
 
   const { data, refresh } = useAsyncData<AppSettings>(
@@ -73,6 +74,11 @@ export function useSettings() {
     return save({ audioFormat })
   }
 
+  /** Whether a Separation runs on the GPU, from the next one to start. */
+  function setHardwareAcceleration(hardwareAcceleration: boolean) {
+    return save({ hardwareAcceleration })
+  }
+
   /** How many cores a Separation may use, from the next one to start. */
   function setCpuCores(cpuCores: number) {
     return save({ cpuCores })
@@ -91,6 +97,7 @@ export function useSettings() {
     audioFormats: computed(() => data.value?.audioFormats ?? [DEFAULT_AUDIO_FORMAT]),
     cpuCores: computed(() => data.value?.cpuCores ?? 1),
     hardware: computed(() => data.value?.hardware ?? beforeLoaded.hardware),
+    hardwareAcceleration: computed(() => data.value?.hardwareAcceleration ?? true),
     saving,
     saveError,
     setDefaultLyricsProvider,
@@ -98,6 +105,7 @@ export function useSettings() {
     setMonitoringDefault,
     setSeparationModel,
     setCpuCores,
+    setHardwareAcceleration,
     setAudioFormat,
     refresh,
   }
