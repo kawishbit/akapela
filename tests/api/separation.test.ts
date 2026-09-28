@@ -256,3 +256,54 @@ describe('the Separation Model', () => {
     expect((await api.put('/api/settings', { separationModel: 'nope' })).status).toBe(400)
   })
 })
+
+describe('separating again with another Separation Model', () => {
+  async function separatedWith(separationModel: string) {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel })).json()
+    writeFileSync(join(api.dataDir, 'tracks', track.id, 'instrumental.wav'), `made by ${separationModel}`)
+    api.finishSeparation(track.id, separationJob.id, 'succeeded')
+    return track
+  }
+
+  test('keeps the current Stems and their model playable while it runs', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    expect(again.separationJob.separationModel).toBe('Inst_HQ_3')
+
+    const detail = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(detail).toMatchObject({ separationState: 'separating', hasStems: true, stemsModel: 'Inst_Main' })
+    expect(await (await api.get(`/api/tracks/${track.id}/backing?source=instrumental`)).text()).toBe('made by Inst_Main')
+  })
+
+  test('replaces the recorded model only when it succeeds', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    api.finishSeparation(track.id, again.separationJob.id, 'succeeded')
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsModel).toBe('Inst_HQ_3')
+  })
+
+  test('a failure leaves the Stems and their model as they were', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    api.finishSeparation(track.id, again.separationJob.id, 'failed', 'Error: no network')
+    expect(await (await api.get(`/api/tracks/${track.id}`)).json()).toMatchObject({ hasStems: true, stemsModel: 'Inst_Main' })
+  })
+
+  test('a cancel leaves the Stems and their model as they were', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    expect((await api.post(`/api/jobs/${again.separationJob.id}/cancel`, {})).status).toBe(200)
+    expect(await (await api.get(`/api/tracks/${track.id}`)).json())
+      .toMatchObject({ separationState: 'ready', hasStems: true, stemsModel: 'Inst_Main' })
+  })
+
+  test('retrying a failed one keeps the model it failed with', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Kim_Vocal_2' })).json()
+    api.finishSeparation(track.id, again.separationJob.id, 'failed', 'Error: no network')
+
+    const retried = await (await api.post(`/api/tracks/${track.id}/separate/retry`, {})).json()
+    expect(retried.separationJob.separationModel).toBe('Kim_Vocal_2')
+  })
+})

@@ -574,7 +574,7 @@ export function retryImport(akapela: Akapela, track: TrackWithJob): TrackWithJob
 }
 
 /** The most recent separate Job on a Track, which is the one whose progress and error the page shows. */
-function latestSeparationJob(akapela: Akapela, trackId: string): Job | null {
+export function latestSeparationJob(akapela: Akapela, trackId: string): Job | null {
   return akapela.db
     .select()
     .from(jobs)
