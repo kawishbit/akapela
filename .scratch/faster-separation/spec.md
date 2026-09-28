@@ -15,7 +15,7 @@ One ticket per file under [`issues/`](issues/), numbered in the order they shoul
 | 03 | [Separate again with another Separation Model](issues/03-separate-again.md) | done | 02 |
 | 04 | [Hardware acceleration in the Desktop App](issues/04-acceleration-desktop.md) | ready-for-agent | 01 |
 | 05 | [Hardware acceleration in Docker, on NVIDIA](issues/05-acceleration-docker-nvidia.md) | ready-for-agent | 04 |
-| 06 | [Audio Format: FLAC](issues/06-audio-format-flac.md) | ready-for-agent | — |
+| 06 | [Audio Format: FLAC](issues/06-audio-format-flac.md) | done | — |
 | 07 | [Audio Format: MP3](issues/07-audio-format-mp3.md) | ready-for-agent | 06 |
 | 08 | [Using every core](issues/08-using-every-core.md) | ready-for-agent | 01 |
 

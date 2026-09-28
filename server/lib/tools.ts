@@ -25,8 +25,8 @@ function override(name: string): string | undefined {
 
 /**
  * `AKAPELA_FFMPEG`, else the bare name off `PATH`. There is no ffprobe: the
- * only durations the app reads are of WAVs it wrote, and `wavDurationMs` in
- * `audio.ts` reads those from the header.
+ * only durations the app reads are of files it wrote, and `audioDurationMs`
+ * in `audio.ts` reads those from their headers.
  */
 export function ffmpegPath(): string {
   return override('AKAPELA_FFMPEG') ?? 'ffmpeg'

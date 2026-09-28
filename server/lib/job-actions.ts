@@ -1,11 +1,10 @@
-import { existsSync, rmSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { mixes, type Job, type JobType } from '../db/schema'
 import { enqueueJob, getJob, laneOf, type Lane } from './jobs'
 import { retryMix } from './mixes'
 import {
-  BACKING_SOURCE_FILES,
   deleteTrack,
   getTrack,
   retryImport,
@@ -13,6 +12,7 @@ import {
   trackDir,
 } from './tracks'
 import type { Akapela } from './akapela'
+import { findAudioFile, INSTRUMENTAL_BASENAME } from './audio-files'
 import { DEFAULT_SEPARATION_MODEL } from './separators/models'
 
 /**
@@ -154,7 +154,7 @@ function undoJob(akapela: Akapela, job: Job): void {
     case 'separate': {
       // No `cancelled` Separation state: back to having Stems if the Track
       // was being re-separated, and to never having been asked if not.
-      const hasStems = existsSync(join(trackDir(akapela, targetId), BACKING_SOURCE_FILES.instrumental))
+      const hasStems = findAudioFile(trackDir(akapela, targetId), INSTRUMENTAL_BASENAME) !== null
       akapela.sqlite
         .prepare(`UPDATE tracks SET separation_state = ?, updated_at = ? WHERE id = ?`)
         .run(hasStems ? 'ready' : 'none', Date.now(), targetId)

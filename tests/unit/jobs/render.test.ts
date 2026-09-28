@@ -7,7 +7,7 @@ import { appendEffects, buildMixFilterGraph, renderMix } from '../../../server/l
 import { JobsRunner } from '../../../server/lib/jobs-runner'
 import { runRender } from '../../../server/lib/jobs/render'
 import type { JobContext } from '../../../server/lib/jobs-runner'
-import { probe, writeBurstThenSilenceWav, writeSineWav } from '../audio-fixtures'
+import { flacOf, probe, writeBurstThenSilenceWav, writeSineWav } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
 import { rmsWindow, zeroCrossingFrequency } from '../wav-rms'
 
@@ -658,4 +658,32 @@ describe('renderMix', () => {
     expect(existsSync(join(dir, 'mix.mp3'))).toBe(true)
     expect(delay.max / 1e6).toBeLessThan(250)
   }, 60_000)
+
+  it.each([
+    { tempoPercent: 100, pitchSemitones: 0 },
+    { tempoPercent: 90, pitchSemitones: 2 },
+  ])('renders a Mix from FLAC Stems sample for sample as from WAV ones (%o)', async ({ tempoPercent, pitchSemitones }) => {
+    const { readFileSync } = await import('node:fs')
+    const mixOn = async (format: 'wav' | 'flac') => {
+      const t = setup()
+      const dir = trackDir(t)
+      writeSineWav(join(dir, 'instrumental.source.wav'), { frequency: 330, seconds: 2 })
+      if (format === 'wav') writeSineWav(join(dir, 'instrumental.wav'), { frequency: 330, seconds: 2 })
+      else flacOf(join(dir, 'instrumental.source.wav'), join(dir, 'instrumental.flac'))
+      writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 2 })
+      writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
+      insertTrack(t)
+      insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 500, durationMs: 500 })
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'instrumental', wavRequested: true, tempoPercent, pitchSemitones })
+      enqueueRender(t, 'm1')
+      await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
+      expect(getJob(t, 'j1').state).toBe('succeeded')
+      const bytes = readFileSync(join(dir, 'mixes', 'm1.wav'))
+      t.close()
+      db = undefined
+      return bytes
+    }
+
+    expect(await mixOn('flac')).toEqual(await mixOn('wav'))
+  })
 })

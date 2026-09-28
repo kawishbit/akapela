@@ -11,6 +11,7 @@ import { BACKING_SOURCES, DEFAULT_BACKING_SOURCE } from '../../shared/backing-so
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
 import { SEPARATION_MODEL_NAMES } from '../lib/separators/models'
+import { AUDIO_FORMATS, DEFAULT_AUDIO_FORMAT } from '../../shared/audio-format'
 
 export const JOB_TYPES = ['noop', 'import', 'render', 'separate'] as const
 export type JobType = (typeof JOB_TYPES)[number]
@@ -314,6 +315,11 @@ export const settings = sqliteTable('settings', {
   cpuCores: integer('cpu_cores'),
   /** The Separation Model a Separation is asked for with unless it names another. Null reads as `Inst_Main`. */
   separationModel: text('separation_model', { enum: SEPARATION_MODEL_NAMES }),
+  /**
+   * The Audio Format a Backing Track master or Stem is stored in when it is
+   * written (ADR 0016). Files already written keep theirs.
+   */
+  audioFormat: text('audio_format', { enum: AUDIO_FORMATS }).notNull().default(DEFAULT_AUDIO_FORMAT),
   updatedAt: integer('updated_at').notNull(),
 })
 

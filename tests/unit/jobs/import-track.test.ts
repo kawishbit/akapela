@@ -3,11 +3,13 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 import { importHandler } from '../../../server/lib/jobs/import-track'
-import { BACKING_TRACK_FILE, trackDir } from '../../../server/lib/jobs/track-paths'
+import { trackDir } from '../../../server/lib/jobs/track-paths'
 import type { JobContext } from '../../../server/lib/jobs-runner'
 import { SourceError, YtDlpFetcher, type MetadataOptions, type ProgressCallback, type SourceFetcher, type SourceMetadata } from '../../../server/lib/sources'
 import { probe, writeSineMp3 } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
+
+const BACKING_TRACK_FILE = 'backing.wav'
 
 const TRACK_ID = 't1'
 
@@ -54,6 +56,8 @@ function buildCtx(t: JobTestDb, jobId: string, onProgress?: (percent: number) =>
       startedAt: 1000,
       finishedAt: null,
       traceParent: null,
+      separationModel: null,
+      detail: null,
     },
     dataDir: t.dataDir,
     sqlite: t.akapela.sqlite,
@@ -61,6 +65,7 @@ function buildCtx(t: JobTestDb, jobId: string, onProgress?: (percent: number) =>
       t.akapela.sqlite.prepare(`UPDATE jobs SET progress = ? WHERE id = ?`).run(percent, jobId)
       onProgress?.(percent)
     },
+    detail() {},
     signal: new AbortController().signal,
   }
 }
@@ -101,6 +106,37 @@ class FakeFetcher implements SourceFetcher {
     return original
   }
 }
+
+describe('importHandler, storing the Backing Track in the Audio Format', () => {
+  it('writes a FLAC master, timed from STREAMINFO, when FLAC is chosen', async () => {
+    const t = setup()
+    t.akapela.sqlite.prepare(`INSERT INTO settings (id, audio_format, updated_at) VALUES (1, 'flac', 0)`).run()
+    const directory = trackDir(t.dataDir, TRACK_ID)
+    writeSineMp3(join(directory, 'original.mp3'), { seconds: 2 })
+    insertTrack(t, { sourceKind: 'upload', sourceRef: 'sine.mp3' })
+
+    await importHandler(new YtDlpFetcher())(buildCtx(t, 'j1'))
+
+    expect(existsSync(join(directory, 'backing.wav'))).toBe(false)
+    expect(probe(join(directory, 'backing.flac')).streams[0]!.codec_name).toBe('flac')
+    expect(Math.abs((getTrack(t).duration_ms as number) - 2000)).toBeLessThan(150)
+  })
+
+  it('replaces a WAV master a retried import left behind', async () => {
+    const t = setup()
+    const directory = trackDir(t.dataDir, TRACK_ID)
+    writeSineMp3(join(directory, 'original.mp3'), { seconds: 1 })
+    insertTrack(t, { sourceKind: 'upload', sourceRef: 'sine.mp3' })
+    await importHandler(new YtDlpFetcher())(buildCtx(t, 'j1'))
+    expect(existsSync(join(directory, 'backing.wav'))).toBe(true)
+
+    t.akapela.sqlite.prepare(`INSERT INTO settings (id, audio_format, updated_at) VALUES (1, 'flac', 0)`).run()
+    await importHandler(new YtDlpFetcher())(buildCtx(t, 'j2'))
+
+    expect(existsSync(join(directory, 'backing.wav'))).toBe(false)
+    expect(existsSync(join(directory, 'backing.flac'))).toBe(true)
+  })
+})
 
 describe('importHandler (upload)', () => {
   it('produces a Backing Track WAV and marks the Track ready', async () => {

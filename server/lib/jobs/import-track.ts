@@ -1,9 +1,10 @@
-import { readdir } from 'node:fs/promises'
+import { readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { normalizeToBackingTrack, wavDurationMs } from '../audio'
+import { audioDurationMs, normalizeToBackingTrack } from '../audio'
+import { audioFileCandidates, audioFileName, BACKING_BASENAME } from '../audio-files'
 import { ORIGINAL_BASENAME, type ProgressCallback, type SourceFetcher } from '../sources'
 import type { Handler, JobContext } from '../jobs-runner'
-import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir } from './track-paths'
+import { audioFormatNow, ensureNotDeleted, trackDir } from './track-paths'
 
 /**
  * The import job: turn a Track's Source into its Backing Track. Ported from
@@ -14,7 +15,8 @@ import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir } from './track-paths'
  * Track directory as delivered. For a YouTube Source, metadata is fetched and
  * written to the Track first, so the card shows the title and thumbnail while
  * the audio is still downloading, then the audio is downloaded. Either way the
- * original is normalized to the 44.1 kHz stereo WAV Backing Track, the
+ * original is normalized to the 44.1 kHz stereo Backing Track, in the Audio
+ * Format in force when it is written (ADR 0016), the
  * duration recorded, and the Track marked `ready`. Any failure marks the
  * Track `failed` and re-throws so the runner records the message on the job
  * row. Nothing retries on its own.
@@ -56,12 +58,17 @@ export function importHandler(fetcher: SourceFetcher): Handler {
         throw new Error(`Source kind '${row.source_kind}' is not importable`)
       }
 
-      const backing = join(directory, BACKING_TRACK_FILE)
+      // In the Audio Format in force now, replacing whatever a retried import
+      // left behind in another one.
+      const backing = join(directory, audioFileName(BACKING_BASENAME, audioFormatNow(ctx.sqlite)))
       await normalizeToBackingTrack(original, backing, ctx.signal)
+      for (const other of audioFileCandidates(directory, BACKING_BASENAME)) {
+        if (other !== backing) await rm(other, { force: true })
+      }
       ctx.signal.throwIfAborted()
       ctx.progress(PROGRESS_NORMALIZED)
 
-      const durationMs = await wavDurationMs(backing)
+      const durationMs = await audioDurationMs(backing)
       await ensureNotDeleted(ctx.sqlite, trackId, directory, 'import')
       ctx.sqlite
         .prepare(`UPDATE tracks SET duration_ms = ?, import_state = 'ready', updated_at = ? WHERE id = ?`)

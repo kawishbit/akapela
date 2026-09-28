@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { SETTINGS_ROW_ID, settings } from '../db/schema'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_PROVIDERS, type LyricsProviderName } from '../../shared/lyrics'
 import { cpuCoresFor } from '../../shared/separation'
+import { AUDIO_FORMATS, DEFAULT_AUDIO_FORMAT, type AudioFormat } from '../../shared/audio-format'
 import {
   DEFAULT_SEPARATION_MODEL,
   SEPARATION_MODEL_NAMES,
@@ -35,6 +36,10 @@ export interface AppSettings {
   separationModel: SeparationModelName
   /** Every Separation Model there is to choose from, in the order they are shown. */
   separationModels: Array<{ name: SeparationModelName, description: string }>
+  /** What a Backing Track master or Stem written from now on is stored as. */
+  audioFormat: AudioFormat
+  /** Every Audio Format there is to choose from, in the order they are shown. */
+  audioFormats: readonly AudioFormat[]
   /** How many cores a Separation may use: the singer's choice, or all but one, clamped to this machine. */
   cpuCores: number
   /**
@@ -87,6 +92,8 @@ export async function getSettings(akapela: Akapela): Promise<AppSettings> {
     ytDlpUpdatable: ytDlpIsManaged(),
     separationModel: defaultSeparationModelOf(akapela),
     separationModels: SEPARATION_MODEL_NAMES.map(name => ({ name, description: SEPARATION_MODELS[name].description })),
+    audioFormat: row?.audioFormat ?? DEFAULT_AUDIO_FORMAT,
+    audioFormats: AUDIO_FORMATS,
     cpuCores: cpuCoresFor(row?.cpuCores ?? null, hardware.cores),
     hardware: { cores: hardware.cores },
   }
@@ -99,6 +106,7 @@ export interface SettingsChanges {
   monitoringDefault?: boolean
   cpuCores?: number
   separationModel?: SeparationModelName
+  audioFormat?: AudioFormat
 }
 
 /** Saves whichever choices changed. */

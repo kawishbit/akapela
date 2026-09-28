@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, CloudDownload, CloudUpload, Cpu, ExternalLink, FolderOpen, Headphones, Loader2, Minus, Monitor, Moon, Plus, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
 import { LYRICS_PROVIDER_LABELS, type LyricsProviderName } from '~~/shared/lyrics'
+import { AUDIO_FORMAT_DESCRIPTIONS, AUDIO_FORMAT_LABELS } from '~~/shared/audio-format'
 import { RELEASES_URL } from '~/utils/update-prompt'
 import { THEME_PREFERENCES, THEME_PREFERENCE_LABELS, type ThemePreference } from '~/utils/theme'
 
@@ -14,6 +15,8 @@ const {
   hardware,
   separationModel,
   separationModels,
+  audioFormat,
+  audioFormats,
   saving,
   saveError,
   setDefaultLyricsProvider,
@@ -21,6 +24,7 @@ const {
   setMonitoringDefault,
   setCpuCores,
   setSeparationModel,
+  setAudioFormat,
 } = useSettings()
 
 /** Whose hardware every Separation choice is about — the server's, even from a Connected Desktop App. */
@@ -353,6 +357,42 @@ useHead({ title: 'Settings · Akapela' })
             @click="setCpuCores(cpuCores + 1)"
           >
             <Plus class="size-5" />
+          </button>
+        </div>
+      </section>
+
+      <section class="rounded-[8px] bg-surface p-4 sm:p-5">
+        <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+          Storage
+        </h2>
+        <h3 class="mt-3 text-sm font-bold">
+          Audio Format
+        </h3>
+        <p class="mt-1 text-sm text-text-muted">
+          What each Track's Backing Track and Stems are stored as on the server. Applies to files written
+          from now on; what's already there stays as it is. Takes and Mixes aren't affected.
+        </p>
+        <div
+          class="mt-3 flex flex-col gap-1"
+          role="radiogroup"
+          aria-label="Audio Format"
+        >
+          <button
+            v-for="format in audioFormats"
+            :key="format"
+            type="button"
+            role="radio"
+            class="flex min-h-12 flex-col items-start rounded-[6px] px-4 py-2 text-left transition disabled:opacity-60"
+            :class="format === audioFormat ? 'bg-text text-ground' : 'bg-surface-mid text-text hover:bg-card'"
+            :aria-checked="format === audioFormat"
+            :disabled="saving"
+            @click="format !== audioFormat && setAudioFormat(format)"
+          >
+            <span class="text-sm font-bold">{{ AUDIO_FORMAT_LABELS[format] }}</span>
+            <span
+              class="text-sm"
+              :class="format === audioFormat ? 'text-ground/80' : 'text-text-muted'"
+            >{{ AUDIO_FORMAT_DESCRIPTIONS[format] }}</span>
           </button>
         </div>
       </section>

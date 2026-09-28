@@ -5,6 +5,7 @@ import {
   unavailableProviderMessage,
 } from '../../shared/lyrics'
 import { invalidCpuCoresMessage, parseCpuCores } from '../../shared/separation'
+import { INVALID_AUDIO_FORMAT_MESSAGE, isAudioFormat } from '../../shared/audio-format'
 import { INVALID_SEPARATION_MODEL_MESSAGE, isSeparationModelName } from '../lib/separators/models'
 import { availableLyricsProviders, saveSettings, type SettingsChanges } from '../lib/settings'
 
@@ -15,7 +16,8 @@ const INVALID_MONITORING_DEFAULT_MESSAGE = 'The Monitoring default is true or fa
 /**
  * Save whichever of the singer's choices changed: the default Lyrics
  * Provider, the microphone processing default, the Monitoring default, the
- * default Separation Model, and how many cores a Separation may use.
+ * default Separation Model, how many cores a Separation may use, and the
+ * Audio Format new masters and Stems are stored in.
  * Each is optional, so a control can be saved on its own without resending
  * the others.
  */
@@ -27,6 +29,7 @@ export default defineEventHandler(async (event) => {
     monitoringDefault?: unknown
     cpuCores?: unknown
     separationModel?: unknown
+    audioFormat?: unknown
   } | null
 
   const changes: SettingsChanges = {}
@@ -71,6 +74,13 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: INVALID_SEPARATION_MODEL_MESSAGE })
     }
     changes.separationModel = body.separationModel
+  }
+
+  if (body?.audioFormat !== undefined) {
+    if (!isAudioFormat(body.audioFormat)) {
+      throw createError({ statusCode: 400, statusMessage: INVALID_AUDIO_FORMAT_MESSAGE })
+    }
+    changes.audioFormat = body.audioFormat
   }
 
   if (Object.keys(changes).length === 0) {

@@ -1,6 +1,7 @@
 import type { AppSettings, SettingsChanges } from '~~/server/lib/settings'
 import { DEFAULT_LYRICS_PROVIDER, type LyricsProviderName } from '~~/shared/lyrics'
 import type { SeparationModelName } from '~~/server/lib/separators/models'
+import { DEFAULT_AUDIO_FORMAT, type AudioFormat } from '~~/shared/audio-format'
 
 /**
  * The choices that apply to every Track, and the Lyrics Providers this Akapela
@@ -17,6 +18,8 @@ export function useSettings() {
     ytDlpUpdatable: false,
     separationModel: 'Inst_Main',
     separationModels: [],
+    audioFormat: DEFAULT_AUDIO_FORMAT,
+    audioFormats: [DEFAULT_AUDIO_FORMAT],
     cpuCores: 1,
     hardware: { cores: 1 },
   }
@@ -65,6 +68,11 @@ export function useSettings() {
     return save({ separationModel })
   }
 
+  /** What masters and Stems written from now on are stored as; files already written keep theirs. */
+  function setAudioFormat(audioFormat: AudioFormat) {
+    return save({ audioFormat })
+  }
+
   /** How many cores a Separation may use, from the next one to start. */
   function setCpuCores(cpuCores: number) {
     return save({ cpuCores })
@@ -79,6 +87,8 @@ export function useSettings() {
     ytDlpUpdatable: computed(() => data.value?.ytDlpUpdatable ?? false),
     separationModel: computed(() => data.value?.separationModel ?? 'Inst_Main'),
     separationModels: computed(() => data.value?.separationModels ?? []),
+    audioFormat: computed(() => data.value?.audioFormat ?? DEFAULT_AUDIO_FORMAT),
+    audioFormats: computed(() => data.value?.audioFormats ?? [DEFAULT_AUDIO_FORMAT]),
     cpuCores: computed(() => data.value?.cpuCores ?? 1),
     hardware: computed(() => data.value?.hardware ?? beforeLoaded.hardware),
     saving,
@@ -88,6 +98,7 @@ export function useSettings() {
     setMonitoringDefault,
     setSeparationModel,
     setCpuCores,
+    setAudioFormat,
     refresh,
   }
 }

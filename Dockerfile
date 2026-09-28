@@ -16,7 +16,7 @@ FROM node:24-bookworm-slim
 RUN corepack enable
 WORKDIR /app
 # ffmpeg normalizes every Source and renders every Mix. ffprobe is not
-# installed: the app reads durations from the headers of the WAVs it writes.
+# installed: the app reads durations from the headers of the files it writes.
 # yt-dlp fetches a YouTube import's audio and metadata; Node — already this
 # image's own base — is what it shells out to for solving YouTube's player
 # challenges. We fetch the `yt-dlp_linux` asset specifically: it's a

@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `audio_format` text DEFAULT 'wav' NOT NULL;

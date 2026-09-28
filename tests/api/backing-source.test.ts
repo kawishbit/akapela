@@ -301,3 +301,48 @@ describe('the disk space Stems take up', () => {
     expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsBytes).toBe(0)
   })
 })
+
+describe('a Track stored as FLAC', () => {
+  /** What a library switched to FLAC holds: the same files, a different extension. */
+  async function flacTrack() {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+    writeTrackFile(track.id, 'backing.flac', 'the original, in FLAC')
+    writeTrackFile(track.id, 'instrumental.flac', 'the instrumental, in FLAC')
+    writeTrackFile(track.id, 'vocals.flac', 'the vocals, in FLAC')
+    api.finishSeparation(track.id, separationJob.id, 'succeeded')
+    return track
+  }
+
+  test('streams whichever file is there, as what it is', async () => {
+    const track = await flacTrack()
+
+    const instrumental = await api.get(`/api/tracks/${track.id}/backing`)
+    expect(instrumental.headers.get('content-type')).toBe('audio/flac')
+    expect(await instrumental.text()).toBe('the instrumental, in FLAC')
+
+    const original = await api.get(`/api/tracks/${track.id}/backing?source=original`)
+    expect(await original.text()).toBe('the original, in FLAC')
+  })
+
+  test('has Stems, and Delete Stems removes them', async () => {
+    const track = await flacTrack()
+    const detail = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(detail.hasStems).toBe(true)
+    expect(detail.stemsBytes).toBe('the instrumental, in FLAC'.length + 'the vocals, in FLAC'.length)
+
+    await api.del(`/api/tracks/${track.id}/stems`)
+
+    const dir = join(api.dataDir, 'tracks', track.id)
+    expect(existsSync(join(dir, 'instrumental.flac'))).toBe(false)
+    expect(existsSync(join(dir, 'vocals.flac'))).toBe(false)
+    expect(existsSync(join(dir, 'backing.flac'))).toBe(true)
+  })
+
+  test('sits beside a WAV Track in the same library, each served as its own format', async () => {
+    const wav = await separatedTrack()
+    const flac = await flacTrack()
+    expect((await api.get(`/api/tracks/${wav.id}/backing`)).headers.get('content-type')).toBe('audio/wav')
+    expect((await api.get(`/api/tracks/${flac.id}/backing`)).headers.get('content-type')).toBe('audio/flac')
+  })
+})

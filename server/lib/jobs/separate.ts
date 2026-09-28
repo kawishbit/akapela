@@ -12,7 +12,17 @@ import { childEnv, killOnAbort, separateCliPath } from '../tools'
 import { cpuCoresFor } from '../../../shared/separation'
 import { hostCores, type Hardware } from '../hardware'
 import type { Handler, JobContext } from '../jobs-runner'
-import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir, trackExists } from './track-paths'
+import { decodeToWav, storeWavAs } from '../audio'
+import {
+  audioFileCandidates,
+  audioFileName,
+  audioFormatOf,
+  BACKING_BASENAME,
+  findAudioFile,
+  INSTRUMENTAL_BASENAME,
+  VOCALS_BASENAME,
+} from '../audio-files'
+import { audioFormatNow, ensureNotDeleted, trackDir, trackExists } from './track-paths'
 
 /**
  * The separation model is to vocal removal what yt-dlp is to importing — a
@@ -42,7 +52,7 @@ export interface SeparateOptions {
 export interface Separator {
   /** Puts `model` in `modelsDir`, or does nothing if it is already there. */
   fetchModel: (modelsDir: string, model: SeparationModel, options?: FetchModelOptions) => Promise<void>
-  /** Runs the model over the Backing Track WAV at `backingPath`. */
+  /** Runs the model over the Backing Track at `backingPath`, in whichever Audio Format it is stored. */
   separate: (backingPath: string, modelsDir: string, options?: SeparateOptions) => Promise<Stems>
 }
 
@@ -58,7 +68,14 @@ export class MdxNetSeparator implements Separator {
     const instrumentalPath = join(scratchDir, 'instrumental.wav')
     const vocalsPath = join(scratchDir, 'vocals.wav')
     try {
-      await runSeparateCli(model, path, backingPath, instrumentalPath, vocalsPath, options)
+      // The subprocess reads WAV only, and decodes it itself; a master stored
+      // in another Audio Format is decoded for it first.
+      let input = backingPath
+      if (audioFormatOf(backingPath) !== 'wav') {
+        input = join(scratchDir, 'backing.wav')
+        await decodeToWav(backingPath, input, options.signal)
+      }
+      await runSeparateCli(model, path, input, instrumentalPath, vocalsPath, options)
       const instrumentalWav = decodeWav(await readFile(instrumentalPath))
       const vocalsWav = decodeWav(await readFile(vocalsPath))
       return {
@@ -144,8 +161,6 @@ function runSeparateCli(
  * message on the job row. Nothing retries on its own.
  */
 
-export const INSTRUMENTAL_STEM_FILE = 'instrumental.wav'
-export const VOCALS_STEM_FILE = 'vocals.wav'
 const SEPARATION_DIRNAME = 'stems.part'
 
 const MODELS_DIRNAME = 'cache/models'
@@ -248,8 +263,8 @@ async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: 
   // can still be reached after leaves it `failed` rather than stuck
   // `separating`.
   try {
-    const backing = join(directory, BACKING_TRACK_FILE)
-    if (!existsSync(backing)) throw new Error(`Track ${trackId} has no Backing Track to separate`)
+    const backing = findAudioFile(directory, BACKING_BASENAME)
+    if (!backing) throw new Error(`Track ${trackId} has no Backing Track to separate`)
     ctx.progress(PROGRESS_STARTED)
 
     // Fixed when the Separation was asked for; a row from before there was a
@@ -283,23 +298,37 @@ async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: 
     await rm(scratch, { recursive: true, force: true })
     try {
       await mkdir(scratch, { recursive: true })
-      const instrumentalPath = join(scratch, INSTRUMENTAL_STEM_FILE)
-      const vocalsPath = join(scratch, VOCALS_STEM_FILE)
-      await writeFile(instrumentalPath, encodeWav({
-        channels: [Float32Array.from(instrumental[0]), Float32Array.from(instrumental[1])],
-        sampleRate,
-      }))
-      await writeFile(vocalsPath, encodeWav({
-        channels: [Float32Array.from(vocals[0]), Float32Array.from(vocals[1])],
-        sampleRate,
-      }))
+      // In the Audio Format in force now, not when the Separation was asked
+      // for: it changes how the Stems are kept, never what they sound like.
+      const format = audioFormatNow(ctx.sqlite)
+      const stems = [
+        { basename: INSTRUMENTAL_BASENAME, channels: instrumental },
+        { basename: VOCALS_BASENAME, channels: vocals },
+      ]
+      const stored: Array<{ basename: string, path: string }> = []
+      for (const { basename, channels } of stems) {
+        const wav = join(scratch, `${basename}.pcm.wav`)
+        await writeFile(wav, encodeWav({
+          channels: [Float32Array.from(channels[0]), Float32Array.from(channels[1])],
+          sampleRate,
+        }))
+        const path = join(scratch, audioFileName(basename, format))
+        await storeWavAs(wav, path, ctx.signal)
+        stored.push({ basename, path })
+      }
 
       await ensureNotDeleted(ctx.sqlite, trackId, directory, 'separation')
       // The last moment a cancel can still keep the Track's existing Stems:
       // nothing before this has touched them.
       ctx.signal.throwIfAborted()
-      await rename(instrumentalPath, join(directory, INSTRUMENTAL_STEM_FILE))
-      await rename(vocalsPath, join(directory, VOCALS_STEM_FILE))
+      for (const { basename, path } of stored) {
+        const destination = join(directory, audioFileName(basename, format))
+        await rename(path, destination)
+        // Stems the previous Separation stored in another Audio Format.
+        for (const other of audioFileCandidates(directory, basename)) {
+          if (other !== destination) await rm(other, { force: true })
+        }
+      }
     }
     finally {
       await rm(scratch, { recursive: true, force: true })

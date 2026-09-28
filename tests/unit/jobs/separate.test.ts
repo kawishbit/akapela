@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { decodeWav } from '../../../app/audio/wav'
-import { probe, writeSineWav } from '../audio-fixtures'
+import { flacOf, probe, writeSineWav } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
 import { separateHandler, type SeparateOptions, type Separator, type Stems } from '../../../server/lib/jobs/separate'
 import type { FetchModelOptions } from '../../../server/lib/separators/download-model'
@@ -99,7 +99,10 @@ class FakeSeparator implements Separator {
     this.separated.push(backingPath)
     this.threads.push(options.threads)
     this.models.push(options.model?.name)
-    const { channels, sampleRate } = decodeWav(await readFile(backingPath))
+    // The real separator decodes any Audio Format; a stand-in only needs a length.
+    const { channels, sampleRate } = backingPath.endsWith('.wav')
+      ? decodeWav(await readFile(backingPath))
+      : { channels: [new Float32Array(44100)], sampleRate: 44100 }
     const length = channels[0]!.length
     const instrumental: [Float64Array, Float64Array] = [new Float64Array(length), new Float64Array(length)]
     const vocals: [Float64Array, Float64Array] = [new Float64Array(length), new Float64Array(length)]
@@ -443,5 +446,40 @@ describe('separateHandler', () => {
 
     expect(getJob(t, 'j1')).toMatchObject({ state: 'failed', detail: null })
     expect(t.akapela.sqlite.prepare(`SELECT stems_model FROM tracks`).get()).toEqual({ stems_model: 'Inst_Main' })
+  })
+
+  it('stores the Stems as FLAC when FLAC is chosen, replacing WAV Stems from before', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'backing.wav'), { seconds: 1 })
+    writeSineWav(join(dir, 'instrumental.wav'), { seconds: 1 })
+    writeSineWav(join(dir, 'vocals.wav'), { seconds: 1 })
+    insertTrack(t)
+    t.akapela.sqlite.prepare(`INSERT INTO settings (id, audio_format, updated_at) VALUES (1, 'flac', 0)`).run()
+    enqueueSeparate(t)
+
+    await runTheJob(t, new FakeSeparator())
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    expect(readdirSync(dir).filter(name => /^(instrumental|vocals)\./.test(name)).sort())
+      .toEqual(['instrumental.flac', 'vocals.flac'])
+    expect(probe(join(dir, 'instrumental.flac')).streams[0]!.codec_name).toBe('flac')
+    expect(existsSync(join(dir, 'stems.part'))).toBe(false)
+  })
+
+  it('separates a Backing Track stored as FLAC', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'source.wav'), { seconds: 1 })
+    flacOf(join(dir, 'source.wav'), join(dir, 'backing.flac'))
+    insertTrack(t)
+    enqueueSeparate(t)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator)
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    expect(separator.separated).toEqual([join(dir, 'backing.flac')])
+    expect(existsSync(join(dir, 'instrumental.wav'))).toBe(true)
   })
 })
