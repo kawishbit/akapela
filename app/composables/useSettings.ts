@@ -14,6 +14,8 @@ export function useSettings() {
     micProcessingDefault: false,
     monitoringDefault: false,
     ytDlpUpdatable: false,
+    cpuCores: 1,
+    hardware: { cores: 1 },
   }
 
   const { data, refresh } = useAsyncData<AppSettings>(
@@ -55,6 +57,11 @@ export function useSettings() {
     return save({ monitoringDefault })
   }
 
+  /** How many cores a Separation may use, from the next one to start. */
+  function setCpuCores(cpuCores: number) {
+    return save({ cpuCores })
+  }
+
   return {
     settings: computed(() => data.value),
     lyricsProviders: computed<LyricsProviderName[]>(() => data.value?.lyricsProviders ?? []),
@@ -62,11 +69,14 @@ export function useSettings() {
     micProcessingDefault: computed(() => data.value?.micProcessingDefault ?? false),
     monitoringDefault: computed(() => data.value?.monitoringDefault ?? false),
     ytDlpUpdatable: computed(() => data.value?.ytDlpUpdatable ?? false),
+    cpuCores: computed(() => data.value?.cpuCores ?? 1),
+    hardware: computed(() => data.value?.hardware ?? beforeLoaded.hardware),
     saving,
     saveError,
     setDefaultLyricsProvider,
     setMicProcessingDefault,
     setMonitoringDefault,
+    setCpuCores,
     refresh,
   }
 }

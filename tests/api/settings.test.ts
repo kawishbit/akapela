@@ -61,3 +61,40 @@ describe('saving nothing', () => {
     expect(res.status).toBe(400)
   })
 })
+
+describe('CPU cores', () => {
+  test('describes the machine hosting Akapela, and starts at all its cores but one', async () => {
+    expect(await (await api.get('/api/settings')).json()).toMatchObject({
+      cpuCores: 7,
+      hardware: { cores: 8 },
+    })
+  })
+
+  test('is saved and read back', async () => {
+    const res = await api.put('/api/settings', { cpuCores: 2 })
+    expect(res.status).toBe(200)
+    expect((await res.json()).cpuCores).toBe(2)
+    expect((await (await api.get('/api/settings')).json()).cpuCores).toBe(2)
+  })
+
+  test.each([0, 9, 2.5, '4'])('%j is rejected on an 8-core machine', async (cpuCores) => {
+    const res = await api.put('/api/settings', { cpuCores })
+    expect(res.status).toBe(400)
+    expect((await (await api.get('/api/settings')).json()).cpuCores).toBe(7)
+  })
+})
+
+describe('CPU cores saved on bigger hardware', () => {
+  test('is clamped to the machine it is read on, and kept as it was', async () => {
+    const small = await createTestApi({ hardware: { cores: 4 } })
+    try {
+      // What a library restored from a 16-core server brings with it.
+      small.akapela.sqlite.prepare(`INSERT INTO settings (id, cpu_cores, updated_at) VALUES (1, 12, 0)`).run()
+      expect((await (await small.get('/api/settings')).json()).cpuCores).toBe(4)
+      expect(small.akapela.sqlite.prepare(`SELECT cpu_cores FROM settings`).get()).toEqual({ cpu_cores: 12 })
+    }
+    finally {
+      await small.close()
+    }
+  })
+})

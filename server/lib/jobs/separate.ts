@@ -5,9 +5,12 @@ import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { decodeWav, encodeWav } from '../../../app/audio/wav'
 import { fetchModel } from '../separators/download-model'
-import { chunkProgressReader } from '../separators/progress'
+import { formatSeparateCliArgs } from '../separators/cli-args'
+import { cliOutputReader } from '../separators/progress'
 import { childEnv, killOnAbort, separateCliPath } from '../tools'
-import type { Handler } from '../jobs-runner'
+import { cpuCoresFor } from '../../../shared/separation'
+import { hostCores, type Hardware } from '../hardware'
+import type { Handler, JobContext } from '../jobs-runner'
 import { BACKING_TRACK_FILE, ensureNotDeleted, trackDir, trackExists } from './track-paths'
 
 /**
@@ -25,6 +28,8 @@ export interface Stems {
 }
 
 export interface SeparateOptions {
+  /** How many cores the model may use: the core limit in force when this Separation started. */
+  threads?: number
   /** Stops the model run when it aborts, killing its subprocess; the Separation is then rejected. */
   signal?: AbortSignal
   /** Receives how far the model run has got, 0 to 1, as it goes. May never be called. */
@@ -66,12 +71,25 @@ export class MdxNetSeparator implements Separator {
   }
 }
 
+/**
+ * What the subprocess says that is worth a log line but not a failure — a
+ * priority it could not lower, say. Logged once per process rather than once
+ * per Separation, since a Playlist Import would otherwise say the same thing
+ * thirty times.
+ */
+const loggedNotices = new Set<string>()
+function logNoticeOnce(text: string): void {
+  if (loggedNotices.has(text)) return
+  loggedNotices.add(text)
+  console.warn(`separation: ${text}`)
+}
+
 function runSeparateCli(
   modelPath: string,
   backingPath: string,
   instrumentalOutPath: string,
   vocalsOutPath: string,
-  { signal, onProgress }: SeparateOptions,
+  { signal, onProgress, threads = hostCores() }: SeparateOptions,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // `separate-cli.ts`, run as its own subprocess — CPU isolation for the
@@ -82,11 +100,17 @@ function runSeparateCli(
     // window instead of running the CLI.
     const child = spawn(
       process.execPath,
-      [separateCliPath(), modelPath, backingPath, instrumentalOutPath, vocalsOutPath],
+      [separateCliPath(), ...formatSeparateCliArgs({
+        modelPath,
+        inputPath: backingPath,
+        instrumentalPath: instrumentalOutPath,
+        vocalsPath: vocalsOutPath,
+        threads,
+      })],
       { env: childEnv() },
     )
     killOnAbort(child, signal)
-    if (onProgress) child.stdout.on('data', chunkProgressReader(onProgress))
+    child.stdout.on('data', cliOutputReader({ onFraction: onProgress, onNotice: logNoticeOnce }))
     let stderr = ''
     child.stderr.on('data', d => (stderr += d))
     child.on('error', error => reject(new Error(`could not start the separation subprocess: ${error.message}`)))
@@ -157,12 +181,34 @@ async function modelsDir(dataDir: string): Promise<string> {
   return current
 }
 
-/** The separate job bound to the separator that will stand in for the model. */
-export function separateHandler(separator: Separator): Handler {
-  return ctx => runSeparateWith(ctx, separator)
+/** This machine as far as a Separation is concerned, when nobody has said otherwise. */
+async function thisMachine(): Promise<Hardware> {
+  return { cores: hostCores() }
 }
 
-async function runSeparateWith(ctx: Parameters<Handler>[0], separator: Separator): Promise<void> {
+/**
+ * The separate job bound to the separator that will stand in for the model,
+ * and to the machine it runs on — the server's own detection in production,
+ * so the Job and Settings agree on what the hardware is.
+ */
+export function separateHandler(separator: Separator, hardware: () => Promise<Hardware> = thisMachine): Handler {
+  return ctx => runSeparateWith(ctx, separator, hardware)
+}
+
+/**
+ * The settings that change how fast a Separation runs but not what it
+ * produces, read when it starts rather than when it was asked for (ADR 0013
+ * amendment): a limit lowered while thirty Separations wait applies to the
+ * next one to start, never to the one already running.
+ */
+async function startingOptions(ctx: JobContext, hardware: () => Promise<Hardware>): Promise<{ threads: number }> {
+  const row = ctx.sqlite.prepare(`SELECT cpu_cores FROM settings WHERE id = 1`).get() as
+    { cpu_cores: number | null } | undefined
+  const { cores } = await hardware()
+  return { threads: cpuCoresFor(row?.cpu_cores ?? null, cores) }
+}
+
+async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: () => Promise<Hardware>): Promise<void> {
   const trackId = ctx.job.targetId
   if (!trackId) throw new Error('separate job has no target Track')
   if (!trackExists(ctx.sqlite, trackId)) throw new Error(`Track ${trackId} does not exist`)
@@ -191,7 +237,8 @@ async function runSeparateWith(ctx: Parameters<Handler>[0], separator: Separator
         ctx.progress(percent)
       }
     }
-    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models, { signal: ctx.signal, onProgress })
+    const { threads } = await startingOptions(ctx, hardware)
+    const { instrumental, vocals, sampleRate } = await separator.separate(backing, models, { signal: ctx.signal, onProgress, threads })
     ctx.signal.throwIfAborted()
 
     const scratch = join(directory, SEPARATION_DIRNAME)

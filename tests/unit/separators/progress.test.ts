@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chunkProgressReader, parseChunkProgress } from '../../../server/lib/separators/progress'
+import { chunkProgressReader, cliOutputReader, formatNotice, parseChunkProgress } from '../../../server/lib/separators/progress'
 
 describe('parseChunkProgress', () => {
   it('reads a progress line as a fraction', () => {
@@ -24,5 +24,18 @@ describe('chunkProgressReader', () => {
     read(Buffer.from('progress 4/4\n'))
 
     expect(seen).toEqual([0.25, 0.5, 1])
+  })
+})
+
+describe('cliOutputReader', () => {
+  it('tells progress from notices, and a notice survives a newline in its text', () => {
+    const fractions: number[] = []
+    const notices: string[] = []
+    const read = cliOutputReader({ onFraction: f => fractions.push(f), onNotice: n => notices.push(n) })
+
+    read(`progress 1/2\n${formatNotice('could not lower\nthe priority')}progress 2/2\n`)
+
+    expect(fractions).toEqual([0.5, 1])
+    expect(notices).toEqual(['could not lower the priority'])
   })
 })

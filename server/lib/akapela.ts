@@ -7,6 +7,7 @@ import * as schema from '../db/schema'
 import { createGeniusProvider } from '../lyrics/genius'
 import { createLrclibProvider } from '../lyrics/lrclib'
 import type { LyricsProvider } from '../lyrics/provider'
+import { hostCores, type Hardware } from './hardware'
 import { RunningJobs } from './running-jobs'
 
 export interface AkapelaOptions {
@@ -20,6 +21,8 @@ export interface AkapelaOptions {
   geniusToken?: string
   /** How this instance reaches the web outside a provider, which is cover art. Tests pass a stub. */
   fetch?: typeof globalThis.fetch
+  /** The machine this instance separates on. Defaults to this one; tests pass whatever they need to be true. */
+  hardware?: () => Promise<Hardware>
 }
 
 export interface Akapela {
@@ -32,6 +35,8 @@ export interface Akapela {
   fetch: typeof globalThis.fetch
   /** The Jobs this process is running, which is how a cancel reaches one mid-run. */
   runningJobs: RunningJobs
+  /** The machine hosting this Akapela, worked out once and remembered. */
+  hardware(): Promise<Hardware>
   close(): void
 }
 
@@ -50,6 +55,9 @@ export function createAkapela(options: AkapelaOptions): Akapela {
   const db = drizzle(sqlite, { schema })
   migrate(db, { migrationsFolder: options.migrationsDir })
 
+  const detect = options.hardware ?? (async () => ({ cores: hostCores() }))
+  let hardware: Promise<Hardware> | undefined
+
   return {
     dataDir: options.dataDir,
     db,
@@ -58,6 +66,7 @@ export function createAkapela(options: AkapelaOptions): Akapela {
       ?? [createLrclibProvider(), createGeniusProvider({ token: options.geniusToken ?? '' })],
     fetch: options.fetch ?? ((...args) => globalThis.fetch(...args)),
     runningJobs: new RunningJobs(),
+    hardware: () => (hardware ??= detect()),
     close() {
       sqlite.close()
     },

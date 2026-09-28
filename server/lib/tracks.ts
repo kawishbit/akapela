@@ -29,7 +29,7 @@ import { enqueueJob } from './jobs'
 import { getLyrics } from './lyrics'
 import { listMixesForTrack, type MixWithJob } from './mixes'
 import type { Akapela } from './akapela'
-import { getSettings } from './settings'
+import { defaultLyricsProviderOf } from './settings'
 import { listTakes } from './takes'
 
 /**
@@ -171,7 +171,7 @@ function startImport(
     songProviderIds: null,
     songAlbumArtUrl: null,
     // New Tracks start where the singer said Lyrics should come from.
-    lyricsProvider: getSettings(akapela).defaultLyricsProvider,
+    lyricsProvider: defaultLyricsProviderOf(akapela),
     lyricsOffsetMs: 0,
     titleEdited: false,
     artistEdited: false,

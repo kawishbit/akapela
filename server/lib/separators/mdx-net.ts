@@ -1,4 +1,3 @@
-import { availableParallelism } from 'node:os'
 import * as ort from 'onnxruntime-node'
 // Explicit extension: this module also runs as a standalone `node` subprocess
 // (`separate-cli.ts`, for CPU isolation), which needs it — plain Node's ESM
@@ -89,50 +88,20 @@ export interface SeparationProgressOptions {
 }
 
 export class MdxNetModel {
-  private readonly modelPath: string
   private readonly config: MdxNetConfig
-  private session: ModelSession | undefined
+  private readonly session: ModelSession
   private readonly stft: Stft
 
   /**
-   * `session` is for tests: inject a fake that stands in for the ONNX model
-   * (`worker/tests/test_separate.py`'s `FakeSeparator` does the equivalent
-   * for the Python side) so the chunking/overlap-add math can be checked
-   * without the real 66MB model. Production code never passes it — the real
-   * session loads lazily from `modelPath` on first use.
+   * `session` is the ONNX model, or in a test a fake that stands in for it
+   * (`worker/tests/test_separate.py`'s `FakeSeparator` did the equivalent for
+   * the Python side) so the chunking/overlap-add math can be checked without
+   * the real 66MB model. `separate-cli.ts` builds the real one (`session.ts`).
    */
-  constructor(modelPath: string, config: MdxNetConfig = UVR_MDX_NET_INST_MAIN_CONFIG, session?: ModelSession) {
-    this.modelPath = modelPath
+  constructor(config: MdxNetConfig, session: ModelSession) {
     this.config = config
     this.session = session
     this.stft = new Stft(config.nFft, config.hopLength, config.dimF)
-  }
-
-  private async session_(): Promise<ModelSession> {
-    // Left to itself, onnxruntime sizes its intra-op thread pool off the
-    // *host's* core count (`std::thread::hardware_concurrency()`), which
-    // has no idea about a container's cgroup CPU quota — this app's own
-    // `docker compose up` ships with `deploy.resources.limits.cpus: "2"`.
-    // On a host with many more cores than that quota, the session spins up
-    // a thread for each of them anyway, and they all contend for the 2 CPUs
-    // the container actually gets: the resulting scheduling overhead is
-    // severe enough to turn a several-minute separation into tens of
-    // minutes. `os.availableParallelism()` is cgroup-aware (Node/libuv read
-    // it from `cpu.max` under cgroup v2) and reflects what's actually
-    // available, unlike `os.cpus().length`.
-    //
-    // The CPU arena is off because the macOS Desktop App runs this file under
-    // Electron's binary (`ELECTRON_RUN_AS_NODE`), whose allocator traps rather
-    // than returning when the arena extends itself: the first `run` succeeds,
-    // the second grows the arena and the subprocess dies with SIGTRAP ("exited
-    // with code null"). Plain Node is unaffected either way, and without the
-    // arena a separation takes the same time and differs only by float noise.
-    this.session ??= await ort.InferenceSession.create(this.modelPath, {
-      executionProviders: ['cpu'],
-      intraOpNumThreads: Math.max(1, availableParallelism()),
-      enableCpuMemArena: false,
-    })
-    return this.session
   }
 
   /** One model call: STFT the chunk, zero the first 3 (near-DC) bins, run the ONNX graph, inverse-STFT the result. */
@@ -145,9 +114,8 @@ export class MdxNetModel {
       }
     }
 
-    const session = await this.session_()
     const inputTensor = new ort.Tensor('float32', Float32Array.from(data), [1, 4, dimF, nFrames])
-    const results = await session.run({ input: inputTensor })
+    const results = await this.session.run({ input: inputTensor })
     const output = results.output
     if (!output) throw new Error('the model produced no "output" tensor')
 

@@ -62,6 +62,7 @@ function backingSource(t: JobTestDb): string | null {
 class FakeSeparator implements Separator {
   modelsDirs: string[] = []
   separated: string[] = []
+  threads: Array<number | undefined> = []
 
   constructor(private readonly options: {
     fetchError?: string
@@ -84,6 +85,7 @@ class FakeSeparator implements Separator {
     if (this.options.separateError) throw new Error(this.options.separateError)
     for (const fraction of this.options.chunkFractions ?? []) options.onProgress?.(fraction)
     this.separated.push(backingPath)
+    this.threads.push(options.threads)
     const { channels, sampleRate } = decodeWav(await readFile(backingPath))
     const length = channels[0]!.length
     const instrumental: [Float64Array, Float64Array] = [new Float64Array(length), new Float64Array(length)]
@@ -100,8 +102,16 @@ class FakeSeparator implements Separator {
   }
 }
 
-function runTheJob(t: JobTestDb, separator: FakeSeparator): Promise<boolean> {
-  return new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers: { separate: separateHandler(separator) } }).runOnce()
+function runTheJob(t: JobTestDb, separator: FakeSeparator, cores = 8): Promise<boolean> {
+  const handlers = { separate: separateHandler(separator, async () => ({ cores })) }
+  return new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers }).runOnce()
+}
+
+function chooseCpuCores(t: JobTestDb, cpuCores: number): void {
+  t.akapela.sqlite
+    .prepare(`INSERT INTO settings (id, cpu_cores, updated_at) VALUES (1, ?, 0)
+              ON CONFLICT (id) DO UPDATE SET cpu_cores = excluded.cpu_cores`)
+    .run(cpuCores)
 }
 
 describe('separateHandler', () => {
@@ -316,5 +326,50 @@ describe('separateHandler', () => {
     const job = getJob(t, 'j1')
     expect(job.state).toBe('failed')
     expect(separationState(t)).toBe('failed')
+  })
+
+  it('gives the model all cores but one when no limit was chosen', async () => {
+    const t = setup()
+    insertTrack(t)
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    enqueueSeparate(t)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 8)
+
+    expect(separator.threads).toEqual([7])
+  })
+
+  it('reads the core limit when it starts, not when it was asked for', async () => {
+    const t = setup()
+    insertTrack(t)
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    chooseCpuCores(t, 2)
+    enqueueSeparate(t, 'j1')
+    enqueueSeparate(t, 'j2')
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 8)
+    // Changed while the second one waits.
+    chooseCpuCores(t, 5)
+    await runTheJob(t, separator, 8)
+
+    expect(separator.threads).toEqual([2, 5])
+  })
+
+  it('clamps a limit chosen on bigger hardware to this machine', async () => {
+    const t = setup()
+    insertTrack(t)
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    chooseCpuCores(t, 12)
+    enqueueSeparate(t)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 4)
+
+    expect(separator.threads).toEqual([4])
   })
 })

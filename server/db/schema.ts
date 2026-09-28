@@ -284,6 +284,12 @@ export const settings = sqliteTable('settings', {
   micProcessingDefault: integer('mic_processing_default', { mode: 'boolean' }).notNull().default(false),
   /** Whether Monitoring starts on for a new recording session. */
   monitoringDefault: integer('monitoring_default', { mode: 'boolean' }).notNull().default(false),
+  /**
+   * How many cores a Separation may use, as the singer chose it. Null until
+   * they choose, which reads as all cores but one; clamped to the machine when
+   * read rather than when saved (`shared/separation.ts`).
+   */
+  cpuCores: integer('cpu_cores'),
   updatedAt: integer('updated_at').notNull(),
 })
 

@@ -1,19 +1,27 @@
 /**
- * How `separate-cli.ts` tells the separate Job how far it has got: one
- * `progress <done>/<total>` line on stdout per chunk of the song the model
- * has finished. stdout because it is the simplest channel there is, it
- * behaves the same under `ELECTRON_RUN_AS_NODE=1`, and stderr stays free for
- * the error message the Job already collects on a failure.
+ * How `separate-cli.ts` tells the separate Job what is happening: one
+ * `progress <done>/<total>` line on stdout per chunk of the song the model has
+ * finished, and a `notice <text>` line for anything worth logging that is not
+ * a failure — the priority it could not lower, say. stdout because it is the
+ * simplest channel there is, it behaves the same under `ELECTRON_RUN_AS_NODE=1`,
+ * and stderr stays free for the error message the Job already collects on a
+ * failure.
  *
  * Both ends live here so the format is written down once. Reading is
- * forgiving: a line that is not a progress line is ignored, so a subprocess
- * that never reports still finishes on its milestones alone.
+ * forgiving: a line that is neither is ignored, so a subprocess that never
+ * reports still finishes on its milestones alone.
  */
 
 const PROGRESS_LINE = /^progress (\d+)\/(\d+)$/
+const NOTICE_PREFIX = 'notice '
 
 export function formatChunkProgress(done: number, total: number): string {
   return `progress ${done}/${total}\n`
+}
+
+/** One line, whatever `text` contained, so a message with a newline in it cannot break the stream apart. */
+export function formatNotice(text: string): string {
+  return `${NOTICE_PREFIX}${text.replace(/\s*\n\s*/g, ' ').trim()}\n`
 }
 
 /** The fraction a progress line reports, or null for any other line. */
@@ -26,8 +34,19 @@ export function parseChunkProgress(line: string): number | null {
   return done / total
 }
 
-/** Feeds raw stdout through, calling `onFraction` for each whole progress line, however the reads split them. */
-export function chunkProgressReader(onFraction: (fraction: number) => void): (data: Buffer | string) => void {
+/** The text a notice line carries, or null for any other line. */
+export function parseNotice(line: string): string | null {
+  const trimmed = line.trim()
+  return trimmed.startsWith(NOTICE_PREFIX) ? trimmed.slice(NOTICE_PREFIX.length) : null
+}
+
+export interface CliOutputHandlers {
+  onFraction?: (fraction: number) => void
+  onNotice?: (text: string) => void
+}
+
+/** Feeds raw stdout through, calling a handler for each whole line it recognises, however the reads split them. */
+export function cliOutputReader({ onFraction, onNotice }: CliOutputHandlers): (data: Buffer | string) => void {
   let buffered = ''
   return (data) => {
     buffered += data.toString()
@@ -35,7 +54,17 @@ export function chunkProgressReader(onFraction: (fraction: number) => void): (da
     buffered = lines.pop() ?? ''
     for (const line of lines) {
       const fraction = parseChunkProgress(line)
-      if (fraction !== null) onFraction(fraction)
+      if (fraction !== null) {
+        onFraction?.(fraction)
+        continue
+      }
+      const notice = parseNotice(line)
+      if (notice !== null) onNotice?.(notice)
     }
   }
+}
+
+/** Only the progress lines — what a caller that has nothing to log wants. */
+export function chunkProgressReader(onFraction: (fraction: number) => void): (data: Buffer | string) => void {
+  return cliOutputReader({ onFraction })
 }

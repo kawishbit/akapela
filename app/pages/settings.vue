@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, CloudDownload, CloudUpload, ExternalLink, FolderOpen, Headphones, Loader2, Monitor, Moon, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
+import { ArrowLeft, CloudDownload, CloudUpload, Cpu, ExternalLink, FolderOpen, Headphones, Loader2, Minus, Monitor, Moon, Plus, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
 import { LYRICS_PROVIDER_LABELS, type LyricsProviderName } from '~~/shared/lyrics'
 import { RELEASES_URL } from '~/utils/update-prompt'
 import { THEME_PREFERENCES, THEME_PREFERENCE_LABELS, type ThemePreference } from '~/utils/theme'
@@ -10,12 +10,21 @@ const {
   micProcessingDefault,
   monitoringDefault,
   ytDlpUpdatable,
+  cpuCores,
+  hardware,
   saving,
   saveError,
   setDefaultLyricsProvider,
   setMicProcessingDefault,
   setMonitoringDefault,
+  setCpuCores,
 } = useSettings()
+
+/** Whose hardware every Separation choice is about — the server's, even from a Connected Desktop App. */
+const hardwareLine = computed(() => {
+  const { cores } = hardware.value
+  return `On this server: ${cores} ${cores === 1 ? 'core' : 'cores'}`
+})
 
 const { isDesktop, version: desktopVersion, libraryDir, chooseLibraryDir, revealLibraryDir, openExternal } = useDesktop()
 const {
@@ -264,6 +273,52 @@ useHead({ title: 'Settings · Akapela' })
           >
             <Headphones class="size-3.5" />
             Monitoring {{ monitoringDefault ? 'on' : 'off' }}
+          </button>
+        </div>
+      </section>
+
+      <section class="rounded-[8px] bg-surface p-4 sm:p-5">
+        <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+          Separation
+        </h2>
+        <p class="mt-1 text-sm text-text-muted">
+          How vocal removal runs. These describe the machine Akapela runs on, which may not be the one
+          you're looking at.
+        </p>
+        <p class="mt-3 flex items-center gap-2 text-sm font-bold">
+          <Cpu class="size-4 shrink-0 text-text-muted" />
+          {{ hardwareLine }}
+        </p>
+
+        <h3 class="mt-4 text-sm font-bold">
+          CPU cores
+        </h3>
+        <p class="mt-1 text-sm text-text-muted">
+          How many cores a Separation may use. Leaving one free keeps recording smooth while a Track
+          separates on the same machine. A change applies from the next Separation to start.
+        </p>
+        <div class="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
+            :disabled="saving || cpuCores <= 1"
+            aria-label="One core fewer"
+            @click="setCpuCores(cpuCores - 1)"
+          >
+            <Minus class="size-5" />
+          </button>
+          <output
+            class="min-w-24 text-center text-2xl font-bold tabular-nums"
+            aria-live="polite"
+          >{{ cpuCores }} <span class="text-sm font-normal text-text-muted">of {{ hardware.cores }}</span></output>
+          <button
+            type="button"
+            class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
+            :disabled="saving || cpuCores >= hardware.cores"
+            aria-label="One core more"
+            @click="setCpuCores(cpuCores + 1)"
+          >
+            <Plus class="size-5" />
           </button>
         </div>
       </section>

@@ -4,6 +4,7 @@ import {
   parseLyricsProviderName,
   unavailableProviderMessage,
 } from '../../shared/lyrics'
+import { invalidCpuCoresMessage, parseCpuCores } from '../../shared/separation'
 import { availableLyricsProviders, saveSettings, type SettingsChanges } from '../lib/settings'
 
 const NOTHING_TO_SAVE_MESSAGE = 'Nothing to save.'
@@ -12,7 +13,8 @@ const INVALID_MONITORING_DEFAULT_MESSAGE = 'The Monitoring default is true or fa
 
 /**
  * Save whichever of the singer's choices changed: the default Lyrics
- * Provider, the microphone processing default, and the Monitoring default.
+ * Provider, the microphone processing default, the Monitoring default, and how
+ * many cores a Separation may use.
  * Each is optional, so a control can be saved on its own without resending
  * the others.
  */
@@ -22,6 +24,7 @@ export default defineEventHandler(async (event) => {
     defaultLyricsProvider?: unknown
     micProcessingDefault?: unknown
     monitoringDefault?: unknown
+    cpuCores?: unknown
   } | null
 
   const changes: SettingsChanges = {}
@@ -52,6 +55,13 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: INVALID_MONITORING_DEFAULT_MESSAGE })
     }
     changes.monitoringDefault = body.monitoringDefault
+  }
+
+  if (body?.cpuCores !== undefined) {
+    const { cores } = await akapela.hardware()
+    const cpuCores = parseCpuCores(body.cpuCores, cores)
+    if (cpuCores === null) throw createError({ statusCode: 400, statusMessage: invalidCpuCoresMessage(cores) })
+    changes.cpuCores = cpuCores
   }
 
   if (Object.keys(changes).length === 0) {

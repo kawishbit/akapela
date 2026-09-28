@@ -29,7 +29,7 @@ const silentSession: ModelSession = {
 
 describe('MdxNetModel', () => {
   it('reconstructs the input closely through demixPrimary with an identity model', async () => {
-    const model = new MdxNetModel('unused', SMALL_CONFIG, identitySession)
+    const model = new MdxNetModel(SMALL_CONFIG, identitySession)
     const length = SMALL_CONFIG.hopLength * (SMALL_CONFIG.segmentSize - 1) * 2
     const left = sineSignal(length, 440)
     const right = sineSignal(length, 660)
@@ -52,7 +52,7 @@ describe('MdxNetModel', () => {
       calls++
       return identitySession.run(feeds)
     } }
-    const model = new MdxNetModel('unused', SMALL_CONFIG, counting)
+    const model = new MdxNetModel(SMALL_CONFIG, counting)
     const length = SMALL_CONFIG.hopLength * (SMALL_CONFIG.segmentSize - 1) * 3
     const reports: Array<[number, number]> = []
 
@@ -66,7 +66,7 @@ describe('MdxNetModel', () => {
   })
 
   it('produces silence end to end when the model always outputs silence', async () => {
-    const model = new MdxNetModel('unused', SMALL_CONFIG, silentSession)
+    const model = new MdxNetModel(SMALL_CONFIG, silentSession)
     const length = SMALL_CONFIG.hopLength * (SMALL_CONFIG.segmentSize - 1) * 2
     const left = sineSignal(length, 440)
     const right = sineSignal(length, 660)
@@ -78,7 +78,7 @@ describe('MdxNetModel', () => {
   })
 
   it('separateInstrumental normalizes, demixes, and rescales without blowing up the amplitude', async () => {
-    const model = new MdxNetModel('unused', SMALL_CONFIG, identitySession)
+    const model = new MdxNetModel(SMALL_CONFIG, identitySession)
     const length = SMALL_CONFIG.hopLength * (SMALL_CONFIG.segmentSize - 1) * 2
     const left = sineSignal(length, 440)
     const right = sineSignal(length, 660)

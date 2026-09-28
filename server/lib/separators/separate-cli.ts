@@ -15,34 +15,46 @@
  * and in every file it imports, needs an explicit extension: Node's ESM
  * resolver requires one, unlike Nitro/Vite's bundler.
  *
- * Usage: `node separate-cli.ts <model.onnx> <backing.wav> <instrumental-out.wav> <vocals-out.wav>`
+ * It starts by lowering its own priority, then opens the model with as many
+ * threads as the core limit in force when the Separation started — both read
+ * by the Job and passed in, never by this process (`cli-args.ts`).
+ *
+ * Usage: `node separate-cli.ts --model <model.onnx> --input <backing.wav>
+ * --instrumental <out.wav> --vocals <out.wav> --threads <n>`
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { decodeWav, encodeWav } from '../../../app/audio/wav.ts'
-import { MdxNetModel } from './mdx-net.ts'
-import { formatChunkProgress } from './progress.ts'
+import { parseSeparateCliArgs } from './cli-args.ts'
+import { MdxNetModel, UVR_MDX_NET_INST_MAIN_CONFIG } from './mdx-net.ts'
+import { lowerOwnPriority } from './priority.ts'
+import { formatChunkProgress, formatNotice } from './progress.ts'
+import { createCpuSession } from './session.ts'
 
 async function main(): Promise<void> {
-  const [modelPath, backingPath, instrumentalOutPath, vocalsOutPath] = process.argv.slice(2)
-  if (!modelPath || !backingPath || !instrumentalOutPath || !vocalsOutPath) {
-    console.error('usage: separate-cli.ts <model.onnx> <backing.wav> <instrumental-out.wav> <vocals-out.wav>')
+  const priorityProblem = lowerOwnPriority()
+  if (priorityProblem) process.stdout.write(formatNotice(priorityProblem))
+
+  const args = parseSeparateCliArgs(process.argv.slice(2))
+  if (typeof args === 'string') {
+    console.error(`separate-cli.ts: ${args}`)
     process.exit(1)
   }
 
-  const { channels, sampleRate } = decodeWav(await readFile(backingPath))
+  const { channels, sampleRate } = decodeWav(await readFile(args.inputPath))
   const left = Float64Array.from(channels[0]!)
   const right = Float64Array.from(channels[1] ?? channels[0]!)
 
-  const model = new MdxNetModel(modelPath)
+  const session = await createCpuSession(args.modelPath, args.threads)
+  const model = new MdxNetModel(UVR_MDX_NET_INST_MAIN_CONFIG, session)
   const { instrumental, vocals } = await model.separate([left, right], {
     onChunk: (done, total) => process.stdout.write(formatChunkProgress(done, total)),
   })
 
-  await writeFile(instrumentalOutPath, encodeWav({
+  await writeFile(args.instrumentalPath, encodeWav({
     channels: [Float32Array.from(instrumental[0]), Float32Array.from(instrumental[1])],
     sampleRate,
   }))
-  await writeFile(vocalsOutPath, encodeWav({
+  await writeFile(args.vocalsPath, encodeWav({
     channels: [Float32Array.from(vocals[0]), Float32Array.from(vocals[1])],
     sampleRate,
   }))
