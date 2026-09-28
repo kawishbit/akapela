@@ -34,6 +34,14 @@ _Avoid_: Separated audio, layers
 Running vocal removal on one Track: the Job that makes its Stems, and the state the Track carries while it runs, after it fails, and once it has finished. Asked for per Track rather than done on every import, since it costs minutes of CPU and a Track imported from a karaoke video needs none of it.
 _Avoid_: Splitting, extraction, isolation
 
+**Separation Model**:
+The vocal-removal model a Separation runs, picked from a curated list with a default the singer can change. Recorded on the Stems it produced, so a Track can say which one made them and be separated again with another.
+_Avoid_: Model (alone), quality, preset (a Preset is a bundle of Adjustments)
+
+**Audio Format**:
+The file format Akapela stores a Track's Backing Track master and Stems in: WAV, FLAC, or MP3, chosen in Settings. Takes, Mixes, and the original audio as delivered are not affected by it.
+_Avoid_: Codec, quality, file type
+
 **Playlist Import**:
 Importing many Tracks at once from a playlist on another service, such as Spotify. Each chosen song becomes its own YouTube Source and Track; the playlist itself is not kept.
 _Avoid_: Bulk import, sync, batch

@@ -33,7 +33,7 @@ undersized under that mask, and that Icon Composer is the eventual answer
       pixel of the mark
 - [x] Only the mac target uses it; Windows and Linux still resolve the
       full-bleed icon
-- [ ] A packaged macOS build shows the mark in the Dock, in Finder and on the
+- [x] A packaged macOS build shows the mark in the Dock, in Finder and on the
       DMG, and it does not read undersized next to native apps (needs a
       packaged build on a Mac)
 - [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass

@@ -111,7 +111,7 @@ Issues live as local markdown files under `.scratch/<feature-slug>/` in this rep
 
 ### Triage labels
 
-Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `done`, `wontfix`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

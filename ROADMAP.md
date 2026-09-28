@@ -13,27 +13,25 @@ Capitalised terms (Track, Job, Separation, Queue, ...) are defined in `CONTEXT.m
 - **Queue.** One Queue per install, on the server, shared by every device. `/queue` adds (with an optional singer name), removes, drags to reorder, **Play next**, renames, clears, and searches the Library to add from. Singing an entry uses it up when the turn ends, and **Up next** offers whoever is first; nothing starts on its own. An entry whose Separation hasn't finished asks first: sing over the original, or leave it for now. Spec in `.scratch/queue/`.
 - **Connect the Desktop App to your server.** First launch asks **Use this computer** or **Connect to a server**; **Change Server…** in the File menu asks again. Connected, the app starts nothing of its own, never falls back to a local library, refuses a server newer than itself, and waits and reconnects when the server goes away. It grants exactly the entered origin secure-context status, so a laptop can sing from a compose install over plain `http://` (ADR 0015). `docs/self-hosting.md` says why singing needs that. One check is still open: recording a Take Connected to a real second machine, which the suite can't do. Spec in `.scratch/connected-desktop/`.
 
-## 1. Faster Separation
+## 1. Separation: models, acceleration, storage
 
-A Separation takes minutes per song on the 2-CPU default Docker allotment. Most people run Akapela with Docker, so this has to get faster there first, not only in the Desktop App.
+A Separation takes minutes per song, and every Track stores three large WAVs. This item lets the singer decide both: which model runs, how much of the machine it may use, whether a GPU helps, and what format the files are kept in. Separation always runs on the machine hosting Akapela, never in the browser, and the settings describe that machine (ADR 0013 and its amendment). Spec in `.scratch/faster-separation/`.
 
-Separation always runs on the machine hosting Akapela, never in the browser (ADR 0013). A browser or PWA is only a window onto that machine, so "acceleration on the web" means acceleration on the server.
+**Decided**
 
-**Layer 1: faster on CPU, for everyone.** Do this first.
-
-- Profile where a Separation's time goes: the hand-written STFT in `server/lib/separators/stft.ts`, the ONNX model call, the overlap between chunks, and the float64 arrays around a float32 model.
-- Offer a **Fast / Best** quality choice: `Inst_Main` (current, smaller, cuts off above ~17.6 kHz) against `Inst_HQ_3` (full bandwidth, larger, slower). See ADR 0008's amendment.
-
-**Layer 2: GPU, where there is one.**
-
-- **Docker, NVIDIA (Linux, or Windows through WSL2):** a CUDA image variant and a `docker-compose.gpu.yml` override. The self-hoster installs the NVIDIA Container Toolkit. The image is several GB larger, so it stays a separate, opt-in image and never the default.
-- **Docker on macOS:** no GPU is reachable from a container, so this stays CPU-only whatever Akapela does.
-- **Desktop App:** an **Acceleration** setting, Auto or CPU only. Auto tries DirectML on Windows and CoreML on Apple Silicon, and falls back to CPU if either fails.
-- **Batching chunks.** A song is already cut into overlapping chunks, run one after another. Running them at the same time on a CPU gains almost nothing, since each chunk's model call already uses every core, and it multiplies memory. On a GPU, several chunks go into one model call (the model's batch dimension), which is where parallel chunk processing pays off. It belongs to this layer, not before it.
+- **Separation Model.** Picked from a curated MDX-Net catalog, with a default in Settings (`Inst_Main`, as today). Each model downloads the first time it's needed. The one that made a Track's Stems is recorded, so the Track can be separated again with another. A Separation keeps the model it was asked for with, even if the default changes while it waits (ADR 0008 amendment).
+- **CPU.** A core limit, defaulting to all cores minus one with a minimum of 1. The Separation always runs at lowered OS priority, so a Take recorded alongside it doesn't crackle.
+- **Hardware acceleration.** One switch, shown only when a usable GPU backend is found, and on by default when it is: CUDA in Docker, DirectML in the Windows Desktop App, CoreML in the Apple Silicon Desktop App. A GPU that fails partway through falls back to CPU, and the Jobs page says so. There's no GPU limit.
+- **Docker, NVIDIA (Linux, or Windows through WSL2).** A `gpu` build target and a `docker-compose.gpu.yml` override. The self-hoster installs the NVIDIA Container Toolkit. The image is several GB larger, so it's never the default.
+- **CPU only:** Docker on macOS (no GPU reaches the container), AMD and Intel (no ONNX Runtime build for them), and the Linux Desktop App (CUDA would have to be bundled).
+- **Audio Format.** WAV (the default), FLAC, or MP3 320 for the Backing Track master and Stems, applied to new files only (ADR 0016, which supersedes 0005).
+- **Using every core, last.** Today only the model call is multi-threaded. The STFT, the copies, and the overlap-add run on one thread while the other cores wait. Profile it, then either overlap each chunk's STFT with the previous chunk's model call or move the STFT into the ONNX graph. Any change must keep each Stem's sample correlation ≥ 0.999 against today's output.
 
 **Explore, not committed**
 
-- AMD (ROCm) and Intel (OpenVINO) on Linux. Each would need its own image.
+- Batching chunks into one model call on a GPU (the model's batch dimension). On a CPU this gains nothing, since each call already uses every core.
+- Roformer and the other non-MDX-Net families, which each need a pipeline of their own.
+- AMD (ROCm) and Intel (OpenVINO) on Linux. Each would need its own ONNX Runtime build and image.
 
 ## 2. Spotify playlist import
 
@@ -101,8 +99,9 @@ Criteria: alignment quality on sung vocals, model size (downloaded into `cache/`
 
 ## Later
 
-In roughly this order, unchanged from before:
+In roughly this order:
 
+- Converting an existing library to another Audio Format, as Jobs
 - Deezer import
 - SoundCloud import
 - Automatic latency calibration
