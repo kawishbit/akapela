@@ -1,0 +1,19 @@
+{
+  // The Website's own tsconfig, which `astro.config.mjs` names to Vite so the
+  // build never reaches for the repo root's: that one's references point into
+  // `.nuxt/`, which a Vercel build of `site/` never generates. It deliberately
+  // extends nothing from `astro`, so it resolves even where `site/node_modules`
+  // is not installed, as in the root vitest suite that covers `src/lib/`.
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "jsx": "preserve"
+  },
+  "include": [".astro/types.d.ts", "**/*"],
+  "exclude": ["dist"]
+}
