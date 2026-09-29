@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createTestApi, type TestApi } from './harness'
 
 let api: TestApi
@@ -168,5 +170,163 @@ describe('the Track through a separation', () => {
     expect((await api.del(`/api/tracks/${track.id}`)).status).toBe(204)
 
     expect((await api.get(`/api/jobs/${started.separationJob.id}`)).status).toBe(404)
+  })
+})
+
+describe('the Separation Model', () => {
+  /** A Track with Stems on disk, the way a finished Separation leaves it. */
+  async function separatedTrack(separationModel?: string) {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel })).json()
+    writeFileSync(join(api.dataDir, 'tracks', track.id, 'instrumental.wav'), 'the instrumental')
+    api.finishSeparation(track.id, separationJob.id, 'succeeded')
+    return track
+  }
+
+  test('is the default when a Separation names none', async () => {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+    expect(separationJob.separationModel).toBe('Inst_Main')
+  })
+
+  test('is the one a Separation names', async () => {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    expect(separationJob.separationModel).toBe('Inst_HQ_3')
+  })
+
+  test('refuses one that is not in the catalog, and queues nothing', async () => {
+    const track = await importedTrack()
+    const res = await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Roformer' })
+    expect(res.status).toBe(400)
+    expect(api.jobsTargeting(track.id, 'separate')).toEqual([])
+  })
+
+  test('is fixed when asked for: changing the default leaves a queued Separation alone', async () => {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+
+    await api.put('/api/settings', { separationModel: 'Inst_HQ_4' })
+
+    const job = await (await api.get(`/api/jobs/${separationJob.id}`)).json()
+    expect(job.separationModel).toBe('Inst_Main')
+    const [row] = (await (await api.get('/api/jobs')).json()).filter((j: { id: string }) => j.id === separationJob.id)
+    expect(row.separationModel).toBe('Inst_Main')
+  })
+
+  test('a new default applies to the next Separation asked for', async () => {
+    await api.put('/api/settings', { separationModel: 'Kim_Vocal_2' })
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+    expect(separationJob.separationModel).toBe('Kim_Vocal_2')
+  })
+
+  test('is recorded with the Stems it made', async () => {
+    const track = await separatedTrack('Inst_HQ_3')
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsModel).toBe('Inst_HQ_3')
+  })
+
+  test('reads as Inst_Main for Stems made before there was a choice', async () => {
+    const track = await separatedTrack()
+    api.akapela.sqlite.prepare(`UPDATE tracks SET stems_model = NULL WHERE id = ?`).run(track.id)
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsModel).toBe('Inst_Main')
+  })
+
+  test('is nothing once the Stems are deleted', async () => {
+    const track = await separatedTrack('Inst_HQ_4')
+    await api.del(`/api/tracks/${track.id}/stems`)
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsModel).toBeNull()
+  })
+
+  test('a retried Separation keeps the model it was asked for', async () => {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    api.finishSeparation(track.id, separationJob.id, 'failed', 'Error: no network')
+    await api.put('/api/settings', { separationModel: 'Inst_HQ_4' })
+
+    const retried = await (await api.post(`/api/jobs/${separationJob.id}/retry`, {})).json()
+    expect(retried.separationModel).toBe('Inst_HQ_3')
+  })
+
+  test('is a setting, Inst_Main when never set, with every model on offer', async () => {
+    const settings = await (await api.get('/api/settings')).json()
+    expect(settings.separationModel).toBe('Inst_Main')
+    expect(settings.separationModels.map((m: { name: string }) => m.name))
+      .toEqual(['Inst_Main', 'Inst_HQ_3', 'Inst_HQ_4', 'Kim_Vocal_2'])
+    expect((await api.put('/api/settings', { separationModel: 'nope' })).status).toBe(400)
+  })
+
+  test('says which models are downloaded, so none looks like it ships with Akapela', async () => {
+    const downloaded = async () => Object.fromEntries(
+      (await (await api.get('/api/settings')).json()).separationModels
+        .map((m: { name: string, downloaded: boolean }) => [m.name, m.downloaded]),
+    )
+    expect(await downloaded()).toEqual({ Inst_Main: false, Inst_HQ_3: false, Inst_HQ_4: false, Kim_Vocal_2: false })
+
+    mkdirSync(join(api.dataDir, 'cache', 'models'), { recursive: true })
+    writeFileSync(join(api.dataDir, 'cache', 'models', 'UVR-MDX-NET-Inst_HQ_4.onnx'), 'weights')
+    // A download still in progress is not a model.
+    writeFileSync(join(api.dataDir, 'cache', 'models', 'Kim_Vocal_2.onnx.part'), 'half')
+    // A cache from before the cache/ split is used where it lies until a Separation moves it.
+    mkdirSync(join(api.dataDir, 'models'), { recursive: true })
+    writeFileSync(join(api.dataDir, 'models', 'UVR-MDX-NET-Inst_Main.onnx'), 'weights')
+
+    expect(await downloaded()).toEqual({ Inst_Main: true, Inst_HQ_3: false, Inst_HQ_4: true, Kim_Vocal_2: false })
+  })
+
+  test('says how big each model is to download', async () => {
+    const settings = await (await api.get('/api/settings')).json()
+    for (const model of settings.separationModels) expect(model.downloadBytes).toBeGreaterThan(50_000_000)
+  })
+})
+
+describe('separating again with another Separation Model', () => {
+  async function separatedWith(separationModel: string) {
+    const track = await importedTrack()
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel })).json()
+    writeFileSync(join(api.dataDir, 'tracks', track.id, 'instrumental.wav'), `made by ${separationModel}`)
+    api.finishSeparation(track.id, separationJob.id, 'succeeded')
+    return track
+  }
+
+  test('keeps the current Stems and their model playable while it runs', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    expect(again.separationJob.separationModel).toBe('Inst_HQ_3')
+
+    const detail = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(detail).toMatchObject({ separationState: 'separating', hasStems: true, stemsModel: 'Inst_Main' })
+    expect(await (await api.get(`/api/tracks/${track.id}/backing?source=instrumental`)).text()).toBe('made by Inst_Main')
+  })
+
+  test('replaces the recorded model only when it succeeds', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    api.finishSeparation(track.id, again.separationJob.id, 'succeeded')
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).stemsModel).toBe('Inst_HQ_3')
+  })
+
+  test('a failure leaves the Stems and their model as they were', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    api.finishSeparation(track.id, again.separationJob.id, 'failed', 'Error: no network')
+    expect(await (await api.get(`/api/tracks/${track.id}`)).json()).toMatchObject({ hasStems: true, stemsModel: 'Inst_Main' })
+  })
+
+  test('a cancel leaves the Stems and their model as they were', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Inst_HQ_3' })).json()
+    expect((await api.post(`/api/jobs/${again.separationJob.id}/cancel`, {})).status).toBe(200)
+    expect(await (await api.get(`/api/tracks/${track.id}`)).json())
+      .toMatchObject({ separationState: 'ready', hasStems: true, stemsModel: 'Inst_Main' })
+  })
+
+  test('retrying a failed one keeps the model it failed with', async () => {
+    const track = await separatedWith('Inst_Main')
+    const again = await (await api.post(`/api/tracks/${track.id}/separate`, { separationModel: 'Kim_Vocal_2' })).json()
+    api.finishSeparation(track.id, again.separationJob.id, 'failed', 'Error: no network')
+
+    const retried = await (await api.post(`/api/tracks/${track.id}/separate/retry`, {})).json()
+    expect(retried.separationJob.separationModel).toBe('Kim_Vocal_2')
   })
 })

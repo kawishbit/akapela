@@ -27,6 +27,8 @@ export interface JobContext {
   readonly sqlite: Database.Database
   /** Puts `percent` (clamped 0-100) on the Job row. */
   progress(percent: number): void
+  /** Puts one line on the Job row about what it is doing that progress cannot say, or clears it with null. */
+  detail(text: string | null): void
   /**
    * Aborts when the singer cancels this Job. A handler kills whatever it
    * spawned, removes its partial output, and returns or throws; the row is
@@ -67,6 +69,8 @@ interface JobRow {
   started_at: number | null
   finished_at: number | null
   trace_parent: string | null
+  separation_model: string | null
+  detail: string | null
 }
 
 function toJob(row: JobRow): Job {
@@ -81,6 +85,8 @@ function toJob(row: JobRow): Job {
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     traceParent: row.trace_parent,
+    separationModel: row.separation_model as Job['separationModel'],
+    detail: row.detail,
   }
 }
 
@@ -136,7 +142,7 @@ export class JobsRunner {
    */
   recoverStaleJobs(): number {
     const result = this.sqlite
-      .prepare(`UPDATE jobs SET state = 'queued', started_at = NULL, progress = 0 WHERE state = 'running'`)
+      .prepare(`UPDATE jobs SET state = 'queued', started_at = NULL, progress = 0, detail = NULL WHERE state = 'running'`)
       .run()
     return result.changes
   }
@@ -150,7 +156,8 @@ export class JobsRunner {
            SELECT id FROM jobs WHERE state = 'queued' ${laneFilter(this.lane)}
            ORDER BY created_at, rowid LIMIT 1
          )
-         RETURNING id, type, target_id, state, progress, error, created_at, started_at, finished_at, trace_parent`,
+         RETURNING id, type, target_id, state, progress, error, created_at, started_at, finished_at, trace_parent,
+           separation_model, detail`,
       )
       .get(Date.now()) as JobRow | undefined
     return row ? toJob(row) : null
@@ -172,6 +179,7 @@ export class JobsRunner {
       dataDir: this.dataDir,
       sqlite: this.sqlite,
       progress: percent => this.setProgress(job.id, percent),
+      detail: text => this.sqlite.prepare(`UPDATE jobs SET detail = ? WHERE id = ?`).run(text, job.id),
       signal: run.signal,
     }
 

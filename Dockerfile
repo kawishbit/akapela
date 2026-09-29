@@ -12,11 +12,11 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
-FROM node:24-bookworm-slim
+FROM node:24-bookworm-slim AS runtime
 RUN corepack enable
 WORKDIR /app
 # ffmpeg normalizes every Source and renders every Mix. ffprobe is not
-# installed: the app reads durations from the headers of the WAVs it writes.
+# installed: the app reads durations from the headers of the files it writes.
 # yt-dlp fetches a YouTube import's audio and metadata; Node — already this
 # image's own base — is what it shells out to for solving YouTube's player
 # challenges. We fetch the `yt-dlp_linux` asset specifically: it's a
@@ -97,9 +97,10 @@ COPY --from=build /app/node_modules/rubberband-wasm/dist/rubberband.wasm ./node_
 # targets is what makes the difference between "ships every platform" and
 # "ships one". `ONNXRUNTIME_NODE_INSTALL=skip` matters even more: left
 # unset, its postinstall reaches out to NuGet for the CUDA execution
-# provider — a ~220MB .so this app never asks for, since `mdx-net.ts`
-# creates its session with `executionProviders: ['cpu']` only. That one
-# variable is most of what separates a ~2.9GB image from this one.
+# provider — a ~220MB .so this image never uses: it separates on the CPU,
+# and only the `gpu` target at the end of this file fetches the provider,
+# into an image built to load it. That one variable is most of what
+# separates a ~2.9GB image from this one.
 #
 # pnpm's own content-addressable store (`pnpm store path` — under `/root`
 # here, since this all runs as root) is a second, separate copy of every
@@ -123,3 +124,48 @@ RUN cd server/lib/separators \
 VOLUME ["/data"]
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]
+
+# The `gpu` target: the same app, on an NVIDIA GPU (ADR 0013 amendment,
+# `docs/self-hosting.md`). Opt-in through `docker-compose.gpu.yml`; nothing
+# above changes for it, and the default image below never contains CUDA.
+#
+# onnxruntime-node's CUDA provider is a separate ~200 MB library its
+# postinstall fetches from NuGet, and it needs the CUDA runtime and cuDNN 9 to
+# load, which is what this base image is. Despite the installer's flag being
+# spelled `cuda12`, the 1.29 provider it fetches is linked against CUDA 13
+# (`libcublasLt.so.13`, `libcudart.so.13`): on a CUDA 12 base it fails to load
+# and detection quietly finds no GPU. Bump this base with onnxruntime-node,
+# and check `ldd` on the provider when you do. CUDA 13 needs an NVIDIA driver
+# of 580 or newer on the host.
+#
+# Everything else — Node, ffmpeg, yt-dlp, the built app, the separation CLI
+# with its CPU-only install — is copied from the default image rather than
+# built twice. The base is Ubuntu 24.04, whose glibc is newer than Debian
+# bookworm's, so the binaries copied across run unchanged.
+FROM nvidia/cuda:13.0.1-cudnn-runtime-ubuntu24.04 AS gpu
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+COPY --from=runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=runtime /usr/local/bin/ffmpeg /usr/local/bin/yt-dlp /usr/local/bin/
+WORKDIR /app
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000 \
+    NUXT_DATA_DIR=/data \
+    NUXT_MIGRATIONS_DIR=/app/migrations
+COPY --from=runtime /app ./
+# Fetches the CUDA provider into onnxruntime-node's own binary folder, where
+# it looks for it. The TensorRT provider comes in the same NuGet package and
+# is removed: Akapela never asks for it, and it is most of the download.
+RUN cd server/lib/separators/node_modules/onnxruntime-node \
+  && node script/install.js --onnxruntime-node-install=cuda12 \
+  && rm -f bin/napi-v6/linux/x64/libonnxruntime_providers_tensorrt.so \
+  && ls bin/napi-v6/linux/x64/libonnxruntime_providers_cuda.so
+VOLUME ["/data"]
+EXPOSE 3000
+CMD ["node", ".output/server/index.mjs"]
+
+# The default target, and what `docker compose up` builds: the image above
+# named `runtime`, exactly as it is. It is last because a build that names no
+# target builds the last stage, and that must never be `gpu`.
+FROM runtime AS default

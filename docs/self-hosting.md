@@ -49,6 +49,24 @@ There are three ways round it:
 
 ## Hardware
 
-`docker-compose.yml` allots two cores and 2 GB. That's a starting point, not a hard limit; rendering a Mix of a normal-length song takes a couple of seconds within it.
+`docker-compose.yml` allots eight cores and 2 GB. That's a starting point, not a hard limit; rendering a Mix of a normal-length song takes a couple of seconds within it.
 
-Vocal removal (Separate on a Track) costs more, but only if you use it: a few minutes of CPU per song. It runs one Track at a time. The two Stems it produces add roughly 80 MB per Track on disk. The separation model isn't bundled: the first Separation downloads it into your data folder, where it survives future updates.
+Vocal removal (Separate on a Track) costs more, but only if you use it: a few minutes of CPU per song. It runs one Track at a time, and by default on every core the container has but one, at lowered priority. Settings > Separation sets the core count. The two Stems it produces add roughly 80 MB per Track on disk as WAV; Settings > Storage can keep new ones as FLAC (about half that) or MP3 (smaller still). Separation Models aren't bundled: the first Separation with each one downloads it into your data folder, where it survives future updates.
+
+## Separating on an NVIDIA GPU
+
+With an NVIDIA card, vocal removal can run on the GPU. It's opt-in, because the image that can do it carries CUDA and cuDNN and is several GB bigger than the default one. The host needs an NVIDIA driver of version 580 or newer (the image runs CUDA 13).
+
+1. Give Docker the GPU:
+   - **Linux:** install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) and restart Docker.
+   - **Windows:** Docker Desktop on the WSL2 backend, with a current NVIDIA driver installed in Windows. There's nothing to install inside WSL.
+2. Start Akapela with the GPU override on top of the usual file:
+
+   ```
+   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+   ```
+
+   Use the same pair of `-f` flags for every later `docker compose` command, updates included.
+3. Check it worked: Settings > Separation should say **On this server: … GPU: CUDA**, with a Hardware acceleration switch that's on. A Separation then runs on the GPU. If the GPU fails partway through one, it finishes on the CPU, and its row on the Jobs page says so.
+
+This is NVIDIA only. AMD and Intel GPUs aren't supported in Docker, and Docker on a Mac can't reach the GPU at all. The Desktop App for Apple Silicon is the way to separate on a Mac's GPU. If the switch doesn't appear, see [Troubleshooting](troubleshooting.md#the-gpu-override-wont-start-or-settings-shows-no-gpu).

@@ -1,55 +1,21 @@
-import { availableParallelism } from 'node:os'
 import * as ort from 'onnxruntime-node'
 // Explicit extension: this module also runs as a standalone `node` subprocess
 // (`separate-cli.ts`, for CPU isolation), which needs it — plain Node's ESM
 // resolver, unlike Nitro/Vite's bundler, requires one for a relative import.
 import { Stft, type Spectrogram } from './stft.ts'
+import { SEPARATION_MODELS, type MdxNetConfig } from './models.ts'
 
 /**
  * The MDX-Net inference pipeline: chunking, the ONNX model call, and
  * overlap-add reconstruction. Ported from `mdx_separator.py`'s `demix` and
- * `run_model` (ticket 05, `.scratch/worker-to-typescript/`) for the model's
- * primary output only — for UVR-MDX-NET-Inst_Main that is the Instrumental
- * Stem, which is the only one this ticket validates. The Vocals Stem (the
- * model's secondary output, a time-domain subtraction against the primary)
- * is ticket 06's concern once this is trusted.
- *
- * Config values below are not guessed: `dimF`/`segmentSize` were read off
- * the real, downloaded model's own ONNX graph, which declares input/output
- * shape `[batch, 4, 2048, 256]`; `nFft` and `compensate` come from
- * `audio-separator`'s hash-keyed `mdx_model_data` registry entry for this
- * exact file (`1c56ec0224f1d559c42fd6fd2a67b154`, the partial-MD5 of its
- * last 10MB — `calculate-model-hashes.py`'s own scheme); `hopLength`,
- * `segmentSize`, and `overlap` are `Separator`'s library-wide MDX defaults
- * (`separator.py`'s `mdx_params`), the same ones `Inst_HQ_3` used, since
- * they're not per-model entries in that registry at all.
- *
- * `Inst_Main` was chosen over `Inst_HQ_3` (ADR 0008's original pick) to cut
- * CPU cost: its `[4, 2048, 256]` tensor is two-thirds the size of
- * `Inst_HQ_3`'s `[4, 3072, 256]`, and its `nFft` (5120 vs 6144) is smaller
- * too. The trade: `dimF: 2048` band-limits the reconstructed spectrum to
- * `2048 * (44100 / 5120) ≈ 17.6 kHz`, versus `Inst_HQ_3`'s full 22.05 kHz
- * Nyquist — content above that lands in the Vocals Stem's mix-minus-
- * instrumental subtraction instead of being separated cleanly.
+ * `run_model` (ticket 05, `.scratch/worker-to-typescript/`). Which model runs,
+ * and every number that shapes its chunks, comes from the catalog in
+ * `models.ts`, where each is checked against the registry and the model's own
+ * graph.
  */
-export interface MdxNetConfig {
-  nFft: number
-  hopLength: number
-  dimF: number
-  segmentSize: number
-  overlap: number
-  /** Only used computing the Vocals Stem — a scalar correction on the Instrumental subtracted from the mix. */
-  compensate: number
-}
+export type { MdxNetConfig }
 
-export const UVR_MDX_NET_INST_MAIN_CONFIG: MdxNetConfig = {
-  nFft: 5120,
-  hopLength: 1024,
-  dimF: 2048,
-  segmentSize: 256,
-  overlap: 0.25,
-  compensate: 1.025,
-}
+export const UVR_MDX_NET_INST_MAIN_CONFIG: MdxNetConfig = SEPARATION_MODELS.Inst_Main.config
 
 /** `numpy.hanning`: the symmetric convention (divides by `length - 1`), distinct from `torch.hann_window`'s periodic one the STFT class uses internally. */
 function hanningSymmetric(length: number): Float64Array {
@@ -89,69 +55,39 @@ export interface SeparationProgressOptions {
 }
 
 export class MdxNetModel {
-  private readonly modelPath: string
   private readonly config: MdxNetConfig
-  private session: ModelSession | undefined
+  private readonly session: ModelSession
   private readonly stft: Stft
 
   /**
-   * `session` is for tests: inject a fake that stands in for the ONNX model
-   * (`worker/tests/test_separate.py`'s `FakeSeparator` does the equivalent
-   * for the Python side) so the chunking/overlap-add math can be checked
-   * without the real 66MB model. Production code never passes it — the real
-   * session loads lazily from `modelPath` on first use.
+   * `session` is the ONNX model, or in a test a fake that stands in for it
+   * (`worker/tests/test_separate.py`'s `FakeSeparator` did the equivalent for
+   * the Python side) so the chunking/overlap-add math can be checked without
+   * the real 66MB model. `separate-cli.ts` builds the real one (`session.ts`).
    */
-  constructor(modelPath: string, config: MdxNetConfig = UVR_MDX_NET_INST_MAIN_CONFIG, session?: ModelSession) {
-    this.modelPath = modelPath
+  constructor(config: MdxNetConfig, session: ModelSession) {
     this.config = config
     this.session = session
     this.stft = new Stft(config.nFft, config.hopLength, config.dimF)
   }
 
-  private async session_(): Promise<ModelSession> {
-    // Left to itself, onnxruntime sizes its intra-op thread pool off the
-    // *host's* core count (`std::thread::hardware_concurrency()`), which
-    // has no idea about a container's cgroup CPU quota — this app's own
-    // `docker compose up` ships with `deploy.resources.limits.cpus: "2"`.
-    // On a host with many more cores than that quota, the session spins up
-    // a thread for each of them anyway, and they all contend for the 2 CPUs
-    // the container actually gets: the resulting scheduling overhead is
-    // severe enough to turn a several-minute separation into tens of
-    // minutes. `os.availableParallelism()` is cgroup-aware (Node/libuv read
-    // it from `cpu.max` under cgroup v2) and reflects what's actually
-    // available, unlike `os.cpus().length`.
-    //
-    // The CPU arena is off because the macOS Desktop App runs this file under
-    // Electron's binary (`ELECTRON_RUN_AS_NODE`), whose allocator traps rather
-    // than returning when the arena extends itself: the first `run` succeeds,
-    // the second grows the arena and the subprocess dies with SIGTRAP ("exited
-    // with code null"). Plain Node is unaffected either way, and without the
-    // arena a separation takes the same time and differs only by float noise.
-    this.session ??= await ort.InferenceSession.create(this.modelPath, {
-      executionProviders: ['cpu'],
-      intraOpNumThreads: Math.max(1, availableParallelism()),
-      enableCpuMemArena: false,
-    })
-    return this.session
-  }
-
-  /** One model call: STFT the chunk, zero the first 3 (near-DC) bins, run the ONNX graph, inverse-STFT the result. */
-  private async runModel(chunk: [Float64Array, Float64Array]): Promise<[Float64Array, Float64Array]> {
-    const spek = this.stft.forward(chunk)
-    const { data, dimF, nFrames } = spek
+  /** A chunk as the model takes it: its STFT, with the first 3 (near-DC) bins zeroed, in float32. */
+  private modelInput(chunk: [Float64Array, Float64Array]): ort.Tensor {
+    const { data, dimF, nFrames } = this.stft.forward(chunk)
     for (let channel = 0; channel < 4; channel++) {
       for (let f = 0; f < 3; f++) {
         for (let t = 0; t < nFrames; t++) data[channel * dimF * nFrames + f * nFrames + t] = 0
       }
     }
+    return new ort.Tensor('float32', Float32Array.from(data), [1, 4, dimF, nFrames])
+  }
 
-    const session = await this.session_()
-    const inputTensor = new ort.Tensor('float32', Float32Array.from(data), [1, 4, dimF, nFrames])
-    const results = await session.run({ input: inputTensor })
+  /** The model's output for one chunk, back in the time domain. */
+  private modelOutput(results: Record<string, ort.Tensor>): [Float64Array, Float64Array] {
     const output = results.output
     if (!output) throw new Error('the model produced no "output" tensor')
-
-    const outSpec: Spectrogram = { data: Float64Array.from(output.data as Float32Array), dimF, nFrames }
+    const [, , dimF, nFrames] = output.dims as number[]
+    const outSpec: Spectrogram = { data: Float64Array.from(output.data as Float32Array), dimF: dimF!, nFrames: nFrames! }
     return this.stft.inverse(outSpec)
   }
 
@@ -180,23 +116,22 @@ export class MdxNetModel {
     const result: [Float64Array, Float64Array] = [new Float64Array(paddedLength), new Float64Array(paddedLength)]
     const divider: [Float64Array, Float64Array] = [new Float64Array(paddedLength), new Float64Array(paddedLength)]
 
-    const totalChunks = Math.ceil(paddedLength / step)
-    let doneChunks = 0
-    for (let start = 0; start < paddedLength; start += step) {
+    const starts: number[] = []
+    for (let start = 0; start < paddedLength; start += step) starts.push(start)
+    const totalChunks = starts.length
+
+    const chunkAt = (start: number): [Float64Array, Float64Array] => {
       const end = Math.min(start + chunkSize, paddedLength)
-      const actualSize = end - start
+      const left = new Float64Array(chunkSize)
+      const right = new Float64Array(chunkSize)
+      left.set(mixture[0].subarray(start, end))
+      right.set(mixture[1].subarray(start, end))
+      return [left, right]
+    }
+
+    const overlapAdd = (start: number, [tarLeft, tarRight]: [Float64Array, Float64Array]) => {
+      const actualSize = Math.min(start + chunkSize, paddedLength) - start
       const window = overlap !== 0 ? hanningSymmetric(actualSize) : null
-
-      const chunkLeft = new Float64Array(chunkSize)
-      const chunkRight = new Float64Array(chunkSize)
-      chunkLeft.set(mixture[0].subarray(start, end))
-      chunkRight.set(mixture[1].subarray(start, end))
-
-      // Chunks are inherently sequential: each is a full model inference, and
-      // running them concurrently would multiply peak memory for no benefit
-      // on a machine sized for one CPU inference at a time.
-      const [tarLeft, tarRight] = await this.runModel([chunkLeft, chunkRight])
-
       for (let n = 0; n < actualSize; n++) {
         const w = window ? window[n]! : 1
         result[0]![start + n]! += tarLeft[n]! * w
@@ -204,7 +139,19 @@ export class MdxNetModel {
         divider[0]![start + n]! += w
         divider[1]![start + n]! += w
       }
-      options.onChunk?.(++doneChunks, totalChunks)
+    }
+
+    // One chunk at a time, start to finish. Each is a full inference, and two
+    // at once would double peak memory for nothing. Nor does the STFT of the
+    // next chunk overlap this one's model call: onnxruntime-node's `run`
+    // executes on the calling thread (its promise only wraps a synchronous
+    // native call), so overlapping them needs a worker thread, and once the
+    // STFT stopped being Bluestein it was under a tenth of a CPU Separation —
+    // too little to pay for one (ticket 08 of `.scratch/faster-separation/`).
+    for (const [i, start] of starts.entries()) {
+      const results = await this.session.run({ input: this.modelInput(chunkAt(start)) })
+      overlapAdd(start, this.modelOutput(results))
+      options.onChunk?.(i + 1, totalChunks)
     }
 
     const out: [Float64Array, Float64Array] = [new Float64Array(originalLength), new Float64Array(originalLength)]
@@ -219,28 +166,31 @@ export class MdxNetModel {
   }
 
   /**
-   * The full Instrumental path: normalize before demixing (never amplifies,
-   * only prevents clipping), demix, then rescale by the mix's own original
-   * peak — mirroring `MDXSeparator.separate`'s `demix(mix) * peak` exactly,
-   * arithmetic quirk and all: the original code multiplies by the raw peak
-   * rather than `peak / max_peak`, so this does too rather than "fixing" a
-   * widely-used, community-vetted implementation this is meant to reproduce.
-   * A final normalize matches `write_audio`'s own pre-write pass.
+   * The Instrumental Stem alone. For a model whose primary output is the
+   * Vocals Stem, that is still the subtraction `separate` does.
    */
   async separateInstrumental(mix: [Float64Array, Float64Array]): Promise<[Float64Array, Float64Array]> {
     return (await this.separate(mix)).instrumental
   }
 
   /**
-   * Both Stems. The Vocals Stem is the model's secondary output — for this
-   * model, everything the Instrumental didn't account for — computed as a
-   * time-domain subtraction against the (peak-normalized, not rescaled) mix,
-   * matching `MDXSeparator.separate`'s `invert_using_spec=False` branch,
-   * which is what this model runs under (confirmed off the real model's
-   * resolved config). The `is_match_mix=True` demix pass Python's code also
-   * runs before that branch is real computation whose result only feeds the
-   * `invert_using_spec=True` branch — skipped here since it changes nothing
-   * this model's output depends on.
+   * Both Stems. The primary one is the model's own output: normalize before
+   * demixing (never amplifies, only prevents clipping), demix, then rescale by
+   * the mix's original peak — mirroring `MDXSeparator.separate`'s
+   * `demix(mix) * peak` exactly, arithmetic quirk and all: the original
+   * multiplies by the raw peak rather than `peak / max_peak`, so this does too
+   * rather than "fixing" a widely-used, community-vetted implementation this is
+   * meant to reproduce. A final normalize matches `write_audio`'s own pass.
+   *
+   * The secondary Stem is everything the primary didn't account for,
+   * computed as a time-domain subtraction against the (peak-normalized, not
+   * rescaled) mix — `MDXSeparator.separate`'s `invert_using_spec=False`
+   * branch, which is what these models run under. The `is_match_mix=True`
+   * demix pass Python's code also runs before that branch only feeds the
+   * `invert_using_spec=True` one, so it is skipped here.
+   *
+   * Which is which is the model's `primaryStem`: the Instrumental for the
+   * `Inst_` models, the Vocals for `Kim_Vocal_2`.
    */
   async separate(mix: [Float64Array, Float64Array], options: SeparationProgressOptions = {}): Promise<{
     instrumental: [Float64Array, Float64Array]
@@ -251,24 +201,26 @@ export class MdxNetModel {
     normalizePeak(normalizedMix, 0.9)
 
     const demixed = await this.demixPrimary(normalizedMix, options)
-    const instrumental: [Float64Array, Float64Array] = [
+    const primary: [Float64Array, Float64Array] = [
       demixed[0].map(v => v * peak),
       demixed[1].map(v => v * peak),
     ]
-    normalizePeak(instrumental, 0.9)
+    normalizePeak(primary, 0.9)
 
-    const { compensate } = this.config
-    const vocals: [Float64Array, Float64Array] = [
+    const { compensate, primaryStem } = this.config
+    const secondary: [Float64Array, Float64Array] = [
       new Float64Array(normalizedMix[0].length),
       new Float64Array(normalizedMix[1].length),
     ]
     for (let channel = 0; channel < 2; channel++) {
-      for (let n = 0; n < vocals[channel]!.length; n++) {
-        vocals[channel]![n] = -instrumental[channel]![n]! * compensate + normalizedMix[channel]![n]!
+      for (let n = 0; n < secondary[channel]!.length; n++) {
+        secondary[channel]![n] = -primary[channel]![n]! * compensate + normalizedMix[channel]![n]!
       }
     }
-    normalizePeak(vocals, 0.9)
+    normalizePeak(secondary, 0.9)
 
-    return { instrumental, vocals }
+    return primaryStem === 'instrumental'
+      ? { instrumental: primary, vocals: secondary }
+      : { instrumental: secondary, vocals: primary }
   }
 }

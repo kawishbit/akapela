@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { monitorEventLoopDelay } from 'node:perf_hooks'
 import { join } from 'node:path'
@@ -7,7 +8,7 @@ import { appendEffects, buildMixFilterGraph, renderMix } from '../../../server/l
 import { JobsRunner } from '../../../server/lib/jobs-runner'
 import { runRender } from '../../../server/lib/jobs/render'
 import type { JobContext } from '../../../server/lib/jobs-runner'
-import { probe, writeBurstThenSilenceWav, writeSineWav } from '../audio-fixtures'
+import { flacOf, probe, writeBurstThenSilenceWav, writeSineWav } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
 import { rmsWindow, zeroCrossingFrequency } from '../wav-rms'
 
@@ -658,4 +659,79 @@ describe('renderMix', () => {
     expect(existsSync(join(dir, 'mix.mp3'))).toBe(true)
     expect(delay.max / 1e6).toBeLessThan(250)
   }, 60_000)
+
+  it.each([
+    { tempoPercent: 100, pitchSemitones: 0 },
+    { tempoPercent: 90, pitchSemitones: 2 },
+  ])('renders a Mix from FLAC Stems sample for sample as from WAV ones (%o)', async ({ tempoPercent, pitchSemitones }) => {
+    const { readFileSync } = await import('node:fs')
+    const mixOn = async (format: 'wav' | 'flac') => {
+      const t = setup()
+      const dir = trackDir(t)
+      writeSineWav(join(dir, 'instrumental.source.wav'), { frequency: 330, seconds: 2 })
+      if (format === 'wav') writeSineWav(join(dir, 'instrumental.wav'), { frequency: 330, seconds: 2 })
+      else flacOf(join(dir, 'instrumental.source.wav'), join(dir, 'instrumental.flac'))
+      writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 2 })
+      writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
+      insertTrack(t)
+      insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 500, durationMs: 500 })
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'instrumental', wavRequested: true, tempoPercent, pitchSemitones })
+      enqueueRender(t, 'm1')
+      await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
+      expect(getJob(t, 'j1').state).toBe('succeeded')
+      const bytes = readFileSync(join(dir, 'mixes', 'm1.wav'))
+      t.close()
+      db = undefined
+      return bytes
+    }
+
+    expect(await mixOn('flac')).toEqual(await mixOn('wav'))
+  })
+
+  it('places a Take on an MP3 Backing Track exactly where it lands on the WAV one', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { decodeWav } = await import('../../../app/audio/wav')
+    const { storeWavAs } = await import('../../../server/lib/audio')
+    const mixOn = async (format: 'wav' | 'mp3', { vocal, backing }: { vocal: number, backing: number }) => {
+      const t = setup()
+      const dir = trackDir(t)
+      mkdirSync(dir, { recursive: true })
+      // A chirp, so there is exactly one offset the backing can line up at.
+      spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'aevalsrc=0.4*sin(2*PI*(200+300*t)*t):s=44100:d=2', '-ac', '2', '-c:a', 'pcm_s16le', join(dir, 'instrumental.wav')])
+      if (format === 'mp3') await storeWavAs(join(dir, 'instrumental.wav'), join(dir, 'instrumental.mp3'))
+      writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 2 })
+      writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
+      insertTrack(t)
+      insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 700, durationMs: 500 })
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'instrumental', wavRequested: true, vocalGain: vocal, backingGain: backing })
+      enqueueRender(t, 'm1')
+      await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
+      expect(getJob(t, 'j1').state).toBe('succeeded')
+      const channels = decodeWav(readFileSync(join(dir, 'mixes', 'm1.wav'))).channels
+      t.close()
+      db = undefined
+      return channels[0]!
+    }
+
+    // The Take alone, backing muted: same length, same place.
+    const takeOnWav = await mixOn('wav', { vocal: 1, backing: 0 })
+    const takeOnMp3 = await mixOn('mp3', { vocal: 1, backing: 0 })
+    expect(takeOnMp3).toEqual(takeOnWav)
+
+    // The backing alone: the MP3 one lands on the WAV one's samples.
+    const backingOnWav = await mixOn('wav', { vocal: 0, backing: 1 })
+    const backingOnMp3 = await mixOn('mp3', { vocal: 0, backing: 1 })
+    expect(backingOnMp3.length).toBe(backingOnWav.length)
+    let best = -Infinity
+    let lag = 0
+    for (let l = -2000; l <= 2000; l++) {
+      let sum = 0
+      for (let i = 4000; i < backingOnWav.length - 4000; i += 3) sum += backingOnWav[i]! * (backingOnMp3[i + l] ?? 0)
+      if (sum > best) {
+        best = sum
+        lag = l
+      }
+    }
+    expect(lag).toBe(0)
+  })
 })

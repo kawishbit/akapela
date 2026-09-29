@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { trackDir as trackDirFor } from './jobs/track-paths'
@@ -29,28 +29,30 @@ import { enqueueJob } from './jobs'
 import { getLyrics } from './lyrics'
 import { listMixesForTrack, type MixWithJob } from './mixes'
 import type { Akapela } from './akapela'
-import { getSettings } from './settings'
+import { defaultLyricsProviderOf, defaultSeparationModelOf } from './settings'
+import {
+  audioFileCandidates,
+  audioFileName,
+  BACKING_BASENAME,
+  findAudioFile,
+  INSTRUMENTAL_BASENAME,
+  VOCALS_BASENAME,
+} from './audio-files'
+import { DEFAULT_SEPARATION_MODEL, type SeparationModelName } from './separators/models'
 import { listTakes } from './takes'
 
 /**
- * Which file each Backing Source names inside the Track directory, both
- * normalized 44.1 kHz stereo WAVs the separate job writes (ADR 0005) and
- * named to match `server/lib/jobs/separate.ts`, which is what writes them. The
- * Vocals Stem a separation also writes is kept but nothing plays it, so it is
- * not a Backing Source and is not here.
+ * Which file each Backing Source names inside the Track directory, by
+ * basename: the import writes the master and the separate Job the Stem, each
+ * in the Audio Format in force when it did (ADR 0016), so the extension is
+ * whatever is on disk (`audio-files.ts`). The Vocals Stem a separation also
+ * writes is kept but nothing plays it, so it is not a Backing Source and is
+ * not here — though Delete Stems removes it too.
  */
-export const BACKING_SOURCE_FILES: Record<BackingSource, string> = {
-  original: 'backing.wav',
-  instrumental: 'instrumental.wav',
+export const BACKING_SOURCE_BASENAMES: Record<BackingSource, string> = {
+  original: BACKING_BASENAME,
+  instrumental: INSTRUMENTAL_BASENAME,
 }
-
-/**
- * The Vocals Stem a separation writes alongside the Instrumental one. Never a
- * Backing Source — nothing plays it — but Delete Stems removes it too, since
- * it is still ~80 MB (ADR 0005) of disk a Track someone keeps has no more use
- * for once its Instrumental Stem is gone.
- */
-const VOCALS_STEM_FILE = 'vocals.wav'
 
 /** A Track together with its most recent import Job, which carries import progress and error. */
 export type TrackWithJob = Track & {
@@ -80,6 +82,11 @@ export type TrackDetail = TrackWithJob & {
    * what decides whether there is a Backing Source to choose between at all.
    */
   hasStems: boolean
+  /**
+   * The Separation Model that made the Stems on disk, so the Track page can
+   * say "Separated with Inst_HQ_3". Null without Stems.
+   */
+  stemsModel: SeparationModelName | null
   /** Combined size of both Stem files on disk, in bytes; 0 once there are none. Delete Stems reads this to say what it will reclaim. */
   stemsBytes: number
   /** Newest first. */
@@ -165,13 +172,14 @@ function startImport(
     importState: 'importing',
     separationState: 'none',
     backingSource: DEFAULT_BACKING_SOURCE,
+    stemsModel: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
     songArtist: null,
     songTitle: null,
     songProviderIds: null,
     songAlbumArtUrl: null,
     // New Tracks start where the singer said Lyrics should come from.
-    lyricsProvider: getSettings(akapela).defaultLyricsProvider,
+    lyricsProvider: defaultLyricsProviderOf(akapela),
     lyricsOffsetMs: 0,
     titleEdited: false,
     artistEdited: false,
@@ -261,6 +269,7 @@ export function trackDetail(akapela: Akapela, track: TrackWithJob): TrackDetail 
     ...track,
     separationJob: latestSeparationJob(akapela, track.id),
     hasStems: hasStems(akapela, track),
+    stemsModel: hasStems(akapela, track) ? (track.stemsModel ?? DEFAULT_SEPARATION_MODEL) : null,
     stemsBytes: stemsBytes(akapela, track),
     lyrics: getLyrics(akapela, track.id),
     takes: listTakes(akapela, track.id),
@@ -477,7 +486,11 @@ export function saveAdjustments(akapela: Akapela, track: TrackWithJob, adjustmen
  * changing what the Track sings over next time (`../api/tracks/[id]/backing.get`).
  */
 export function backingTrackPath(akapela: Akapela, track: Track, source: BackingSource = track.backingSource): string {
-  return join(trackDir(akapela, track.id), BACKING_SOURCE_FILES[source])
+  const dir = trackDir(akapela, track.id)
+  const basename = BACKING_SOURCE_BASENAMES[source]
+  // A file that is not there yet is named as a WAV, which is what the 404
+  // for it says.
+  return findAudioFile(dir, basename) ?? join(dir, audioFileName(basename, 'wav'))
 }
 
 /**
@@ -489,13 +502,13 @@ export function backingTrackPath(akapela: Akapela, track: Track, source: Backing
  * a new run has produced replacements.
  */
 export function hasStems(akapela: Akapela, track: Track): boolean {
-  return existsSync(backingTrackPath(akapela, track, 'instrumental'))
+  return findAudioFile(trackDir(akapela, track.id), INSTRUMENTAL_BASENAME) !== null
 }
 
-/** Absolute paths of both Stem files a separation writes, whether or not they exist. */
+/** Absolute paths of both Stem files a separation writes, in every Audio Format, whether or not they exist. */
 function stemPaths(akapela: Akapela, track: Track): string[] {
   const dir = trackDir(akapela, track.id)
-  return [join(dir, BACKING_SOURCE_FILES.instrumental), join(dir, VOCALS_STEM_FILE)]
+  return [...audioFileCandidates(dir, INSTRUMENTAL_BASENAME), ...audioFileCandidates(dir, VOCALS_BASENAME)]
 }
 
 /**
@@ -526,10 +539,10 @@ export function deleteStems(akapela: Akapela, track: TrackWithJob): TrackWithJob
   const now = Date.now()
   akapela.db
     .update(tracks)
-    .set({ backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', updatedAt: now })
+    .set({ backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', stemsModel: null, updatedAt: now })
     .where(eq(tracks.id, track.id))
     .run()
-  return { ...track, backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', updatedAt: now }
+  return { ...track, backingSource: DEFAULT_BACKING_SOURCE, separationState: 'none', stemsModel: null, updatedAt: now }
 }
 
 /**
@@ -566,7 +579,7 @@ export function retryImport(akapela: Akapela, track: TrackWithJob): TrackWithJob
 }
 
 /** The most recent separate Job on a Track, which is the one whose progress and error the page shows. */
-function latestSeparationJob(akapela: Akapela, trackId: string): Job | null {
+export function latestSeparationJob(akapela: Akapela, trackId: string): Job | null {
   return akapela.db
     .select()
     .from(jobs)
@@ -581,14 +594,21 @@ function latestSeparationJob(akapela: Akapela, trackId: string): Job | null {
  * its Stems. Both asking for the first separation and retrying a failed one end
  * here; only the guard in front of them differs, since re-separating is
  * deliberately allowed (a better model later should not mean re-importing).
+ *
+ * The Separation Model is fixed here, when the Separation is asked for — the
+ * default unless one was named — and never read again from Settings.
  */
-export function startSeparation(akapela: Akapela, track: TrackWithJob): TrackWithSeparationJob {
+export function startSeparation(
+  akapela: Akapela,
+  track: TrackWithJob,
+  separationModel: SeparationModelName = defaultSeparationModelOf(akapela),
+): TrackWithSeparationJob {
   const now = Date.now()
   akapela.db
     .update(tracks)
     .set({ separationState: 'separating', updatedAt: now })
     .where(eq(tracks.id, track.id))
     .run()
-  const separationJob = enqueueJob(akapela, { type: 'separate', targetId: track.id })
+  const separationJob = enqueueJob(akapela, { type: 'separate', targetId: track.id, separationModel })
   return { ...track, separationState: 'separating', updatedAt: now, separationJob, separationJobId: separationJob.id }
 }

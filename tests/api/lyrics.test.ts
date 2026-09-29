@@ -137,7 +137,7 @@ describe('a Akapela with no Genius token', () => {
   })
 
   test('does not offer Genius as a provider', async () => {
-    expect(await (await api.get('/api/settings')).json()).toEqual({
+    expect(await (await api.get('/api/settings')).json()).toMatchObject({
       defaultLyricsProvider: 'lrclib',
       lyricsProviders: ['lrclib', 'manual'],
       micProcessingDefault: false,
@@ -387,7 +387,7 @@ describe('fetching over Lyrics that were typed by hand', () => {
 
 describe('the default Lyrics Provider', () => {
   test('starts as LRCLIB, which needs no account', async () => {
-    expect(await (await api.get('/api/settings')).json()).toEqual({
+    expect(await (await api.get('/api/settings')).json()).toMatchObject({
       defaultLyricsProvider: 'lrclib',
       lyricsProviders: ['lrclib', 'genius', 'manual'],
       micProcessingDefault: false,

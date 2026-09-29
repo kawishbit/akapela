@@ -8,12 +8,14 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Separate again lists every catalog model except the current one
-- [ ] The old Stems stay playable while the new Separation runs
-- [ ] Success replaces the Stems and the recorded model together
-- [ ] Cancel or failure leaves Stems and model untouched
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Separate again lists every catalog model except the current one
+- [x] The old Stems stay playable while the new Separation runs
+- [x] Success replaces the Stems and the recorded model together
+- [x] Cancel or failure leaves Stems and model untouched
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+- 2026-09-29: The Stems panel's existing Separate again button now opens the other catalog models (`otherSeparationModels`). The keep-until-replaced behaviour was already the separate Job's: it writes into `stems.part/` and renames at the end, and `stems_model` is written in the same statement that marks the Track ready. Cancel and failure never touch either. One gap was fixed along the way: `separate/retry` used to ask with whatever the default had become, and now retries with the model the failed Separation was asked for, as a retry from the Jobs page does.

@@ -3,9 +3,12 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { decodeWav } from '../../../app/audio/wav'
-import { probe, writeSineWav } from '../audio-fixtures'
+import { flacOf, probe, writeSineWav } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
 import { separateHandler, type SeparateOptions, type Separator, type Stems } from '../../../server/lib/jobs/separate'
+import type { FetchModelOptions } from '../../../server/lib/separators/download-model'
+import type { Accelerator } from '../../../server/lib/separators/accelerator'
+import type { SeparationModel, SeparationModelName } from '../../../server/lib/separators/models'
 import { JobsRunner } from '../../../server/lib/jobs-runner'
 
 const TRACK_ID = 't1'
@@ -36,10 +39,13 @@ function insertTrack(t: JobTestDb): void {
     .run(TRACK_ID)
 }
 
-function enqueueSeparate(t: JobTestDb, jobId = 'j1'): void {
+function enqueueSeparate(t: JobTestDb, jobId = 'j1', separationModel: SeparationModelName | null = null): void {
   t.akapela.sqlite
-    .prepare(`INSERT INTO jobs (id, type, target_id, state, progress, error, created_at) VALUES (?, 'separate', ?, 'queued', 0, NULL, 1000)`)
-    .run(jobId, TRACK_ID)
+    .prepare(
+      `INSERT INTO jobs (id, type, target_id, state, progress, error, created_at, separation_model)
+       VALUES (?, 'separate', ?, 'queued', 0, NULL, 1000, ?)`,
+    )
+    .run(jobId, TRACK_ID, separationModel)
 }
 
 function getJob(t: JobTestDb, jobId: string): Record<string, unknown> {
@@ -62,29 +68,46 @@ function backingSource(t: JobTestDb): string | null {
 class FakeSeparator implements Separator {
   modelsDirs: string[] = []
   separated: string[] = []
+  threads: Array<number | undefined> = []
+  models: Array<SeparationModelName | undefined> = []
+  accelerators: Array<Accelerator | null | undefined> = []
+  /** The Job row's detail at the moment the model was being fetched. */
+  detailsWhileFetching: Array<unknown> = []
 
   constructor(private readonly options: {
     fetchError?: string
     separateError?: string
     duringSeparation?: () => void
+    /** Called while the model downloads, before it is on disk. */
+    duringFetch?: () => void
     /** Fractions of the model run to report, the way `separate-cli.ts` reports its chunks. */
     chunkFractions?: number[]
+    /** Why the GPU failed, as though the Separation finished on the CPU. */
+    gpuFailure?: string
   } = {}) {}
 
-  async fetchModel(modelsDir: string): Promise<void> {
+  async fetchModel(modelsDir: string, model: SeparationModel, options: FetchModelOptions = {}): Promise<void> {
+    this.options.duringFetch?.()
     if (this.options.fetchError) throw new Error(this.options.fetchError)
     this.modelsDirs.push(modelsDir)
-    const model = join(modelsDir, 'fake-model.onnx')
-    if (existsSync(model)) return
+    options.onProgress?.(0.5)
+    const path = join(modelsDir, model.fileName)
+    if (existsSync(path)) return
     mkdirSync(modelsDir, { recursive: true })
-    writeFileSync(model, 'not a model')
+    writeFileSync(path, 'not a model')
   }
 
   async separate(backingPath: string, _modelsDir: string, options: SeparateOptions = {}): Promise<Stems> {
     if (this.options.separateError) throw new Error(this.options.separateError)
     for (const fraction of this.options.chunkFractions ?? []) options.onProgress?.(fraction)
     this.separated.push(backingPath)
-    const { channels, sampleRate } = decodeWav(await readFile(backingPath))
+    this.threads.push(options.threads)
+    this.models.push(options.model?.name)
+    this.accelerators.push(options.accelerator)
+    // The real separator decodes any Audio Format; a stand-in only needs a length.
+    const { channels, sampleRate } = backingPath.endsWith('.wav')
+      ? decodeWav(await readFile(backingPath))
+      : { channels: [new Float32Array(44100)], sampleRate: 44100 }
     const length = channels[0]!.length
     const instrumental: [Float64Array, Float64Array] = [new Float64Array(length), new Float64Array(length)]
     const vocals: [Float64Array, Float64Array] = [new Float64Array(length), new Float64Array(length)]
@@ -96,12 +119,25 @@ class FakeSeparator implements Separator {
     }
     // The model run is the minutes-long window a Track can be deleted in.
     this.options.duringSeparation?.()
-    return { instrumental, vocals, sampleRate }
+    return { instrumental, vocals, sampleRate, ...(this.options.gpuFailure ? { gpuFailure: this.options.gpuFailure } : {}) }
   }
 }
 
-function runTheJob(t: JobTestDb, separator: FakeSeparator): Promise<boolean> {
-  return new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers: { separate: separateHandler(separator) } }).runOnce()
+function runTheJob(
+  t: JobTestDb,
+  separator: FakeSeparator,
+  cores = 8,
+  accelerator: Accelerator | null = null,
+): Promise<boolean> {
+  const handlers = { separate: separateHandler(separator, async () => ({ cores, accelerator })) }
+  return new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers }).runOnce()
+}
+
+function chooseCpuCores(t: JobTestDb, cpuCores: number): void {
+  t.akapela.sqlite
+    .prepare(`INSERT INTO settings (id, cpu_cores, updated_at) VALUES (1, ?, 0)
+              ON CONFLICT (id) DO UPDATE SET cpu_cores = excluded.cpu_cores`)
+    .run(cpuCores)
 }
 
 describe('separateHandler', () => {
@@ -137,14 +173,15 @@ describe('separateHandler', () => {
 
     enqueueSeparate(t, 'j1')
     await runTheJob(t, separator)
-    const modelPath = join(t.dataDir, 'cache', 'models', 'fake-model.onnx')
+    const modelPath = join(t.dataDir, 'cache', 'models', 'UVR-MDX-NET-Inst_Main.onnx')
     expect(existsSync(modelPath)).toBe(true)
 
     enqueueSeparate(t, 'j2')
     await runTheJob(t, separator)
 
     expect(getJob(t, 'j2').state).toBe('succeeded')
-    expect(separator.modelsDirs).toEqual([join(t.dataDir, 'cache', 'models'), join(t.dataDir, 'cache', 'models')])
+    // Fetched once; the second Separation found it on disk.
+    expect(separator.modelsDirs).toEqual([join(t.dataDir, 'cache', 'models')])
   })
 
   it('reports its coarse steps on the job row', async () => {
@@ -167,7 +204,8 @@ describe('separateHandler', () => {
 
     await runner.runOnce()
 
-    expect(reported).toEqual([10, 30, 85])
+    // The model download fills the band up to the model being ready.
+    expect(reported).toEqual([10, 20, 30, 85])
     expect(getJob(t, 'j1').progress).toBe(100)
   })
 
@@ -190,7 +228,7 @@ describe('separateHandler', () => {
     await runner.runOnce()
 
     // Only when the number moves, never backwards, and short of the Stems-written milestone until they are.
-    expect(reported).toEqual([10, 30, 35, 57, 84, 85])
+    expect(reported).toEqual([10, 20, 30, 35, 57, 84, 85])
   })
 
   it('overwrites both Stems in place on re-separation', async () => {
@@ -316,5 +354,195 @@ describe('separateHandler', () => {
     const job = getJob(t, 'j1')
     expect(job.state).toBe('failed')
     expect(separationState(t)).toBe('failed')
+  })
+
+  it('gives the model all cores but one when no limit was chosen', async () => {
+    const t = setup()
+    insertTrack(t)
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    enqueueSeparate(t)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 8)
+
+    expect(separator.threads).toEqual([7])
+  })
+
+  it('reads the core limit when it starts, not when it was asked for', async () => {
+    const t = setup()
+    insertTrack(t)
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    chooseCpuCores(t, 2)
+    enqueueSeparate(t, 'j1')
+    enqueueSeparate(t, 'j2')
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 8)
+    // Changed while the second one waits.
+    chooseCpuCores(t, 5)
+    await runTheJob(t, separator, 8)
+
+    expect(separator.threads).toEqual([2, 5])
+  })
+
+  it('clamps a limit chosen on bigger hardware to this machine', async () => {
+    const t = setup()
+    insertTrack(t)
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    chooseCpuCores(t, 12)
+    enqueueSeparate(t)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 4)
+
+    expect(separator.threads).toEqual([4])
+  })
+
+  it('runs the Separation Model it was asked for, and records it with the Stems', async () => {
+    const t = setup()
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t, 'j1', 'Inst_HQ_3')
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator)
+
+    expect(separator.models).toEqual(['Inst_HQ_3'])
+    expect(existsSync(join(t.dataDir, 'cache', 'models', 'UVR-MDX-NET-Inst_HQ_3.onnx'))).toBe(true)
+    expect(t.akapela.sqlite.prepare(`SELECT stems_model FROM tracks`).get()).toEqual({ stems_model: 'Inst_HQ_3' })
+  })
+
+  it('runs Inst_Main for a Separation queued before there was a choice', async () => {
+    const t = setup()
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t, 'j1', null)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator)
+
+    expect(separator.models).toEqual(['Inst_Main'])
+  })
+
+  it('says it is downloading the model while it does, and nothing once it has', async () => {
+    const t = setup()
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t, 'j1', 'Kim_Vocal_2')
+    const seen: unknown[] = []
+    const separator = new FakeSeparator({ duringFetch: () => seen.push(getJob(t, 'j1').detail) })
+
+    await runTheJob(t, separator)
+
+    expect(seen).toEqual(['Downloading Kim_Vocal_2'])
+    expect(getJob(t, 'j1').detail).toBeNull()
+  })
+
+  it('keeps the earlier Stems and their model when the download fails', async () => {
+    const t = setup()
+    mkdirSync(trackDir(t), { recursive: true })
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    t.akapela.sqlite.prepare(`UPDATE tracks SET stems_model = 'Inst_Main'`).run()
+    enqueueSeparate(t, 'j1', 'Inst_HQ_4')
+
+    await runTheJob(t, new FakeSeparator({ fetchError: 'no network' }))
+
+    expect(getJob(t, 'j1')).toMatchObject({ state: 'failed', detail: null })
+    expect(t.akapela.sqlite.prepare(`SELECT stems_model FROM tracks`).get()).toEqual({ stems_model: 'Inst_Main' })
+  })
+
+  it('stores the Stems as FLAC when FLAC is chosen, replacing WAV Stems from before', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'backing.wav'), { seconds: 1 })
+    writeSineWav(join(dir, 'instrumental.wav'), { seconds: 1 })
+    writeSineWav(join(dir, 'vocals.wav'), { seconds: 1 })
+    insertTrack(t)
+    t.akapela.sqlite.prepare(`INSERT INTO settings (id, audio_format, updated_at) VALUES (1, 'flac', 0)`).run()
+    enqueueSeparate(t)
+
+    await runTheJob(t, new FakeSeparator())
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    expect(readdirSync(dir).filter(name => /^(instrumental|vocals)\./.test(name)).sort())
+      .toEqual(['instrumental.flac', 'vocals.flac'])
+    expect(probe(join(dir, 'instrumental.flac')).streams[0]!.codec_name).toBe('flac')
+    expect(existsSync(join(dir, 'stems.part'))).toBe(false)
+  })
+
+  it('separates a Backing Track stored as FLAC', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'source.wav'), { seconds: 1 })
+    flacOf(join(dir, 'source.wav'), join(dir, 'backing.flac'))
+    insertTrack(t)
+    enqueueSeparate(t)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator)
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    expect(separator.separated).toEqual([join(dir, 'backing.flac')])
+    expect(existsSync(join(dir, 'instrumental.wav'))).toBe(true)
+  })
+
+  it('stores the Stems as 320 kbps MP3 when MP3 is chosen', async () => {
+    const t = setup()
+    const dir = trackDir(t)
+    writeSineWav(join(dir, 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    t.akapela.sqlite.prepare(`INSERT INTO settings (id, audio_format, updated_at) VALUES (1, 'mp3', 0)`).run()
+    enqueueSeparate(t)
+
+    await runTheJob(t, new FakeSeparator())
+
+    expect(getJob(t, 'j1').state).toBe('succeeded')
+    expect(probe(join(dir, 'instrumental.mp3')).streams[0]!.codec_name).toBe('mp3')
+    expect(probe(join(dir, 'vocals.mp3')).streams[0]!.codec_name).toBe('mp3')
+    expect(existsSync(join(dir, 'backing.wav'))).toBe(true)
+  })
+
+  it('runs on the GPU this machine has, when acceleration is on', async () => {
+    const t = setup()
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t)
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 8, { backend: 'dml', deviceId: 1 })
+
+    expect(separator.accelerators).toEqual([{ backend: 'dml', deviceId: 1 }])
+  })
+
+  it('runs on the CPU when acceleration is off, read as it starts', async () => {
+    const t = setup()
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t)
+    t.akapela.sqlite.prepare(`INSERT INTO settings (id, hardware_acceleration, updated_at) VALUES (1, 0, 0)`).run()
+    const separator = new FakeSeparator()
+
+    await runTheJob(t, separator, 8, { backend: 'dml', deviceId: 1 })
+
+    expect(separator.accelerators).toEqual([null])
+  })
+
+  it('succeeds and says so on its row when the GPU failed and the CPU finished', async () => {
+    const t = setup()
+    writeSineWav(join(trackDir(t), 'backing.wav'), { seconds: 1 })
+    insertTrack(t)
+    enqueueSeparate(t)
+
+    await runTheJob(t, new FakeSeparator({ gpuFailure: 'device removed' }), 8, { backend: 'cuda' })
+
+    expect(getJob(t, 'j1')).toMatchObject({ state: 'succeeded', detail: 'Finished on CPU: the GPU failed' })
+    expect(existsSync(join(trackDir(t), 'instrumental.wav'))).toBe(true)
   })
 })

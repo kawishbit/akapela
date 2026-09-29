@@ -4,15 +4,22 @@ import {
   parseLyricsProviderName,
   unavailableProviderMessage,
 } from '../../shared/lyrics'
+import { invalidCpuCoresMessage, parseCpuCores } from '../../shared/separation'
+import { INVALID_AUDIO_FORMAT_MESSAGE, isAudioFormat } from '../../shared/audio-format'
+import { INVALID_SEPARATION_MODEL_MESSAGE, isSeparationModelName } from '../lib/separators/models'
 import { availableLyricsProviders, saveSettings, type SettingsChanges } from '../lib/settings'
 
 const NOTHING_TO_SAVE_MESSAGE = 'Nothing to save.'
 const INVALID_MIC_PROCESSING_DEFAULT_MESSAGE = 'The microphone processing default is true or false.'
 const INVALID_MONITORING_DEFAULT_MESSAGE = 'The Monitoring default is true or false.'
+const INVALID_HARDWARE_ACCELERATION_MESSAGE = 'Hardware acceleration is true or false.'
 
 /**
  * Save whichever of the singer's choices changed: the default Lyrics
- * Provider, the microphone processing default, and the Monitoring default.
+ * Provider, the microphone processing default, the Monitoring default, the
+ * default Separation Model, how many cores a Separation may use, and the
+ * Audio Format new masters and Stems are stored in, and whether a Separation
+ * uses the GPU.
  * Each is optional, so a control can be saved on its own without resending
  * the others.
  */
@@ -22,6 +29,10 @@ export default defineEventHandler(async (event) => {
     defaultLyricsProvider?: unknown
     micProcessingDefault?: unknown
     monitoringDefault?: unknown
+    cpuCores?: unknown
+    separationModel?: unknown
+    audioFormat?: unknown
+    hardwareAcceleration?: unknown
   } | null
 
   const changes: SettingsChanges = {}
@@ -52,6 +63,34 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: INVALID_MONITORING_DEFAULT_MESSAGE })
     }
     changes.monitoringDefault = body.monitoringDefault
+  }
+
+  if (body?.cpuCores !== undefined) {
+    const { cores } = await akapela.hardware()
+    const cpuCores = parseCpuCores(body.cpuCores, cores)
+    if (cpuCores === null) throw createError({ statusCode: 400, statusMessage: invalidCpuCoresMessage(cores) })
+    changes.cpuCores = cpuCores
+  }
+
+  if (body?.separationModel !== undefined) {
+    if (!isSeparationModelName(body.separationModel)) {
+      throw createError({ statusCode: 400, statusMessage: INVALID_SEPARATION_MODEL_MESSAGE })
+    }
+    changes.separationModel = body.separationModel
+  }
+
+  if (body?.audioFormat !== undefined) {
+    if (!isAudioFormat(body.audioFormat)) {
+      throw createError({ statusCode: 400, statusMessage: INVALID_AUDIO_FORMAT_MESSAGE })
+    }
+    changes.audioFormat = body.audioFormat
+  }
+
+  if (body?.hardwareAcceleration !== undefined) {
+    if (typeof body.hardwareAcceleration !== 'boolean') {
+      throw createError({ statusCode: 400, statusMessage: INVALID_HARDWARE_ACCELERATION_MESSAGE })
+    }
+    changes.hardwareAcceleration = body.hardwareAcceleration
   }
 
   if (Object.keys(changes).length === 0) {

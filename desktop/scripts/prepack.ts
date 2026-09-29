@@ -81,11 +81,10 @@ function stageSeparators(): void {
     '--module', 'nodenext',
     '--moduleResolution', 'nodenext',
     '--target', 'es2022',
-    // The repo typechecks strict, and this has to agree with it. Without it
-    // `noImplicitAny` is off, the untyped `ndarray-fft` subpath import in
-    // `stft.ts` stops being an error, and the `@ts-expect-error` that guards
-    // it fails the build as an unused directive (TS2578) — a packaging-only
-    // failure that `pnpm typecheck` cannot see.
+    // The repo typechecks strict, and this has to agree with it, or code
+    // that is only an error under `strict` (a `@ts-expect-error` that only
+    // `noImplicitAny` makes necessary, say) fails here as an unused directive
+    // (TS2578) — a packaging-only failure that `pnpm typecheck` cannot see.
     '--strict',
     '--skipLibCheck',
     '--allowImportingTsExtensions',
@@ -103,9 +102,10 @@ function stageSeparators(): void {
   cpSync(join(repoRoot, 'server', 'lib', 'separators', 'package.json'), join(separators, 'package.json'))
   cpSync(join(repoRoot, 'server', 'lib', 'separators', 'pnpm-lock.yaml'), join(separators, 'pnpm-lock.yaml'))
   // `ONNXRUNTIME_NODE_INSTALL=skip` keeps its postinstall from reaching out to
-  // NuGet for a ~220MB CUDA execution provider this app never asks for —
-  // `mdx-net.ts` creates its session with `executionProviders: ['cpu']`. The
-  // Dockerfile's long comment is the full version of this.
+  // NuGet for a ~220MB CUDA execution provider no Desktop App uses — the
+  // Linux one separates on the CPU, and Windows and macOS use the DirectML and
+  // CoreML already in the package (ADR 0013 amendment). The Dockerfile's long
+  // comment is the full version of this.
   // `--node-linker=hoisted` is load-bearing, not a preference. pnpm's default
   // layout is a `node_modules/` of symlinks into `.pnpm/`, and every transitive
   // dependency exists *only* inside `.pnpm/`. electron-builder copies

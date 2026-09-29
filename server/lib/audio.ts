@@ -9,14 +9,17 @@ import {
   REVERB_AMOUNT_MIN,
   type EffectsTarget,
 } from '../../shared/adjustments'
+import { audioFormatOf } from './audio-files'
 import { childEnv, ffmpegPath, killOnAbort, rubberBandWasmPath, stretchCliPath } from './tools'
+import type { AudioFormat } from '../../shared/audio-format'
 
 /**
  * Thin wrappers over ffmpeg, ported from `worker/akapela_worker/audio.py`
  * (ticket 03/04 of `.scratch/worker-to-typescript/`; ffmpeg was always just a
  * subprocess call, never a Python-specific dependency).
  *
- * Every stored audio master is 44.1 kHz stereo WAV (ADR 0005).
+ * Every stored audio master is 44.1 kHz stereo 16-bit, in the Audio Format in
+ * force when it was written (ADR 0016).
  */
 
 export const BACKING_SAMPLE_RATE = 44100
@@ -50,10 +53,46 @@ function cleanFfmpegStderr(stderr: string): string {
     .join('\n')
 }
 
-/** Decodes any Source audio and writes it as the 44.1 kHz stereo 16-bit WAV Backing Track. */
+/**
+ * The ffmpeg output options that store 16-bit PCM in each Audio Format. FLAC
+ * keeps the 16 bits exactly, so a FLAC file decodes to the samples the WAV
+ * would have held.
+ */
+function codecArgs(format: AudioFormat): string[] {
+  switch (format) {
+    case 'wav': return ['-c:a', 'pcm_s16le']
+    case 'flac': return ['-c:a', 'flac', '-sample_fmt', 's16']
+    // Always 320 kbps CBR (ADR 0016). ffmpeg writes an Info frame carrying
+    // the LAME tag's encoder delay and padding, which is what lets a decoder —
+    // ffmpeg's, and the browser's — trim them and land on sample 0.
+    case 'mp3': return ['-c:a', 'libmp3lame', '-b:a', '320k']
+  }
+}
+
+function formatOfStored(path: string): AudioFormat {
+  const format = audioFormatOf(path)
+  if (!format) throw new AudioError(`${path} is not named as any Audio Format`)
+  return format
+}
+
+/** Where a file is written before it is renamed into place: beside it, same extension, so ffmpeg picks the same muxer. */
+function partPath(path: string): string {
+  const dot = path.lastIndexOf('.')
+  return `${path.slice(0, dot)}.part${path.slice(dot)}`
+}
+
+/** ffmpeg's own message, without the exit-code preamble `run` puts on it. */
+function ffmpegReason(error: AudioError): string {
+  return error.message.replace(/^ffmpeg exited \d+: /, '')
+}
+
+/**
+ * Decodes any Source audio and writes it as the 44.1 kHz stereo 16-bit
+ * Backing Track, in the Audio Format `dst`'s extension names.
+ */
 export async function normalizeToBackingTrack(src: string, dst: string, signal?: AbortSignal): Promise<void> {
   await mkdir(dirname(dst), { recursive: true })
-  const tmp = dst.replace(/\.wav$/, '.part.wav')
+  const tmp = partPath(dst)
   try {
     await run('ffmpeg', [
       '-y',
@@ -68,8 +107,7 @@ export async function normalizeToBackingTrack(src: string, dst: string, signal?:
       String(BACKING_CHANNELS),
       '-ar',
       String(BACKING_SAMPLE_RATE),
-      '-c:a',
-      'pcm_s16le',
+      ...codecArgs(formatOfStored(dst)),
       tmp,
     ], signal)
   }
@@ -80,6 +118,153 @@ export async function normalizeToBackingTrack(src: string, dst: string, signal?:
       : error
   }
   await rename(tmp, dst)
+}
+
+/**
+ * Stores a 16-bit WAV that Akapela wrote itself — a Stem, fresh from the
+ * separation — as `dst`, in the Audio Format its extension names. A WAV is
+ * only moved; anything else is re-encoded, and `src` removed once `dst`
+ * exists.
+ */
+export async function storeWavAs(src: string, dst: string, signal?: AbortSignal): Promise<void> {
+  const format = formatOfStored(dst)
+  if (format === 'wav') {
+    await rename(src, dst)
+    return
+  }
+  const tmp = partPath(dst)
+  try {
+    await run('ffmpeg', ['-y', '-nostdin', '-hide_banner', '-loglevel', 'error', '-i', src, ...codecArgs(format), tmp], signal)
+  }
+  catch (error) {
+    await rm(tmp, { force: true })
+    throw error instanceof AudioError ? new AudioError(`ffmpeg could not store ${dst}: ${ffmpegReason(error)}`) : error
+  }
+  await rename(tmp, dst)
+  await rm(src, { force: true })
+}
+
+/**
+ * A stored master or Stem as a 16-bit WAV at `dst`, for the two readers that
+ * only take WAV — the separation and the stretch subprocesses, which decode
+ * it themselves rather than linking a codec. The caller removes `dst`.
+ */
+export async function decodeToWav(src: string, dst: string, signal?: AbortSignal): Promise<void> {
+  try {
+    await run('ffmpeg', ['-y', '-nostdin', '-hide_banner', '-loglevel', 'error', '-i', src, '-c:a', 'pcm_s16le', dst], signal)
+  }
+  catch (error) {
+    await rm(dst, { force: true })
+    throw error instanceof AudioError ? new AudioError(`ffmpeg could not decode ${src}: ${ffmpegReason(error)}`) : error
+  }
+}
+
+/**
+ * The duration of a stored master or Stem, in milliseconds, read from the
+ * file's own header in whichever Audio Format it is. Never ffprobe.
+ */
+export async function audioDurationMs(path: string): Promise<number> {
+  switch (formatOfStored(path)) {
+    case 'wav': return wavDurationMs(path)
+    case 'flac': return flacDurationMs(path)
+    case 'mp3': return mp3DurationMs(path)
+  }
+}
+
+/**
+ * The duration of an MP3 file Akapela wrote, from its Xing/Info frame: the
+ * number of audio frames times the samples each holds, less the encoder delay
+ * and padding the LAME tag after it records — the samples a gapless decoder
+ * trims, and so exactly the source's own sample count. A file without that
+ * frame is refused rather than estimated from its bitrate.
+ */
+export async function mp3DurationMs(path: string): Promise<number> {
+  const fail = (why: string) => new AudioError(`could not read the duration of ${path}: ${why}`)
+  const handle = await open(path, 'r').catch((error: Error) => {
+    throw fail(error.message)
+  })
+  try {
+    const head = Buffer.alloc(10)
+    await handle.read(head, 0, 10, 0)
+    // An ID3v2 tag, if there is one, comes first: a synchsafe size, plus a
+    // footer when its flag says so.
+    let offset = 0
+    if (head.toString('latin1', 0, 3) === 'ID3') {
+      offset = 10 + ((head[6]! << 21) | (head[7]! << 14) | (head[8]! << 7) | head[9]!) + ((head[5]! & 0x10) ? 10 : 0)
+    }
+
+    const frame = Buffer.alloc(4 + 32 + 120 + 36)
+    const { bytesRead } = await handle.read(frame, 0, frame.length, offset)
+    if (bytesRead < 4) throw fail('it has no audio frames')
+    const header = frame.readUInt32BE(0)
+    if ((header >>> 21) !== 0x7FF) throw fail('it does not start with an MP3 frame')
+    const version = (header >>> 19) & 3
+    const layer = (header >>> 17) & 3
+    const channelMode = (header >>> 6) & 3
+    if (layer !== 1) throw fail('it is not MPEG layer III')
+    const mpeg1 = version === 3
+    const mono = channelMode === 3
+    const sideInfo = mpeg1 ? (mono ? 17 : 32) : (mono ? 9 : 17)
+
+    let at = 4 + sideInfo
+    const tag = frame.toString('latin1', at, at + 4)
+    if (tag !== 'Xing' && tag !== 'Info') throw fail('it has no Xing or Info frame to say how long it is')
+    const flags = frame.readUInt32BE(at + 4)
+    at += 8
+    if (!(flags & 1)) throw fail('its Info frame does not count its frames')
+    const frames = frame.readUInt32BE(at)
+    at += 4
+    if (flags & 2) at += 4
+    if (flags & 4) at += 100
+    if (flags & 8) at += 4
+
+    // The LAME tag: bytes 21-23 hold 12 bits of delay, then 12 of padding.
+    let delay = 0
+    let padding = 0
+    if (bytesRead >= at + 24) {
+      delay = (frame[at + 21]! << 4) | (frame[at + 22]! >> 4)
+      padding = ((frame[at + 22]! & 0x0F) << 8) | frame[at + 23]!
+    }
+
+    const sampleRates = mpeg1 ? [44100, 48000, 32000] : version === 2 ? [22050, 24000, 16000] : [11025, 12000, 8000]
+    const sampleRate = sampleRates[(header >>> 10) & 3]
+    if (!sampleRate) throw fail('its sample rate is not one MP3 has')
+    const samples = frames * (mpeg1 ? 1152 : 576) - delay - padding
+    return Math.round((samples / sampleRate) * 1000)
+  }
+  finally {
+    await handle.close()
+  }
+}
+
+/**
+ * The duration of a FLAC file, from its `STREAMINFO` block: the total number
+ * of samples over the sample rate, both fixed fields in the block every FLAC
+ * file starts with. ffmpeg fills the total in once it has finished writing,
+ * which is always the case for a file Akapela stored.
+ */
+export async function flacDurationMs(path: string): Promise<number> {
+  const fail = (why: string) => new AudioError(`could not read the duration of ${path}: ${why}`)
+  const handle = await open(path, 'r').catch((error: Error) => {
+    throw fail(error.message)
+  })
+  try {
+    // "fLaC", a 4-byte block header, then STREAMINFO's 34 bytes.
+    const head = Buffer.alloc(42)
+    const { bytesRead } = await handle.read(head, 0, 42, 0)
+    if (bytesRead < 42 || head.toString('ascii', 0, 4) !== 'fLaC') throw fail('it is not a FLAC file')
+    if ((head[4]! & 0x7F) !== 0) throw fail('its first block is not STREAMINFO')
+    // Bytes 18-25 of the file: 20 bits of sample rate, 3 of channels, 5 of
+    // bits per sample, then 36 of total samples.
+    const sampleRate = (head[18]! << 12) | (head[19]! << 4) | (head[20]! >> 4)
+    const totalSamples = (head[21]! & 0x0F) * 2 ** 32 + head.readUInt32BE(22)
+    if (sampleRate === 0) throw fail('its sample rate is zero')
+    if (totalSamples === 0) throw fail('it does not say how long it is')
+    return Math.round((totalSamples / sampleRate) * 1000)
+  }
+  finally {
+    await handle.close()
+  }
 }
 
 /**
@@ -331,12 +516,20 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
   await mkdir(dirname(dstMp3), { recursive: true })
 
   const stretchedWav = dstMp3.replace(/\.mp3$/, '.stretched.part.wav')
+  const decodedBackingWav = dstMp3.replace(/\.mp3$/, '.backing.part.wav')
   const tmpWav = dstMp3.replace(/\.mp3$/, '.part.wav')
   try {
     let backingInput = backing
     if (tempo !== 1 || pitch !== 1) {
+      // The stretch reads WAV only; a master stored in another format is
+      // decoded for it first. ffmpeg, below, reads every format as it is.
+      let stretchInput = backing
+      if (formatOfStored(backing) !== 'wav') {
+        stretchInput = decodedBackingWav
+        await decodeToWav(backing, decodedBackingWav, signal)
+      }
       try {
-        await runStretch(backing, stretchedWav, 1 / tempo, pitch, signal)
+        await runStretch(stretchInput, stretchedWav, 1 / tempo, pitch, signal)
       }
       catch (error) {
         throw error instanceof AudioError
@@ -371,6 +564,7 @@ export async function renderMix(options: RenderMixOptions): Promise<void> {
   }
   finally {
     await rm(stretchedWav, { force: true })
+    await rm(decodedBackingWav, { force: true })
   }
 
   const tmpMp3 = dstMp3.replace(/\.mp3$/, '.part.mp3')

@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `cpu_cores` integer;

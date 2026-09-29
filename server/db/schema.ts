@@ -10,6 +10,8 @@ import {
 import { BACKING_SOURCES, DEFAULT_BACKING_SOURCE } from '../../shared/backing-source'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
+import { SEPARATION_MODEL_NAMES } from '../lib/separators/models'
+import { AUDIO_FORMATS, DEFAULT_AUDIO_FORMAT } from '../../shared/audio-format'
 
 export const JOB_TYPES = ['noop', 'import', 'render', 'separate'] as const
 export type JobType = (typeof JOB_TYPES)[number]
@@ -44,6 +46,20 @@ export const jobs = sqliteTable('jobs', {
    * AppHost. Telemetry only; nothing reads it to decide anything.
    */
   traceParent: text('trace_parent'),
+  /**
+   * The Separation Model a separate Job was asked for with, fixed when it was
+   * asked for: a Playlist Import that queued thirty keeps the model it asked
+   * for even if the default changes while they wait. Null on every other type,
+   * and on separate Jobs queued before there was a choice, which ran
+   * `Inst_Main` (`../lib/separators/models.ts`).
+   */
+  separationModel: text('separation_model', { enum: SEPARATION_MODEL_NAMES }),
+  /**
+   * One line about what the Job is doing or did that its state and progress
+   * cannot say — "Downloading Inst_HQ_3" while a model arrives. Null when
+   * there is nothing to add.
+   */
+  detail: text('detail'),
 })
 
 export type Job = typeof jobs.$inferSelect
@@ -93,6 +109,13 @@ export const tracks = sqliteTable('tracks', {
    * extracts from it. Delete Stems (ticket 04) will put it back to `original`.
    */
   backingSource: text('backing_source', { enum: BACKING_SOURCES }).notNull().default(DEFAULT_BACKING_SOURCE),
+  /**
+   * The Separation Model that made this Track's Stems, written together with
+   * them when a Separation succeeds. Null for Stems made before there was a
+   * choice, which only `Inst_Main` could have made, and read as that; and
+   * meaningless without Stems, which the files on disk decide (`hasStems`).
+   */
+  stemsModel: text('stems_model', { enum: SEPARATION_MODEL_NAMES }),
   /** The last Adjustments used on this Track, restored when it is opened again. */
   adjustments: text('adjustments', { mode: 'json' })
     .$type<Adjustments>()
@@ -284,6 +307,24 @@ export const settings = sqliteTable('settings', {
   micProcessingDefault: integer('mic_processing_default', { mode: 'boolean' }).notNull().default(false),
   /** Whether Monitoring starts on for a new recording session. */
   monitoringDefault: integer('monitoring_default', { mode: 'boolean' }).notNull().default(false),
+  /**
+   * How many cores a Separation may use, as the singer chose it. Null until
+   * they choose, which reads as all cores but one; clamped to the machine when
+   * read rather than when saved (`shared/separation.ts`).
+   */
+  cpuCores: integer('cpu_cores'),
+  /** The Separation Model a Separation is asked for with unless it names another. Null reads as `Inst_Main`. */
+  separationModel: text('separation_model', { enum: SEPARATION_MODEL_NAMES }),
+  /**
+   * The Audio Format a Backing Track master or Stem is stored in when it is
+   * written (ADR 0016). Files already written keep theirs.
+   */
+  audioFormat: text('audio_format', { enum: AUDIO_FORMATS }).notNull().default(DEFAULT_AUDIO_FORMAT),
+  /**
+   * Whether a Separation runs on the GPU backend this machine has, when it has
+   * one. On until the singer turns it off; read when each Separation starts.
+   */
+  hardwareAcceleration: integer('hardware_acceleration', { mode: 'boolean' }).notNull().default(true),
   updatedAt: integer('updated_at').notNull(),
 })
 

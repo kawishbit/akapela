@@ -55,7 +55,7 @@ Roughly in order. Details in [ROADMAP.md](ROADMAP.md).
 - [x] Jobs page: see and manage everything that's processing
 - [x] Queue: line up songs to sing
 - [x] Connect the desktop app to your own server
-- [ ] Vocal removal: choice of model, GPU support, smaller files
+- [x] Vocal removal: choice of model, GPU support, smaller files
 - [ ] Spotify playlist import
 - [ ] More languages
 - [ ] Automatic lyrics timing

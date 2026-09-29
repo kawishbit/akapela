@@ -17,7 +17,9 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { decodeWav, encodeWav } from './app/audio/wav'
-import { MdxNetModel } from './server/lib/separators/mdx-net'
+import { availableParallelism } from 'node:os'
+import { MdxNetModel, UVR_MDX_NET_INST_MAIN_CONFIG } from './server/lib/separators/mdx-net'
+import { createCpuSession } from './server/lib/separators/session'
 
 async function main(): Promise<void> {
   const [modelPath, clipPath, referencePath] = process.argv.slice(2)
@@ -31,7 +33,7 @@ async function main(): Promise<void> {
   const right = Float64Array.from(channels[1] ?? channels[0]!)
   console.log(`clip: ${clipPath} (${sampleRate}Hz, ${left.length} samples, ${(left.length / sampleRate).toFixed(2)}s)`)
 
-  const model = new MdxNetModel(modelPath)
+  const model = new MdxNetModel(UVR_MDX_NET_INST_MAIN_CONFIG, await createCpuSession(modelPath, availableParallelism()))
   console.log('running TS separation pipeline...')
   const started = Date.now()
   const [outLeft, outRight] = await model.separateInstrumental([left, right])

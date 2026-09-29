@@ -1,5 +1,6 @@
-import { createError, defineEventHandler } from 'h3'
+import { createError, defineEventHandler, readBody } from 'h3'
 import { requireTrack } from '../../../lib/require-track'
+import { INVALID_SEPARATION_MODEL_MESSAGE, isSeparationModelName } from '../../../lib/separators/models'
 import { startSeparation } from '../../../lib/tracks'
 
 /**
@@ -8,8 +9,12 @@ import { startSeparation } from '../../../lib/tracks'
  * a karaoke video needs none of it. A Track that already has Stems may be
  * separated again — that is the escape hatch when a better model lands — so the
  * only state that refuses is a separation already under way.
+ *
+ * `separationModel` names the Separation Model to run; left out, it is the
+ * default in Settings at this moment, and stays that even if the default
+ * changes before the Separation starts.
  */
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   const track = requireTrack(event)
   if (track.importState !== 'ready') {
     throw createError({ statusCode: 409, statusMessage: 'A Track can only be separated once it has imported' })
@@ -17,5 +22,10 @@ export default defineEventHandler((event) => {
   if (track.separationState === 'separating') {
     throw createError({ statusCode: 409, statusMessage: 'This Track is already separating' })
   }
-  return startSeparation(event.context.akapela, track)
+  const body = (await readBody(event).catch(() => null)) as { separationModel?: unknown } | null
+  const requested = body?.separationModel
+  if (requested !== undefined && !isSeparationModelName(requested)) {
+    throw createError({ statusCode: 400, statusMessage: INVALID_SEPARATION_MODEL_MESSAGE })
+  }
+  return startSeparation(event.context.akapela, track, requested)
 })

@@ -1,6 +1,6 @@
 # Spec: Separation — models, acceleration, storage
 
-Status: ready-for-agent
+Status: done
 
 `ROADMAP.md`, item 1. Capitalised terms (Separation, Separation Model, Stems, Track, Take, Job, Lane, Audio Format, Desktop App, Connected) are defined in `CONTEXT.md`. Decisions are recorded in ADR 0016 (Audio Format, superseding 0005), ADR 0013's amendment (acceleration and resources), and ADR 0008's amendment (the Separation Model catalog and the correlation rule).
 
@@ -10,14 +10,15 @@ One ticket per file under [`issues/`](issues/), numbered in the order they shoul
 
 | # | Ticket | Status | Blocked by |
 | - | ------ | ------ | ---------- |
-| 01 | [A core limit, and a Separation that yields](issues/01-core-limit-and-priority.md) | ready-for-agent | — |
-| 02 | [The Separation Model catalog](issues/02-separation-model-catalog.md) | ready-for-agent | — |
-| 03 | [Separate again with another Separation Model](issues/03-separate-again.md) | ready-for-agent | 02 |
-| 04 | [Hardware acceleration in the Desktop App](issues/04-acceleration-desktop.md) | ready-for-agent | 01 |
-| 05 | [Hardware acceleration in Docker, on NVIDIA](issues/05-acceleration-docker-nvidia.md) | ready-for-agent | 04 |
-| 06 | [Audio Format: FLAC](issues/06-audio-format-flac.md) | ready-for-agent | — |
-| 07 | [Audio Format: MP3](issues/07-audio-format-mp3.md) | ready-for-agent | 06 |
-| 08 | [Using every core](issues/08-using-every-core.md) | ready-for-agent | 01 |
+| 01 | [A core limit, and a Separation that yields](issues/01-core-limit-and-priority.md) | done | — |
+| 02 | [The Separation Model catalog](issues/02-separation-model-catalog.md) | done | — |
+| 03 | [Separate again with another Separation Model](issues/03-separate-again.md) | done | 02 |
+| 04 | [Hardware acceleration in the Desktop App](issues/04-acceleration-desktop.md) | done | 01 |
+| 05 | [Hardware acceleration in Docker, on NVIDIA](issues/05-acceleration-docker-nvidia.md) | done | 04 |
+| 06 | [Audio Format: FLAC](issues/06-audio-format-flac.md) | done | — |
+| 07 | [Audio Format: MP3](issues/07-audio-format-mp3.md) | done | 06 |
+| 08 | [Using every core](issues/08-using-every-core.md) | done | 01 |
+| 09 | [The STFT's sign convention](issues/09-stft-sign-convention.md) | needs-triage | — |
 
 01, 02, and 06 are independent starting points. 08 lands last on purpose. It's the one change that alters the separation arithmetic itself, and it comes after the settings people asked for.
 

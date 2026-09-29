@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { createServer, type Server } from 'node:http'
 import { createApp, createRouter, eventHandler, toNodeListener } from 'h3'
 import { createAkapela } from '../../server/lib/akapela'
+import type { Hardware } from '../../server/lib/hardware'
 import { traceRequestAs } from '../../server/lib/request-trace'
 import type { SongMatch } from '../../server/lyrics/provider'
 import type { BrowserLogEntry } from '../../shared/browser-log'
@@ -97,7 +98,7 @@ async function listenOnAPortFetchWillTalkTo(server: Server): Promise<number> {
  * then the file-based handlers run. The Lyrics Provider is a fake, so no test
  * touches the network.
  */
-export async function createTestApi() {
+export async function createTestApi(options: { hardware?: Hardware } = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), 'akapela-test-'))
   const lrclib = createFakeLyricsProvider('lrclib')
   const genius = createFakeLyricsProvider('genius')
@@ -107,6 +108,8 @@ export async function createTestApi() {
     migrationsDir: join(process.cwd(), 'server/db/migrations'),
     lyricsProviders: [lrclib.provider, genius.provider],
     fetch: images.fetch,
+    // A fixed machine, so what Settings says about it does not depend on the one running the suite.
+    hardware: async () => options.hardware ?? { cores: 8, accelerator: null },
   })
 
   // Telemetry is off in every real test run, so the relay's sink stands in for
@@ -289,8 +292,12 @@ export async function createTestApi() {
       this.finishJob(jobId, state, error)
       if (state === 'succeeded') {
         akapela.sqlite
-          .prepare(`UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental' WHERE id = ?`)
-          .run(trackId)
+          .prepare(
+            `UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental',
+               stems_model = (SELECT separation_model FROM jobs WHERE id = ?)
+             WHERE id = ?`,
+          )
+          .run(jobId, trackId)
       }
       else {
         akapela.sqlite.prepare(`UPDATE tracks SET separation_state = 'failed' WHERE id = ?`).run(trackId)

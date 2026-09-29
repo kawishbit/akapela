@@ -66,3 +66,13 @@ export function probe(path: string): ProbeInfo {
   ])
   return JSON.parse(result.stdout.toString())
 }
+
+/** The same audio a WAV holds, re-stored as FLAC beside it, the way a library switched to FLAC would have it. */
+export function flacOf(wavPath: string, flacPath: string): void {
+  mkdirSync(dirname(flacPath), { recursive: true })
+  const result = spawnSync('ffmpeg', [
+    '-y', '-nostdin', '-hide_banner', '-loglevel', 'error',
+    '-i', wavPath, '-c:a', 'flac', '-sample_fmt', 's16', flacPath,
+  ])
+  if (result.status !== 0) throw new Error(`fixture ffmpeg failed: ${result.stderr}`)
+}

@@ -2,6 +2,7 @@
 import { AudioLines, CircleCheck, Loader2, Trash2, XCircle } from 'lucide-vue-next'
 import { BACKING_SOURCES, BACKING_SOURCE_LABELS, type BackingSource } from '~~/shared/backing-source'
 import type { TrackDetail } from '~~/server/lib/tracks'
+import type { SeparationModelName } from '~~/server/lib/separators/models'
 
 const props = defineProps<{ track: TrackDetail }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -24,7 +25,10 @@ function stopTicking() {
   ticker = undefined
 }
 onMounted(() => {
-  watch(separating, (running) => {
+  watch(separating, (running, wasRunning) => {
+    // A Separation that ran may have downloaded its model, which the
+    // Separation Model options say.
+    if (wasRunning && !running) void refreshSettings()
     stopTicking()
     now.value = running ? Date.now() : null
     if (running) ticker = setInterval(() => (now.value = Date.now()), 1000)
@@ -39,7 +43,8 @@ const separatingLabel = computed(() => {
   // the singer asked, which may have been behind another job in the queue.
   const since = job.startedAt ?? job.createdAt
   const elapsed = now.value === null ? '' : ` · ${formatDuration(now.value - since)}`
-  return `Separating… ${job.progress}%${elapsed}`
+  // A model's first use downloads it, which the Job says in its own words.
+  return `${job.detail ?? 'Separating'}… ${job.progress}%${elapsed}`
 })
 
 const failure = computed(() => errorSummary(props.track.separationJob?.error, 'Separation failed'))
@@ -72,6 +77,29 @@ async function ask(request: () => Promise<unknown>) {
 
 function separate(path: 'separate' | 'separate/retry') {
   return ask(() => $fetch<unknown>(`/api/tracks/${props.track.id}/${path}`, { method: 'POST' }))
+}
+
+/**
+ * Separate again is a choice of the other models, never the one that made
+ * these Stems. The Stems stay playable until the new ones exist, so choosing
+ * costs nothing but the wait.
+ */
+const { separationModels, refresh: refreshSettings } = useSettings()
+const choosingModel = ref(false)
+const otherModels = computed(() => otherSeparationModels(separationModels.value, props.track.stemsModel))
+
+async function separateAgainWith(separationModel: SeparationModelName) {
+  await ask(() => $fetch<unknown>(`/api/tracks/${props.track.id}/separate`, { method: 'POST', body: { separationModel } }))
+  if (!actionError.value) choosingModel.value = false
+}
+
+function onSeparateClicked() {
+  if (state.value === 'failed') return separate('separate/retry')
+  if (state.value === 'ready' && props.track.hasStems) {
+    choosingModel.value = !choosingModel.value
+    return
+  }
+  return separate('separate')
 }
 
 const pendingDeleteStems = ref(false)
@@ -155,7 +183,7 @@ function useSource(backingSource: BackingSource) {
         class="flex min-w-0 flex-1 items-center gap-2 text-sm text-text-muted"
       >
         <CircleCheck class="size-4 shrink-0 text-accent" />
-        This Track has an Instrumental Stem and a Vocals Stem.
+        Separated with {{ track.stemsModel }}: an Instrumental Stem and a Vocals Stem.
       </p>
       <p
         v-else-if="state === 'failed'"
@@ -165,6 +193,11 @@ function useSource(backingSource: BackingSource) {
       >
         <XCircle class="size-4 shrink-0" />
         {{ failure }}
+        <!-- A failed Separation again leaves the Stems it meant to replace. -->
+        <span
+          v-if="track.hasStems"
+          class="text-text-muted"
+        >Still on the Stems {{ track.stemsModel }} made.</span>
       </p>
       <p
         v-else
@@ -179,7 +212,8 @@ function useSource(backingSource: BackingSource) {
         type="button"
         class="flex h-12 shrink-0 items-center gap-2 rounded-pill bg-surface-mid px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card disabled:opacity-60"
         :disabled="busy"
-        @click="separate(state === 'failed' ? 'separate/retry' : 'separate')"
+        :aria-expanded="state === 'ready' && track.hasStems ? choosingModel : undefined"
+        @click="onSeparateClicked"
       >
         <Loader2
           v-if="busy"
@@ -190,6 +224,31 @@ function useSource(backingSource: BackingSource) {
           class="size-4"
         />
         {{ state === 'failed' ? 'Retry separation' : state === 'ready' ? 'Separate again' : 'Separate' }}
+      </button>
+    </div>
+
+    <div
+      v-if="choosingModel && !separating"
+      class="mt-3 flex flex-col gap-1"
+      role="group"
+      aria-label="Separate again with"
+    >
+      <p class="text-sm text-text-muted">
+        Separate again with another Separation Model. These Stems stay until the new ones are ready.
+      </p>
+      <button
+        v-for="model in otherModels"
+        :key="model.name"
+        type="button"
+        class="flex min-h-12 flex-col items-start rounded-[6px] bg-surface-mid px-4 py-2 text-left text-text transition hover:bg-card disabled:opacity-60"
+        :disabled="busy"
+        @click="separateAgainWith(model.name)"
+      >
+        <span class="flex w-full items-baseline justify-between gap-3">
+          <span class="text-sm font-bold">{{ model.name }}</span>
+          <span class="shrink-0 text-xs text-text-muted">{{ separationModelAvailability(model) }}</span>
+        </span>
+        <span class="text-sm text-text-muted">{{ model.description }}</span>
       </button>
     </div>
 

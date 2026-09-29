@@ -1,11 +1,10 @@
-import { existsSync, rmSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { mixes, type Job, type JobType } from '../db/schema'
 import { enqueueJob, getJob, laneOf, type Lane } from './jobs'
 import { retryMix } from './mixes'
 import {
-  BACKING_SOURCE_FILES,
   deleteTrack,
   getTrack,
   retryImport,
@@ -13,6 +12,8 @@ import {
   trackDir,
 } from './tracks'
 import type { Akapela } from './akapela'
+import { findAudioFile, INSTRUMENTAL_BASENAME } from './audio-files'
+import { DEFAULT_SEPARATION_MODEL } from './separators/models'
 
 /**
  * What the singer can do to a Job from the Jobs page — cancel it, retry it,
@@ -62,6 +63,8 @@ interface JobListRow {
   started_at: number | null
   finished_at: number | null
   trace_parent: string | null
+  separation_model: string | null
+  detail: string | null
   track_id: string | null
   track_title: string | null
   track_artist: string | null
@@ -81,7 +84,7 @@ export function listJobs(akapela: Akapela): JobListEntry[] {
   const rows = akapela.sqlite
     .prepare(
       `SELECT j.id, j.type, j.target_id, j.state, j.progress, j.error, j.created_at,
-         j.started_at, j.finished_at, j.trace_parent,
+         j.started_at, j.finished_at, j.trace_parent, j.separation_model, j.detail,
          tr.id AS track_id, tr.title AS track_title, tr.artist AS track_artist, tr.updated_at AS track_updated_at,
          tk.id AS take_id, tk.created_at AS take_created_at,
          (SELECT count(*) FROM takes t2 WHERE t2.track_id = tk.track_id
@@ -106,6 +109,8 @@ export function listJobs(akapela: Akapela): JobListEntry[] {
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     traceParent: row.trace_parent,
+    separationModel: row.separation_model as Job['separationModel'],
+    detail: row.detail,
     lane: laneOf(row.type as JobType),
     track: row.track_id === null
       ? null
@@ -149,7 +154,7 @@ function undoJob(akapela: Akapela, job: Job): void {
     case 'separate': {
       // No `cancelled` Separation state: back to having Stems if the Track
       // was being re-separated, and to never having been asked if not.
-      const hasStems = existsSync(join(trackDir(akapela, targetId), BACKING_SOURCE_FILES.instrumental))
+      const hasStems = findAudioFile(trackDir(akapela, targetId), INSTRUMENTAL_BASENAME) !== null
       akapela.sqlite
         .prepare(`UPDATE tracks SET separation_state = ?, updated_at = ? WHERE id = ?`)
         .run(hasStems ? 'ready' : 'none', Date.now(), targetId)
@@ -197,7 +202,8 @@ export function retryJob(akapela: Akapela, job: Job): Job {
     case 'separate': {
       const track = job.targetId ? getTrack(akapela, job.targetId) : undefined
       if (!track) throw gone()
-      return startSeparation(akapela, track).separationJob
+      // Asked again with what it was asked for, not whatever the default is now.
+      return startSeparation(akapela, track, job.separationModel ?? DEFAULT_SEPARATION_MODEL).separationJob
     }
     case 'render': {
       const mix = job.targetId

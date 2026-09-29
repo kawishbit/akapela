@@ -31,7 +31,7 @@ This was not re-validated against the real Python/torch path the way ticket 05 v
 
 ## Amendment: a catalog of Separation Models
 
-The one model is now a picked **Separation Model** from a curated MDX-Net catalog: `Inst_Main` (the default, and the only one until now), `Inst_HQ_3`, and the others the catalog ticket verifies (`Inst_HQ_4` and `Kim_Vocal_2` are the candidates). Each entry is a config block plus an ONNX file downloaded into `cache/` the first time a Separation needs it, with that Separation's Job showing the download. Each config is checked the way the one above was, against `audio-separator`'s hash-keyed registry and the ONNX graph's declared shape. A config can't be guessed.
+The one model is now a picked **Separation Model** from a curated MDX-Net catalog: `Inst_Main` (the default, and the only one until now), `Inst_HQ_3`, `Inst_HQ_4`, and `Kim_Vocal_2`, all four verified on 2026-09-28 (`server/lib/separators/models.ts`). `Kim_Vocal_2`'s own output is the Vocals Stem, not the Instrumental, so the pipeline takes which Stem is primary from the catalog too. Each entry is a config block plus an ONNX file, checked against its hash, downloaded into `cache/` the first time a Separation needs it, with that Separation's Job showing the download. Each config is checked the way the one above was, against `audio-separator`'s hash-keyed registry and the ONNX graph's declared shape. A config can't be guessed.
 
 Only MDX-Net, because every model in that family runs through the existing pipeline. VR Arch, Demucs, MDX23C, and Roformer each need a pipeline of their own, and some would need ONNX exports we produce ourselves. Roformer is where separation quality is today, so it's listed under Explore in `ROADMAP.md`, as its own spike.
 

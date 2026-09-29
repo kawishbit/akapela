@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path'
 /**
  * Puts the ffmpeg an installer will carry into
  * `desktop/vendor/<platform>-<arch>/`. Only ffmpeg: the app reads durations
- * from the headers of the WAVs it writes, so ffprobe, a second full copy of
+ * from the headers of the files it writes, so ffprobe, a second full copy of
  * every codec, is left in the archive rather than shipped for nothing.
  *
  * ffmpeg is bundled and yt-dlp is not, and the asymmetry is the point

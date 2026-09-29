@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ArrowLeft, CloudDownload, CloudUpload, ExternalLink, FolderOpen, Headphones, Loader2, Monitor, Moon, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
+import { ArrowLeft, CloudDownload, CloudUpload, Cpu, Gauge, ExternalLink, FolderOpen, Headphones, Loader2, Minus, Monitor, Moon, Plus, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
 import { LYRICS_PROVIDER_LABELS, type LyricsProviderName } from '~~/shared/lyrics'
+import { AUDIO_FORMAT_DESCRIPTIONS, AUDIO_FORMAT_LABELS } from '~~/shared/audio-format'
 import { RELEASES_URL } from '~/utils/update-prompt'
 import { THEME_PREFERENCES, THEME_PREFERENCE_LABELS, type ThemePreference } from '~/utils/theme'
 
@@ -10,12 +11,34 @@ const {
   micProcessingDefault,
   monitoringDefault,
   ytDlpUpdatable,
+  cpuCores,
+  hardware,
+  separationModel,
+  separationModels,
+  hardwareAcceleration,
+  audioFormat,
+  audioFormats,
   saving,
   saveError,
   setDefaultLyricsProvider,
   setMicProcessingDefault,
   setMonitoringDefault,
+  setCpuCores,
+  setSeparationModel,
+  setAudioFormat,
+  setHardwareAcceleration,
+  refresh: refreshSettings,
 } = useSettings()
+
+// The settings are fetched once per app load, and a Separation since then may
+// have downloaded a Separation Model, so ask again for what's downloaded now.
+onMounted(() => void refreshSettings())
+
+/** Whose hardware every Separation choice is about — the server's, even from a Connected Desktop App. */
+const hardwareLine = computed(() => {
+  const { cores, gpu } = hardware.value
+  return `On this server: ${cores} ${cores === 1 ? 'core' : 'cores'}, ${gpu ? `GPU: ${gpu}` : 'no GPU found'}`
+})
 
 const { isDesktop, version: desktopVersion, libraryDir, chooseLibraryDir, revealLibraryDir, openExternal } = useDesktop()
 const {
@@ -264,6 +287,151 @@ useHead({ title: 'Settings · Akapela' })
           >
             <Headphones class="size-3.5" />
             Monitoring {{ monitoringDefault ? 'on' : 'off' }}
+          </button>
+        </div>
+      </section>
+
+      <section class="rounded-[8px] bg-surface p-4 sm:p-5">
+        <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+          Separation
+        </h2>
+        <p class="mt-1 text-sm text-text-muted">
+          How vocal removal runs. These describe the machine Akapela runs on, which may not be the one
+          you're looking at.
+        </p>
+        <p class="mt-3 flex items-center gap-2 text-sm font-bold">
+          <Cpu class="size-4 shrink-0 text-text-muted" />
+          {{ hardwareLine }}
+        </p>
+
+        <h3 class="mt-4 text-sm font-bold">
+          CPU cores
+        </h3>
+        <p class="mt-1 text-sm text-text-muted">
+          How many cores a Separation may use. Leaving one free keeps recording smooth while a Track
+          separates on the same machine. A change applies from the next Separation to start.
+        </p>
+        <div class="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
+            :disabled="saving || cpuCores <= 1"
+            aria-label="One core fewer"
+            @click="setCpuCores(cpuCores - 1)"
+          >
+            <Minus class="size-5" />
+          </button>
+          <output
+            class="min-w-24 text-center text-2xl font-bold tabular-nums"
+            aria-live="polite"
+          >{{ cpuCores }} <span class="text-sm font-normal text-text-muted">of {{ hardware.cores }}</span></output>
+          <button
+            type="button"
+            class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
+            :disabled="saving || cpuCores >= hardware.cores"
+            aria-label="One core more"
+            @click="setCpuCores(cpuCores + 1)"
+          >
+            <Plus class="size-5" />
+          </button>
+        </div>
+
+        <!-- Only where a GPU backend was proven to work here. A Connected
+             Desktop App on a laptop with a GPU, pointed at a server with none,
+             shows nothing, because the server is what separates. -->
+        <template v-if="hardware.gpu">
+          <h3 class="mt-4 text-sm font-bold">
+            Hardware acceleration
+          </h3>
+          <p class="mt-1 text-sm text-text-muted">
+            Separate on the GPU. If it fails partway through, the Separation carries on and finishes on
+            the CPU. A change applies from the next Separation to start.
+          </p>
+          <button
+            type="button"
+            class="mt-3 inline-flex h-12 items-center gap-1.5 rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition disabled:opacity-60"
+            :class="hardwareAcceleration ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
+            :aria-pressed="hardwareAcceleration"
+            :disabled="saving"
+            @click="setHardwareAcceleration(!hardwareAcceleration)"
+          >
+            <Gauge class="size-3.5" />
+            {{ hardware.gpu }} {{ hardwareAcceleration ? 'on' : 'off' }}
+          </button>
+        </template>
+
+        <h3 class="mt-4 text-sm font-bold">
+          Separation Model
+        </h3>
+        <p class="mt-1 text-sm text-text-muted">
+          What a Track is separated with unless you pick another for it. None come with Akapela: each
+          Separation Model downloads the first time it's used. A Separation already waiting keeps the
+          one it was asked for.
+        </p>
+        <div
+          class="mt-3 flex flex-col gap-1"
+          role="radiogroup"
+          aria-label="Separation Model"
+        >
+          <button
+            v-for="model in separationModels"
+            :key="model.name"
+            type="button"
+            role="radio"
+            class="flex min-h-12 flex-col items-start rounded-[6px] px-4 py-2 text-left transition disabled:opacity-60"
+            :class="model.name === separationModel ? 'bg-text text-ground' : 'bg-surface-mid text-text hover:bg-card'"
+            :aria-checked="model.name === separationModel"
+            :disabled="saving"
+            @click="model.name !== separationModel && setSeparationModel(model.name)"
+          >
+            <span class="flex w-full items-baseline justify-between gap-3">
+              <span class="text-sm font-bold">{{ model.name }}</span>
+              <span
+                class="shrink-0 text-xs"
+                :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
+              >{{ separationModelAvailability(model) }}</span>
+            </span>
+            <span
+              class="text-sm"
+              :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
+            >{{ model.description }}</span>
+          </button>
+        </div>
+
+      </section>
+
+      <section class="rounded-[8px] bg-surface p-4 sm:p-5">
+        <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+          Storage
+        </h2>
+        <h3 class="mt-3 text-sm font-bold">
+          Audio Format
+        </h3>
+        <p class="mt-1 text-sm text-text-muted">
+          What each Track's Backing Track and Stems are stored as on the server. Applies to files written
+          from now on; what's already there stays as it is. Takes and Mixes aren't affected.
+        </p>
+        <div
+          class="mt-3 flex flex-col gap-1"
+          role="radiogroup"
+          aria-label="Audio Format"
+        >
+          <button
+            v-for="format in audioFormats"
+            :key="format"
+            type="button"
+            role="radio"
+            class="flex min-h-12 flex-col items-start rounded-[6px] px-4 py-2 text-left transition disabled:opacity-60"
+            :class="format === audioFormat ? 'bg-text text-ground' : 'bg-surface-mid text-text hover:bg-card'"
+            :aria-checked="format === audioFormat"
+            :disabled="saving"
+            @click="format !== audioFormat && setAudioFormat(format)"
+          >
+            <span class="text-sm font-bold">{{ AUDIO_FORMAT_LABELS[format] }}</span>
+            <span
+              class="text-sm"
+              :class="format === audioFormat ? 'text-ground/80' : 'text-text-muted'"
+            >{{ AUDIO_FORMAT_DESCRIPTIONS[format] }}</span>
           </button>
         </div>
       </section>

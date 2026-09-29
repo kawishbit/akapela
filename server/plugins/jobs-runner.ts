@@ -1,4 +1,5 @@
-import { JobsRunner, type Lane } from '../lib/jobs-runner'
+import { DEFAULT_HANDLERS, JobsRunner, type Lane } from '../lib/jobs-runner'
+import { MdxNetSeparator, separateHandler } from '../lib/jobs/separate'
 import { useAkapela } from '../lib/use-akapela'
 import type { Telemetry } from '../lib/telemetry'
 
@@ -25,7 +26,11 @@ export default defineNitroPlugin((nitroApp) => {
   const lanes: Lane[] = ['heavy', 'light']
   const loop = loadTelemetry()
     .then((telemetry) => {
+      // The separate Job asks the same hardware detection Settings shows, so
+      // the two can never disagree about what this machine has.
+      const handlers = { ...DEFAULT_HANDLERS, separate: separateHandler(new MdxNetSeparator(), akapela.hardware) }
       const runners = lanes.map(lane => new JobsRunner(akapela.sqlite, akapela.dataDir, {
+        handlers,
         telemetry,
         lane,
         running: akapela.runningJobs,

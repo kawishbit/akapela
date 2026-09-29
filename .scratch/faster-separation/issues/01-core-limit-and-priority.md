@@ -9,13 +9,15 @@
 
 **Blocked by:** —
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The core limit is saved, clamped to the machine, and defaults to cores − 1 (minimum 1)
-- [ ] The Separation's ONNX session uses exactly that many intra-op threads
-- [ ] The subprocess runs below normal priority on Linux, macOS, and Windows
-- [ ] A change to the limit affects the next Separation to start, not the one running
-- [ ] The Settings line names the hosting machine's core count, including when Connected
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] The core limit is saved, clamped to the machine, and defaults to cores − 1 (minimum 1)
+- [x] The Separation's ONNX session uses exactly that many intra-op threads
+- [x] The subprocess runs below normal priority on Linux, macOS, and Windows
+- [x] A change to the limit affects the next Separation to start, not the one running
+- [x] The Settings line names the hosting machine's core count, including when Connected
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+- 2026-09-29: The limit is `settings.cpu_cores` (null reads as cores − 1), clamped on read by `cpuCoresFor` in `shared/separation.ts`, so a value saved on bigger hardware returns if the hardware does. The separate Job reads it when it starts and passes `--threads` to `separate-cli.ts`, whose session is built by `cpuSessionOptions`. The CLI lowers its own priority before opening the model, so on Linux ONNX Runtime's pool inherits the nice value. A failure becomes a `notice` line that the Job logs once per process. Checked by hand on Windows: the running CLI shows `PriorityClass BelowNormal`. Linux and macOS go through the same `os.setPriority` call but weren't run by hand.

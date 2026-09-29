@@ -1,6 +1,7 @@
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type Database from 'better-sqlite3'
+import { DEFAULT_AUDIO_FORMAT, type AudioFormat } from '../../../shared/audio-format'
 
 /**
  * What every Job handler that touches a Track's own directory shares:
@@ -11,11 +12,19 @@ import type Database from 'better-sqlite3'
  * handler actually has.
  */
 
-/** Where a Track's normalized Backing Track WAV lives, relative to its own directory. */
-export const BACKING_TRACK_FILE = 'backing.wav'
-
 export function trackDir(dataDir: string, trackId: string): string {
   return join(dataDir, 'tracks', trackId)
+}
+
+/**
+ * The Audio Format a file written now is stored in (ADR 0016), read when it is
+ * written rather than when its Job was asked for: it changes how the file is
+ * kept, never what it sounds like.
+ */
+export function audioFormatNow(sqlite: Database.Database): AudioFormat {
+  const row = sqlite.prepare(`SELECT audio_format FROM settings WHERE id = 1`).get() as
+    { audio_format: AudioFormat } | undefined
+  return row?.audio_format ?? DEFAULT_AUDIO_FORMAT
 }
 
 export function trackExists(sqlite: Database.Database, trackId: string): boolean {
