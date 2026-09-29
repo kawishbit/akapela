@@ -37,6 +37,8 @@ Paste a Spotify playlist link; Akapela lists its songs, finds each one on YouTub
 
 On what's known today, (b) and (c) can't import the playlists people most want to sing through, so (a) is the likely route and (b)/(c) only a fallback for one's own playlists.
 
+Spec and tickets in `.scratch/spotify-import/`, which settle the open question (route (a)) and revise the decisions above. Ticket 09 brings this section up to date.
+
 ## 2. More languages
 
 **Decided** (ADR 0014)
