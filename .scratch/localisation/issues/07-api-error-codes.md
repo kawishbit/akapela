@@ -8,12 +8,20 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] No route hands the UI an English sentence as the thing a singer reads
-- [ ] A 500 from an uncaught exception shows "Something went wrong" with Details
-- [ ] Nothing in `app/` reads `statusMessage` directly for display anymore
-- [ ] The key-coverage test passes with every new code
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] No route hands the UI an English sentence as the thing a singer reads
+- [x] A 500 from an uncaught exception shows "Something went wrong" with Details
+- [x] Nothing in `app/` reads `statusMessage` directly for display anymore
+- [x] The key-coverage test passes with every new code
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Done.**
+
+- Every `createError` in `server/api/` and the `require-*` helpers goes through `apiError(status, failure(code), statusMessage)` (`server/lib/api-error.ts`), and the English `statusMessage` is unchanged.
+- Codes are shared where the singer's next step is the same. The `*NotFound` family covers something deleted elsewhere. `invalidRequest` covers what the app's own screens never send, and keeps its English as Details.
+- `JobActionRefused` and `LyricsProviderError` carry their own codes.
+- In `app/`, `describeError()` is the only place that reads `statusMessage`, and only as Details. `error.vue` goes through it too.
+- `tests/api/error-codes.test.ts` checks the body shape through the real routes. The cover tests check `coverTooLarge`'s parameter.

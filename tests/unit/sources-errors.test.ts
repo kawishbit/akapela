@@ -7,6 +7,7 @@ describe('ytDlpFailure', () => {
   test('a video YouTube hands over to nobody is unavailable, whatever yt-dlp version', () => {
     for (const stderr of [
       'ERROR: [youtube] abc: Video unavailable',
+      'ERROR: [youtube] aaaaaaaaaaa: This video is unavailable',
       'ERROR: [youtube] abc: Private video. Sign in if you\'ve been granted access',
       'ERROR: [youtube] abc: Sign in to confirm your age.',
     ]) {

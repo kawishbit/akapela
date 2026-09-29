@@ -8,11 +8,13 @@ Don't add Indonesian here. `id.json` is ticket 08, done once every key exists.
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] No hardcoded user-facing English is left in the listed files (aria-labels and `title` attributes included)
-- [ ] With `id.json` stubbed to a few keys, the screens render with English fallback and no raw keys
-- [ ] The key-coverage test passes
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] No hardcoded user-facing English is left in the listed files (aria-labels and `title` attributes included)
+- [x] With `id.json` stubbed to a few keys, the screens render with English fallback and no raw keys
+- [x] The key-coverage test passes
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Done.** Every listed file uses `t()`. Counts use plural forms, and sentences that had a name or link in the middle go through one key with a placeholder, or `<i18n-t>` with a slot. Page titles go through `app.pageTitle`. The file types in the Library's empty state are listed with `Intl.ListFormat`, so "or" is in the Language too.

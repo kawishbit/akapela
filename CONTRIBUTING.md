@@ -48,7 +48,7 @@ Every word the app shows lives in `i18n/locales/` (ADR 0014), never in a compone
 - Lyrics, Track titles and artists, and names the singer typed are passed in as parameters and never translated.
 - A failure the server sends has a code in `shared/error-codes.ts` and words under `errors.` in `en.json`; the browser shows it through `ErrorMessage.vue`.
 
-Translating into a Language starts from `i18n/glossary.md`, which fixes one rendering for each `CONTEXT.md` term. `node scripts/i18n-completeness.ts` reports which keys each Language is missing.
+Translating into a Language starts from `i18n/glossary.md`, which fixes one rendering for each `CONTEXT.md` term. `pnpm i18n:completeness` reports which keys each Language is missing, and which it still has that English no longer does.
 
 ## Where to read next
 

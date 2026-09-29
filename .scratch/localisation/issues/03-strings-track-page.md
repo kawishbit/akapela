@@ -8,11 +8,13 @@ Don't add Indonesian here. `id.json` is ticket 08, done once every key exists.
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] No hardcoded user-facing English is left in the listed files (aria-labels and `title` attributes included)
-- [ ] With `id.json` stubbed to a few keys, the screens render with English fallback and no raw keys
-- [ ] The key-coverage test passes
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] No hardcoded user-facing English is left in the listed files (aria-labels and `title` attributes included)
+- [x] With `id.json` stubbed to a few keys, the screens render with English fallback and no raw keys
+- [x] The key-coverage test passes
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Done.** The Separation Model descriptions moved into `en.json` under `separationModels.descriptions.<name>`, and a test checks that every model in the catalog has one. The model names themselves stay as they are. A Lyrics Provider failure on a Track now also comes back as `lyricsFailure` (a code), next to the English `lyricsError`.

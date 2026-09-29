@@ -12,16 +12,33 @@
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Opening the app with an Indonesian browser selects Indonesian, and a Malay or French browser selects English
-- [ ] Picking a Language survives a reload and renders server-side in that Language (no flash of English)
-- [ ] Picking Automatic clears the cookie, and the browser's language applies again
-- [ ] Two devices can hold different Languages at once
-- [ ] URLs have no Language prefix
-- [ ] `<html lang>` matches the chosen Language
-- [ ] A date on the Settings or Jobs page follows the chosen Language, not the browser's locale
-- [ ] The key-coverage test fails when a referenced key is missing from `en.json`
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Opening the app with an Indonesian browser selects Indonesian, and a Malay or French browser selects English
+- [x] Picking a Language survives a reload and renders server-side in that Language (no flash of English)
+- [x] Picking Automatic clears the cookie, and the browser's language applies again
+- [x] Two devices can hold different Languages at once
+- [x] URLs have no Language prefix
+- [x] `<html lang>` matches the chosen Language
+- [x] A date on the Settings or Jobs page follows the chosen Language, not the browser's locale
+- [x] The key-coverage test fails when a referenced key is missing from `en.json`
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Done.**
+
+- `@nuxtjs/i18n` with `i18n/locales/en.json` and `id.json`, lazy-loaded, `strategy: 'no_prefix'`.
+- The module's own browser detection is off, because it writes its cookie as soon as it detects a Language, and then Automatic could never be told apart from a choice. `app/plugins/language.ts` settles the Language through the `i18n:beforeLocaleSwitch` hook instead: the `akapela-language` cookie when there is one, `Accept-Language` on the server otherwise. The browser takes the server's answer from the payload, so the page renders in the Language with no flash of English.
+- `app/utils/language.ts` holds the rules, with unit tests. The first of the browser's languages that Akapela has wins, `id`/`id-*` is Indonesian, and `ms`, `fr` and anything else fall to English.
+- `useLanguage()` backs the picker on the Settings page. Automatic clears the cookie and switches to the browser's Language. `<html lang>` follows it, in `app.vue` and `error.vue`.
+- Dates: `formatDate(ms, locale)` and `takeLabel(take, t, locale)`. The test checks that Indonesian writes `14.03` whatever the browser's locale.
+- Key coverage (`tests/unit/i18n-keys.test.ts`) is a static scan of `app/`, since it has to run without building Nuxt. How the scan works is written at the top of the file.
+- Checked in Chrome against the dev server:
+  - an `id` Accept-Language renders Indonesian on the server, and `ms-MY` renders English;
+  - the cookie wins over the header;
+  - no `Set-Cookie` is sent until the singer picks;
+  - picking survives a reload;
+  - Automatic clears the cookie.
+
+One hydration warning from `AddToQueueDialog` (a comment node on the server, a div in the browser) appeared on reload. It comes from its `<Teleport>`, not from the Language.

@@ -10,14 +10,14 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 
 | # | Ticket | Status | Blocked by |
 | - | ------ | ------ | ---------- |
-| 01 | [i18n plumbing and the Language picker](issues/01-plumbing-and-picker.md) | ready-for-agent | — |
-| 02 | [Strings: the Library and the app's shell](issues/02-strings-library-and-shell.md) | ready-for-agent | 01 |
-| 03 | [Strings: the Track page](issues/03-strings-track-page.md) | ready-for-agent | 01 |
-| 04 | [Strings: singing and review](issues/04-strings-sing-and-review.md) | ready-for-agent | 01 |
-| 05 | [Strings: Queue, Jobs, and Settings](issues/05-strings-queue-jobs-settings.md) | ready-for-agent | 01 |
-| 06 | [Error codes for Jobs](issues/06-job-error-codes.md) | ready-for-agent | 01 |
-| 07 | [Error codes for API routes](issues/07-api-error-codes.md) | ready-for-agent | 06 |
-| 08 | [Draft `id.json`, the glossary, and the completeness report](issues/08-indonesian-draft.md) | ready-for-agent | 02, 03, 04, 05, 07 |
+| 01 | [i18n plumbing and the Language picker](issues/01-plumbing-and-picker.md) | done | — |
+| 02 | [Strings: the Library and the app's shell](issues/02-strings-library-and-shell.md) | done | 01 |
+| 03 | [Strings: the Track page](issues/03-strings-track-page.md) | done | 01 |
+| 04 | [Strings: singing and review](issues/04-strings-sing-and-review.md) | done | 01 |
+| 05 | [Strings: Queue, Jobs, and Settings](issues/05-strings-queue-jobs-settings.md) | done | 01 |
+| 06 | [Error codes for Jobs](issues/06-job-error-codes.md) | done | 01 |
+| 07 | [Error codes for API routes](issues/07-api-error-codes.md) | done | 06 |
+| 08 | [Draft `id.json`, the glossary, and the completeness report](issues/08-indonesian-draft.md) | done | 02, 03, 04, 05, 07 |
 | 09 | [Review Indonesian](issues/09-review-indonesian.md) | ready-for-human | 08 |
 
 Start with 01. 02–06 can land in any order on top of it, and 07 builds on the code list from 06. 08 waits until every string and code is in `en.json`. Everything is on one branch, `feature/localisation`, which merges only after 09.

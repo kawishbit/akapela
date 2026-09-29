@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
+import { createI18n } from 'vue-i18n'
 import en from '../../i18n/locales/en.json'
 import { ERROR_CODES, type ErrorCode } from '../../shared/error-codes'
 
@@ -105,5 +106,37 @@ describe('the scan itself', () => {
     expect(scanReferences(source, 'x.vue').map(ref => `${ref.kind}:${ref.key}`)).toEqual([
       'string:a.b', 'string:c.d', 'string:e', 'any:f', 'group:g.h', 'string:i.j',
     ])
+  })
+})
+
+describe('every other Language', () => {
+  const dir = join(root, 'i18n/locales')
+  const others = readdirSync(dir).filter(name => name.endsWith('.json') && name !== 'en.json')
+
+  function strings(messages: unknown, prefix = ''): [string, string][] {
+    return Object.entries(messages as Record<string, unknown>).flatMap(([key, value]) => {
+      const path = prefix ? `${prefix}.${key}` : key
+      return typeof value === 'string' ? [[path, value] as [string, string]] : strings(value, path)
+    })
+  }
+
+  const placeholders = (message: string) => new Set([...message.matchAll(/\{(\w+)\}/g)].map(match => match[1]))
+
+  test.each(others)('%s uses only the placeholders English fills in', (file) => {
+    const wrong = strings(JSON.parse(readFileSync(join(dir, file), 'utf8')))
+      .filter(([key, message]) => {
+        const english = lookup(key)
+        if (typeof english !== 'string') return false
+        const allowed = placeholders(english)
+        return [...placeholders(message)].some(name => !allowed.has(name))
+      })
+      .map(([key]) => key)
+    expect(wrong).toEqual([])
+  })
+
+  test.each(['en.json', ...others])('%s compiles', (file) => {
+    const messages = JSON.parse(readFileSync(join(dir, file), 'utf8'))
+    const i18n = createI18n({ legacy: false, locale: 'x', messages: { x: messages }, missingWarn: false })
+    for (const [key] of strings(messages)) expect(() => i18n.global.t(key, { count: 2 })).not.toThrow()
   })
 })

@@ -190,7 +190,7 @@ function jsRuntimeAdvice(): string {
  * version: private, removed, age-gated, members-only, or blocked by country.
  * Updating yt-dlp won't help any of these, so they get their own code.
  */
-const VIDEO_UNAVAILABLE = /video unavailable|private video|video is private|been removed|no longer available|not available in your country|confirm your age|sign in to confirm|members-only|join this channel/i
+const VIDEO_UNAVAILABLE = /video (?:is )?(?:unavailable|not available|private)|private video|been removed|no longer available|not available in your country|confirm your age|sign in to confirm|members-only|join this channel/i
 
 /** yt-dlp prefixes its messages with `ERROR:`; the card already says the import failed. */
 function cleanYtDlpMessage(stderr: string, exitCode: number | null): string {

@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "icons:generate": "node scripts/icons.ts"
+    "icons:generate": "node scripts/icons.ts",
+    "i18n:completeness": "node scripts/i18n-completeness.ts"
   },
   "dependencies": {
     "@nuxtjs/i18n": "^10.6.0",
