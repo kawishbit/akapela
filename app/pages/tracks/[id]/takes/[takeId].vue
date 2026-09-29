@@ -447,6 +447,12 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('review.pageT
               :aria-valuetext="formatGain(state.backingGain)"
               @input="onBackingGainInput"
             >
+            <p
+              v-if="state.backingSource === 'stems'"
+              class="mt-1 text-xs text-text-muted"
+            >
+              {{ t('review.backingVolumeHint') }}
+            </p>
           </div>
 
           <p class="text-xs text-text-muted">
@@ -595,6 +601,12 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('review.pageT
           <p class="mt-1 text-xs text-text-muted">
             {{ t('review.backingSourceHint') }}
           </p>
+          <StemLevelSliders
+            v-if="state.backingSource === 'stems'"
+            class="mt-4"
+            :levels="state.stemLevels"
+            @change="review.setStemLevels($event)"
+          />
         </div>
 
         <div class="rounded-[6px] bg-surface-mid px-3 py-2">

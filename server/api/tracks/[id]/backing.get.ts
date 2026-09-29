@@ -1,28 +1,53 @@
 import { defineEventHandler, getQuery } from 'h3'
-import { INVALID_BACKING_SOURCE_MESSAGE, parseBackingSource } from '../../../../shared/backing-source'
+import {
+  INVALID_BACKING_SOURCE_MESSAGE,
+  INVALID_STEM_MESSAGE,
+  parseBackingSource,
+  parseStem,
+  type TrackAudioFile,
+} from '../../../../shared/backing-source'
 import { sendFile } from '../../../lib/files'
 import { requireTrack } from '../../../lib/require-track'
 import { audioContentType } from '../../../lib/audio-files'
-import { backingTrackPath } from '../../../lib/tracks'
+import { trackAudioPath } from '../../../lib/tracks'
 import { apiError } from '../../../lib/api-error'
 import { failure } from '../../../../shared/error-codes'
 
 /**
- * The Backing Track, in whichever Audio Format it was stored, with range support so the browser can seek and decode
- * it. Which file that is comes from the Track's Backing Source, so switching it
- * changes what every player fetches next; `?source=original|instrumental` names
- * one for a single request instead.
+ * One of the Track's stored audio files, in whichever Audio Format it was
+ * stored, with range support so the browser can seek and decode it.
+ *
+ * `?stem=instrumental|vocals` names one Stem: a Backing Source of `stems` is
+ * two files, blended by the player at the Stem Levels, so the browser fetches
+ * each one it needs by name. `?source=original|stems` names a Backing Source
+ * instead, `stems` standing for its Instrumental Stem. With neither, the
+ * Track's own Backing Source is served, so what a plain fetch plays follows
+ * the switch.
  */
 export default defineEventHandler((event) => {
   const track = requireTrack(event)
-  const requested = getQuery(event).source
-  let source
-  try {
-    source = requested === undefined ? track.backingSource : parseBackingSource(requested)
+  const query = getQuery(event)
+
+  let file: TrackAudioFile
+  if (query.stem !== undefined) {
+    try {
+      file = parseStem(query.stem)
+    }
+    catch {
+      throw apiError(400, failure('invalidRequest'), INVALID_STEM_MESSAGE)
+    }
   }
-  catch {
-    throw apiError(400, failure('invalidRequest'), INVALID_BACKING_SOURCE_MESSAGE)
+  else {
+    let source
+    try {
+      source = query.source === undefined ? track.backingSource : parseBackingSource(query.source)
+    }
+    catch {
+      throw apiError(400, failure('invalidRequest'), INVALID_BACKING_SOURCE_MESSAGE)
+    }
+    file = source === 'original' ? 'original' : 'instrumental'
   }
-  const path = backingTrackPath(event.context.akapela, track, source)
+
+  const path = trackAudioPath(event.context.akapela, track, file)
   return sendFile(event, path, audioContentType(path))
 })

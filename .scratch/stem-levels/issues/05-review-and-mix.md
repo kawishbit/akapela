@@ -11,11 +11,11 @@
 
 **Blocked by:** 01, 02, 03
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Review opens with the Take's recorded Backing Source and Stem Levels
-- [ ] Changing levels on Review is heard live and is saved with the review
-- [ ] A Mix requested from Review or the Takes panel carries the levels, and the rendered file reflects them
-- [ ] A Take sung to Original can be mixed against Stems at 0/100
-- [ ] English and Indonesian strings
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Review opens with the Take's recorded Backing Source and Stem Levels
+- [x] Changing levels on Review is heard live and is saved with the review
+- [x] A Mix requested from Review or the Takes panel carries the levels, and the rendered file reflects them
+- [x] A Take sung to Original can be mixed against Stems at 0/100
+- [x] English and Indonesian strings
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass

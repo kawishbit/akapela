@@ -92,3 +92,33 @@ export function zeroCrossingFrequency(path: string, startSeconds: number, endSec
   }
   return crossings / ((endFrame - startFrame) / info.sampleRate)
 }
+
+/**
+ * Amplitude of one frequency in a 16-bit PCM WAV's first channel between two
+ * timestamps, by the Goertzel algorithm: how loud a single known tone is in a
+ * sum of several, in the same units as a sample.
+ */
+export function toneAmplitude(path: string, frequency: number, startSeconds: number, endSeconds: number): number {
+  const buffer = readFileSync(path)
+  const info = readWavInfo(buffer)
+  if (info.bitsPerSample !== 16) throw new Error(`expected 16-bit PCM, got ${info.bitsPerSample}-bit`)
+
+  const bytesPerFrame = info.channels * 2
+  const totalFrames = Math.floor(info.dataLength / bytesPerFrame)
+  const startFrame = Math.max(0, Math.round(startSeconds * info.sampleRate))
+  const endFrame = Math.min(totalFrames, Math.round(endSeconds * info.sampleRate))
+  const n = endFrame - startFrame
+  if (n <= 0) return 0
+
+  const coefficient = 2 * Math.cos((2 * Math.PI * frequency) / info.sampleRate)
+  let previous = 0
+  let beforePrevious = 0
+  for (let frame = startFrame; frame < endFrame; frame++) {
+    const sample = buffer.readInt16LE(info.dataOffset + frame * bytesPerFrame)
+    const current = sample + coefficient * previous - beforePrevious
+    beforePrevious = previous
+    previous = current
+  }
+  const power = previous * previous + beforePrevious * beforePrevious - coefficient * previous * beforePrevious
+  return (2 * Math.sqrt(Math.max(power, 0))) / n
+}

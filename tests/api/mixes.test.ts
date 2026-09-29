@@ -51,7 +51,8 @@ async function separatedTrackWithTake() {
   mkdirSync(join(api.dataDir, 'tracks', track.id), { recursive: true })
   writeFileSync(join(api.dataDir, 'tracks', track.id, 'instrumental.wav'), 'the instrumental')
   api.finishSeparation(track.id, separationJob.id, 'succeeded')
-  // Sung against the original, so an instrumental request is genuinely an override.
+  writeFileSync(join(api.dataDir, 'tracks', track.id, 'vocals.wav'), 'the vocals')
+  // Sung against the original, so a Stems request is genuinely an override.
   await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
   const take = await (await api.uploadTake(track.id, TAKE_WAV_BYTES, { ...TAKE_META, backingSource: 'original' })).json()
   return { track, take }
@@ -135,26 +136,65 @@ describe('requesting a Mix', () => {
     expect(detail.mixes[0].takeId).toBe(take.id)
   })
 
-  test('overrides the Take\'s own Backing Source when the Track has an Instrumental Stem to sing over', async () => {
+  test('overrides the Take\'s own Backing Source when the Track has Stems to sing over', async () => {
     const { track, take } = await separatedTrackWithTake()
     expect(take.backingSource).toBe('original')
 
     const mix = await (await api.requestMix(track.id, take.id, {
       ...MIX_REQUEST,
-      backingSource: 'instrumental',
+      backingSource: 'stems',
     })).json()
-    expect(mix.backingSource).toBe('instrumental')
+    expect(mix.backingSource).toBe('stems')
 
     // Switching the Track back afterwards does not reach the Mix already made.
     await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
     const list = await (await api.get(`/api/tracks/${track.id}/takes/${take.id}/mixes`)).json()
-    expect(list.find((m: { id: string }) => m.id === mix.id).backingSource).toBe('instrumental')
+    expect(list.find((m: { id: string }) => m.id === mix.id).backingSource).toBe('stems')
   })
 
-  test('rejects an instrumental override on a Track with no Stems and creates no Mix', async () => {
+  test('carries the Stem Levels it was asked for, whatever the Take was sung at', async () => {
+    const { track, take } = await separatedTrackWithTake()
+
+    const mix = await (await api.requestMix(track.id, take.id, {
+      ...MIX_REQUEST,
+      backingSource: 'stems',
+      stemLevels: { guideVocal: 0, instrumental: 1 },
+    })).json()
+    expect(mix).toMatchObject({ backingSource: 'stems', stemLevels: { guideVocal: 0, instrumental: 1 } })
+
+    const guided = await (await api.requestMix(track.id, take.id, {
+      ...MIX_REQUEST,
+      backingSource: 'stems',
+      stemLevels: { guideVocal: 0.25, instrumental: 0.5 },
+    })).json()
+    const list = await (await api.get(`/api/tracks/${track.id}/takes/${take.id}/mixes`)).json()
+    expect(list.find((m: { id: string }) => m.id === guided.id).stemLevels).toEqual({ guideVocal: 0.25, instrumental: 0.5 })
+  })
+
+  test('a request that names no Stem Levels, as from before there were any, gets the default ones', async () => {
+    const { track, take } = await separatedTrackWithTake()
+
+    const mix = await (await api.requestMix(track.id, take.id, { ...MIX_REQUEST, backingSource: 'instrumental' })).json()
+    expect(mix).toMatchObject({ backingSource: 'stems', stemLevels: { guideVocal: 0, instrumental: 1 } })
+  })
+
+  test('refuses Stem Levels outside 0 to 1 and creates no Mix', async () => {
+    const { track, take } = await separatedTrackWithTake()
+
+    const res = await api.requestMix(track.id, take.id, {
+      ...MIX_REQUEST,
+      backingSource: 'stems',
+      stemLevels: { guideVocal: 2, instrumental: 1 },
+    })
+    expect(res.status).toBe(400)
+    expect(res.statusText).toMatch(/Stem Levels from 0 to 1/)
+    expect(await (await api.get(`/api/tracks/${track.id}/takes/${take.id}/mixes`)).json()).toEqual([])
+  })
+
+  test('rejects a Stems override on a Track with no Stems and creates no Mix', async () => {
     const { track, take } = await createTrackWithTake()
 
-    const res = await api.requestMix(track.id, take.id, { ...MIX_REQUEST, backingSource: 'instrumental' })
+    const res = await api.requestMix(track.id, take.id, { ...MIX_REQUEST, backingSource: 'stems' })
     expect(res.status).toBe(409)
     expect(await (await api.get(`/api/tracks/${track.id}/takes/${take.id}/mixes`)).json()).toEqual([])
   })

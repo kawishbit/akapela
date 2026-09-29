@@ -1,6 +1,6 @@
 # Spec: Stem Levels
 
-Status: ready-for-agent
+Status: done
 
 Capitalised terms (Backing Source, Backing Track, Stems, Stem Levels, Guide Vocal, Separation, Take, Mix, Adjustments) are defined in `CONTEXT.md`.
 
@@ -10,12 +10,12 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 
 | # | Ticket | Status | Blocked by |
 | - | ------ | ------ | ---------- |
-| 01 | [Backing Source is Original or Stems, with Stem Levels](issues/01-domain-and-storage.md) | ready-for-agent | — |
-| 02 | [The Mix blends the Stems before the stretch](issues/02-mix-render.md) | ready-for-agent | 01 |
-| 03 | [The browser engine blends the Stems before Rubber Band](issues/03-browser-engine.md) | ready-for-agent | 01 |
-| 04 | [Sliders on the Track page and the Sing screen](issues/04-track-and-sing-sliders.md) | ready-for-agent | 01, 03 |
-| 05 | [Stem Levels on Review and in the Mix](issues/05-review-and-mix.md) | ready-for-agent | 01, 02, 03 |
-| 06 | [ADR 0003 amendment and docs](issues/06-adr-and-docs.md) | ready-for-agent | 01 |
+| 01 | [Backing Source is Original or Stems, with Stem Levels](issues/01-domain-and-storage.md) | done | — |
+| 02 | [The Mix blends the Stems before the stretch](issues/02-mix-render.md) | done | 01 |
+| 03 | [The browser engine blends the Stems before Rubber Band](issues/03-browser-engine.md) | done | 01 |
+| 04 | [Sliders on the Track page and the Sing screen](issues/04-track-and-sing-sliders.md) | done | 01, 03 |
+| 05 | [Stem Levels on Review and in the Mix](issues/05-review-and-mix.md) | done | 01, 02, 03 |
+| 06 | [ADR 0003 amendment and docs](issues/06-adr-and-docs.md) | done | 01 |
 
 01 comes first. 02, 03, and 06 can land in any order after it. 04 and 05 need the engine (03), and 05 also needs the render (02).
 

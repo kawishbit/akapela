@@ -3,7 +3,7 @@ import { EffectsChain } from './effects-chain'
 import { BackingTrackEngine } from './engine'
 import { takeSongPosition } from './song-time'
 import type { Take } from '~~/server/db/schema'
-import type { BackingSource } from '~~/shared/backing-source'
+import { DEFAULT_STEM_LEVELS, type BackingSource, type StemLevels } from '~~/shared/backing-source'
 
 export interface ReviewEngineListener {
   /** A fresh position report, as milliseconds elapsed since the Take's start position. */
@@ -47,6 +47,7 @@ export class TakeReviewEngine {
   private trackId = ''
   private adjustments: Adjustments | undefined
   private backingSource: BackingSource = 'original'
+  private stemLevels: StemLevels = { ...DEFAULT_STEM_LEVELS }
   private startPositionMs = 0
   private takeDurationMs = 0
   private tempoPercent = 100
@@ -60,16 +61,17 @@ export class TakeReviewEngine {
   async load(
     trackId: string,
     vocalUrl: string,
-    take: Pick<Take, 'startPositionMs' | 'durationMs' | 'adjustments' | 'backingSource'>,
+    take: Pick<Take, 'startPositionMs' | 'durationMs' | 'adjustments' | 'backingSource' | 'stemLevels'>,
   ): Promise<void> {
     this.trackId = trackId
     this.adjustments = take.adjustments
     this.backingSource = take.backingSource
+    this.stemLevels = { ...take.stemLevels }
     this.startPositionMs = take.startPositionMs
     this.takeDurationMs = take.durationMs
     this.tempoPercent = take.adjustments.tempoPercent
 
-    await this.backing.load(this.backingUrl(take.backingSource), take.adjustments)
+    await this.backing.load(trackId, { source: take.backingSource, stemLevels: this.stemLevels }, take.adjustments)
     const context = this.backing.audioContext!
     this.backing.seek(this.startPositionMs)
 
@@ -86,10 +88,6 @@ export class TakeReviewEngine {
     this.vocalEffects = new EffectsChain(context, this.backing.impulseResponse!)
     this.vocalEffects.output.connect(this.vocalGainNode)
     this.applyVocalEffects(take.adjustments)
-  }
-
-  private backingUrl(source: BackingSource): string {
-    return `/api/tracks/${this.trackId}/backing?source=${source}`
   }
 
   /**
@@ -126,9 +124,15 @@ export class TakeReviewEngine {
     this.backing.pause()
     this.stopVocal()
     this.playing = false
-    await this.backing.load(this.backingUrl(source), this.adjustments, resumeAtMs)
+    await this.backing.load(this.trackId, { source, stemLevels: this.stemLevels }, this.adjustments, resumeAtMs)
     this.backingSource = source
     if (wasPlaying) await this.play()
+  }
+
+  /** Changes the Stem Levels live, as on the persistent player; on Original they wait for a switch to Stems. */
+  setStemLevels(levels: StemLevels): void {
+    this.stemLevels = { ...levels }
+    this.backing.setStemLevels(levels)
   }
 
   /**

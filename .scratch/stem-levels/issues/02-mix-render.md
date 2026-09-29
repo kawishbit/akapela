@@ -13,11 +13,11 @@ The duration used for placement comes from the Stems' headers as it does today. 
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A Mix at 0/100 renders the same as a pre-change `instrumental` Mix (compare in `tests/unit/jobs/render.test.ts`)
-- [ ] A Mix at 50/100 contains the Vocals Stem at half level (for example, check the Vocals Stem's energy is present using fixture tones)
-- [ ] Both at 0 renders, with a silent backing and the vocal present
-- [ ] Adjusted tempo or pitch stretches the blend once, not each Stem
-- [ ] A missing Stem fails the Job with a clear message and code
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] A Mix at 0/100 renders the same as a pre-change `instrumental` Mix (compare in `tests/unit/jobs/render.test.ts`)
+- [x] A Mix at 50/100 contains the Vocals Stem at half level (for example, check the Vocals Stem's energy is present using fixture tones)
+- [x] Both at 0 renders, with a silent backing and the vocal present
+- [x] Adjusted tempo or pitch stretches the blend once, not each Stem
+- [x] A missing Stem fails the Job with a clear message and code
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass

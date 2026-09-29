@@ -2,7 +2,7 @@ import { BackingTrackEngine } from '~/audio/engine'
 import { DEFAULT_VOLUME, VolumeStore } from '~/audio/volume'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '~~/shared/adjustments'
-import { DEFAULT_BACKING_SOURCE, type BackingSource } from '~~/shared/backing-source'
+import { DEFAULT_BACKING_SOURCE, DEFAULT_STEM_LEVELS, type BackingSource, type StemLevels } from '~~/shared/backing-source'
 
 import type { ErrorText } from '~/utils/errors'
 /** What the player bar needs to know about the Track it holds. */
@@ -22,6 +22,12 @@ export interface PlayerState {
    * change — the one Adjustment that is.
    */
   backingSource: BackingSource
+  /**
+   * How loud each Stem is when the Backing Source is Stems. Unlike the source,
+   * a live change: a gain on the blend, with no reload. Remembered on the Track
+   * whatever the source, like the Adjustments.
+   */
+  stemLevels: StemLevels
   /** Fetching and decoding the Backing Track, including while switching Backing Source. */
   loading: boolean
   error: ErrorText | null
@@ -35,16 +41,17 @@ export interface PlayerState {
    * rather than on the Track. Never sent to the server.
    */
   volume: number
-  /** The last failure to remember Adjustments on the Track; playback carries on regardless. */
+  /** The last failure to remember Adjustments or Stem Levels on the Track; playback carries on regardless. */
   saveError: ErrorText | null
 }
 
 const SAVE_DEBOUNCE_MS = 300
 
-// One engine, one animation loop, one pending save, and one remembered volume per browser window.
+// One engine, one animation loop, one pending save of each kind, and one remembered volume per browser window.
 let engine: BackingTrackEngine | undefined
 let frameLoop: number | undefined
-let pendingSave: { timer: ReturnType<typeof setTimeout>, run: () => void } | undefined
+type SaveKind = 'adjustments' | 'stemLevels'
+const pendingSaves = new Map<SaveKind, { timer: ReturnType<typeof setTimeout>, run: () => void }>()
 const volumeStore = new VolumeStore()
 
 /**
@@ -56,6 +63,7 @@ export function usePlayer() {
   const state = useState<PlayerState>('player', () => ({
     track: null,
     backingSource: DEFAULT_BACKING_SOURCE,
+    stemLevels: { ...DEFAULT_STEM_LEVELS },
     loading: false,
     error: null,
     playing: false,
@@ -101,11 +109,6 @@ export function usePlayer() {
     frameLoop = requestAnimationFrame(tick)
   }
 
-  /** The stream URL naming one of a Track's audio files, rather than whichever it happens to be on. */
-  function backingUrl(trackId: string, source: BackingSource): string {
-    return `/api/tracks/${trackId}/backing?source=${source}`
-  }
-
   /** Makes a ready Track the player's current one and loads its Backing Track, without starting playback. */
   async function open(track: TrackWithJob): Promise<void> {
     if (import.meta.server) return
@@ -121,13 +124,16 @@ export function usePlayer() {
       state.value.track = display
       // The Track's Backing Source moved under a Track that is already loaded:
       // either the singer switched it, or a separation finished and flipped it
-      // onto the Instrumental Stem it just wrote. Both are a reload.
+      // onto the Stems it just wrote. Both are a reload. Its Stem Levels are
+      // not taken from it here: the player is where they change, and a Track
+      // fetched before the last save landed would put the sliders back.
       if (track.backingSource !== state.value.backingSource) await switchBackingSource(track.backingSource)
       return
     }
     flushSave()
     state.value.track = display
     state.value.backingSource = track.backingSource
+    state.value.stemLevels = { ...track.stemLevels }
     state.value.adjustments = { ...track.adjustments }
     state.value.positionMs = 0
     state.value.durationMs = track.durationMs ?? 0
@@ -136,7 +142,11 @@ export function usePlayer() {
     state.value.error = null
     state.value.saveError = null
     try {
-      const durationMs = await getEngine().load(backingUrl(track.id, track.backingSource), track.adjustments)
+      const durationMs = await getEngine().load(
+        track.id,
+        { source: track.backingSource, stemLevels: track.stemLevels },
+        track.adjustments,
+      )
       if (durationMs === null) return
       state.value.durationMs = durationMs
       state.value.loading = false
@@ -180,7 +190,12 @@ export function usePlayer() {
     state.value.loading = true
     state.value.error = null
     try {
-      const durationMs = await getEngine().load(backingUrl(trackId, backingSource), state.value.adjustments, resumeAtMs)
+      const durationMs = await getEngine().load(
+        trackId,
+        { source: backingSource, stemLevels: state.value.stemLevels },
+        state.value.adjustments,
+        resumeAtMs,
+      )
       if (durationMs === null) return
       state.value.durationMs = durationMs
       state.value.positionMs = Math.min(resumeAtMs, durationMs)
@@ -219,7 +234,21 @@ export function usePlayer() {
     state.value.adjustments = next
     getEngine().setAdjustments(next)
     const trackId = state.value.track?.id
-    if (trackId) scheduleSave(trackId, next)
+    if (trackId) scheduleSave('adjustments', `/api/tracks/${trackId}/adjustments`, next)
+  }
+
+  /**
+   * Changes the Stem Levels live — a gain on each Stem, heard within the
+   * stretcher's short buffer, never a reload — and remembers them on the Track
+   * shortly after the last change. On Original they are only remembered, for
+   * when the Track is on Stems again.
+   */
+  function setStemLevels(levels: StemLevels): void {
+    const next = { ...levels }
+    state.value.stemLevels = next
+    getEngine().setStemLevels(next)
+    const trackId = state.value.track?.id
+    if (trackId) scheduleSave('stemLevels', `/api/tracks/${trackId}/backing-source`, { stemLevels: next })
   }
 
   function resetAdjustments(): void {
@@ -237,11 +266,12 @@ export function usePlayer() {
     getEngine().setGain(state.value.volume)
   }
 
-  function scheduleSave(trackId: string, adjustments: Adjustments): void {
-    if (pendingSave) clearTimeout(pendingSave.timer)
+  function scheduleSave(kind: SaveKind, url: string, body: object): void {
+    const pending = pendingSaves.get(kind)
+    if (pending) clearTimeout(pending.timer)
     const run = () => {
-      pendingSave = undefined
-      $fetch(`/api/tracks/${trackId}/adjustments`, { method: 'PUT', body: adjustments, keepalive: true })
+      pendingSaves.delete(kind)
+      $fetch(url, { method: 'PUT', body, keepalive: true })
         .then(() => {
           state.value.saveError = null
         })
@@ -249,13 +279,14 @@ export function usePlayer() {
           state.value.saveError = describeError(error, t)
         })
     }
-    pendingSave = { timer: setTimeout(run, SAVE_DEBOUNCE_MS), run }
+    pendingSaves.set(kind, { timer: setTimeout(run, SAVE_DEBOUNCE_MS), run })
   }
 
   function flushSave(): void {
-    if (!pendingSave) return
-    clearTimeout(pendingSave.timer)
-    pendingSave.run()
+    for (const pending of [...pendingSaves.values()]) {
+      clearTimeout(pending.timer)
+      pending.run()
+    }
   }
 
   /** Whether the player is fetching and decoding this Track's Backing Track right now. */
@@ -279,6 +310,7 @@ export function usePlayer() {
     state.value.positionMs = 0
     state.value.durationMs = 0
     state.value.backingSource = DEFAULT_BACKING_SOURCE
+    state.value.stemLevels = { ...DEFAULT_STEM_LEVELS }
     state.value.adjustments = { ...DEFAULT_ADJUSTMENTS }
   }
 
@@ -291,6 +323,7 @@ export function usePlayer() {
     seek,
     setAdjustments,
     resetAdjustments,
+    setStemLevels,
     setVolume,
     isLoading,
     close,

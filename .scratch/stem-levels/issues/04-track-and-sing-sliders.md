@@ -12,12 +12,12 @@ Strings (labels, the aria text, the Backing Source names `original`/`stems`) go 
 
 **Blocked by:** 01, 03
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The Stems panel shows Original / Stems, and the sliders when Stems exist
-- [ ] Moving a slider is heard live and survives a page reload
-- [ ] The Sing screen's sliders work during playback and during recording
-- [ ] The Sing choice dialog still starts singing in one tap
-- [ ] Keyboard and screen-reader accessible (labelled sliders, value announced as a percentage)
-- [ ] English and Indonesian strings, and glossary entries
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] The Stems panel shows Original / Stems, and the sliders when Stems exist
+- [x] Moving a slider is heard live and survives a page reload
+- [x] The Sing screen's sliders work during playback and during recording
+- [x] The Sing choice dialog still starts singing in one tap
+- [x] Keyboard and screen-reader accessible (labelled sliders, value announced as a percentage)
+- [x] English and Indonesian strings, and glossary entries
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass

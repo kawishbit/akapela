@@ -69,6 +69,16 @@ const adjustments = computed(() => (isCurrent.value ? playerState.value.adjustme
  */
 const backingSource = computed(() =>
   isCurrent.value ? playerState.value.backingSource : track.value?.backingSource)
+const stemLevels = computed(() => (isCurrent.value ? playerState.value.stemLevels : track.value?.stemLevels) ?? null)
+
+/** "Stems" alone at no Guide Vocal, which is what Stems always were; otherwise how much of it there is. */
+const backingSourceLabel = computed(() => {
+  if (!backingSource.value) return null
+  if (backingSource.value === 'stems' && stemLevels.value && stemLevels.value.guideVocal > 0) {
+    return t('stemLevels.summary', { level: formatStemLevel(stemLevels.value.guideVocal) })
+  }
+  return t(`backingSources.${backingSource.value}`)
+})
 
 // The confirmed Song reads better than a video title, but a name the singer
 // typed themselves is the one they chose to see.
@@ -190,7 +200,7 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('sing.pageTit
           class="truncate text-xs text-text-muted"
         >
           {{ formatPitch(effectivePitchSemitones(adjustments), locale) }} · {{ formatTempo(adjustments.tempoPercent) }}
-          <template v-if="backingSource"> · {{ t(`backingSources.${backingSource}`) }}</template>
+          <template v-if="backingSourceLabel"> · {{ backingSourceLabel }}</template>
           <template v-if="lyricsLabel"> · {{ lyricsLabel }}</template>
         </p>
       </div>
@@ -321,6 +331,23 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('sing.pageTit
           @input="onVolumeInput"
         >
       </div>
+
+      <!-- Live while playing and while recording: fading the Guide Vocal out
+           mid-song is a real use. The Take keeps the levels it started at. -->
+      <details
+        v-if="isCurrent && backingSource === 'stems' && stemLevels"
+        class="group w-full max-w-3xl"
+      >
+        <summary class="flex h-11 cursor-pointer list-none items-center justify-center gap-2 text-xs font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text [&::-webkit-details-marker]:hidden">
+          {{ t('stemLevels.heading') }}
+          <ChevronDown class="size-4 transition-transform group-open:rotate-180" />
+        </summary>
+        <StemLevelSliders
+          class="mt-2"
+          :levels="stemLevels"
+          @change="player.setStemLevels($event)"
+        />
+      </details>
 
       <ErrorMessage
         v-if="isCurrent"

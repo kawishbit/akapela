@@ -338,7 +338,7 @@
   },
   "backingSources": {
     "original": "Asli",
-    "instrumental": "Instrumental"
+    "stems": "Stem"
   },
   "stemsPanel": {
     "heading": "Stem",
@@ -356,11 +356,21 @@
     "againWith": "Pisahkan lagi dengan",
     "againHint": "Pisahkan lagi dengan Model Pemisahan lain. Stem ini tetap ada sampai yang baru siap.",
     "switching": "Mengganti Trek Iringan. Lanjut dari posisi terakhir.",
-    "onInstrumental": "Bernyanyi di atas Stem Instrumental. Pemisahan mengurangi kualitas, jadi audio asli Trek ini tetap disimpan utuh dan tinggal satu ketukan.",
-    "onOriginal": "Bernyanyi di atas audio asli Trek ini, bukan Stem Instrumental-nya.",
+    "onStems": "Bernyanyi di atas Stem. Pemisahan mengurangi kualitas, jadi audio asli Trek ini tetap disimpan utuh dan tinggal satu ketukan.",
+    "onOriginal": "Bernyanyi di atas audio asli Trek ini, bukan Stem-nya.",
     "deleteTitle": "Hapus Stem ini?",
     "deleteMessage": "Stem Instrumental dan Stem Vokal akan dihapus, membebaskan {size}. Trek dan semua yang dinyanyikan di atasnya tidak berubah, dan memisahkan lagi akan membuat Stem baru.",
     "delete": "Hapus"
+  },
+  "stemLevels": {
+    "heading": "Level Stem",
+    "guideVocal": "Vokal Panduan",
+    "instrumental": "Instrumental",
+    "guideVocalSlider": "Level Vokal Panduan, dari senyap sampai seperti hasil pemisahan",
+    "instrumentalSlider": "Level Instrumental, dari senyap sampai seperti hasil pemisahan",
+    "hint": "Seberapa keras tiap Stem di iringan yang kamu nyanyikan. Sedikit Vokal Panduan, suara penyanyi aslinya, membantu nadamu tetap pas.",
+    "waitingForStems": "Dipakai saat Sumber Iringan adalah Stem.",
+    "summary": "Stem · Vokal Panduan {level}"
   },
   "takesPanel": {
     "heading": "Take",
@@ -439,6 +449,7 @@
     "clocks": "Dua jam, satu penanda putar: jalur ini berjalan dari {from}–{to} lagu — bagian yang ditandai di atas, dari total {length} — dan menggeser salah satu jalur menggerakkan keduanya.",
     "vocalVolume": "Volume vokal",
     "backingVolume": "Volume Trek Iringan",
+    "backingVolumeHint": "Mengatur seluruh Trek Iringan, apa pun hasil Level Stem-nya.",
     "balance": "Keseimbangan keduanya, disimpan di Take: yang kamu dengar di sini adalah yang dipakai untuk merender Mix.",
     "yourVoice": "Suaramu",
     "yourVoiceBody": "Posisi rekamanmu terhadap Trek Iringan. Yang kamu nyanyikan disimpan tanpa efek dan tetap begitu.",
@@ -452,7 +463,7 @@
     "backingPitchSlider": "Nada Trek Iringan dalam semiton",
     "followingTempo": "Mengikuti tempo, yang terkunci — nada tidak bisa bergerak sendiri.",
     "backingSource": "Sumber Iringan",
-    "backingSourceHint": "Audio yang kamu nyanyikan di atasnya, diganti untuk Mix berikutnya saja.",
+    "backingSourceHint": "Audio yang kamu nyanyikan di atasnya, diganti untuk Mix berikutnya saja. Bernyanyi dengan Vokal Panduan, lalu render Mix tanpanya: Level Stem disimpan di Take.",
     "tempo": "Tempo",
     "tempoLocked": "· terkunci, karena Take ini dinyanyikan dengan tempo ini",
     "effects": "Efek",
@@ -490,7 +501,7 @@
   "singChoice": {
     "failedTitle": "Pemisahan gagal",
     "separatingTitle": "Masih dipisahkan",
-    "failedMessage": "{title} tidak punya Stem Instrumental untuk dinyanyikan. {link}, atau nyanyikan di atas audio asli sekarang.",
+    "failedMessage": "{title} tidak punya Stem untuk dinyanyikan. {link}, atau nyanyikan di atas audio asli sekarang.",
     "retryLink": "Coba lagi di halaman Trek",
     "separatingMessage": "{title} sudah {progress}% dipisahkan. Nyanyikan di atas audio asli sekarang, atau biarkan orang berikutnya duluan.",
     "singOverOriginal": "Nyanyi di atas audio asli",

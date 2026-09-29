@@ -14,12 +14,12 @@ Memory: two decoded Stems double the Backing Track's memory. Skipping the Vocals
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] At 0/100, only the Instrumental Stem is fetched, and playback matches today's
-- [ ] Raising the Guide Vocal fetches the Vocals Stem once and blends it in without a pause
-- [ ] Moving a level never reloads, seeks, or restarts the worklet
-- [ ] Tempo and pitch still apply to the blend, stretched once
-- [ ] A Take's meta carries the Stem Levels from the moment recording started, even if they were moved during it
-- [ ] Unit tests for the blending logic and the fetch-on-demand rule, in the style of the existing engine tests
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] At 0/100, only the Instrumental Stem is fetched, and playback matches today's
+- [x] Raising the Guide Vocal fetches the Vocals Stem once and blends it in without a pause
+- [x] Moving a level never reloads, seeks, or restarts the worklet
+- [x] Tempo and pitch still apply to the blend, stretched once
+- [x] A Take's meta carries the Stem Levels from the moment recording started, even if they were moved during it
+- [x] Unit tests for the blending logic and the fetch-on-demand rule, in the style of the existing engine tests
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass

@@ -11,8 +11,8 @@ Also check that `CONTEXT.md`'s **Backing Source**, **Stem Levels**, and **Guide 
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The ADR 0003 amendment is written
-- [ ] `CONTEXT.md` entries match what shipped
-- [ ] Any doc that describes "Original / Instrumental" now says "Original / Stems"
+- [x] The ADR 0003 amendment is written
+- [x] `CONTEXT.md` entries match what shipped
+- [x] Any doc that describes "Original / Instrumental" now says "Original / Stems"

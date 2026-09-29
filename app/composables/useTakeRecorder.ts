@@ -2,7 +2,7 @@ import { TakeRecorder } from '~/audio/recorder'
 import { encodeWav } from '~/audio/wav'
 import type { Take } from '~~/server/db/schema'
 import type { Adjustments } from '~~/shared/adjustments'
-import type { BackingSource } from '~~/shared/backing-source'
+import type { TakeUploadMeta } from '~~/shared/take'
 import type { ErrorText } from '~/utils/errors'
 import type { Translate } from '~/utils/i18n'
 
@@ -72,7 +72,11 @@ export function useTakeRecorder(trackId: Ref<string>) {
   let countdownTimer: ReturnType<typeof setInterval> | undefined
   let startPositionMs = 0
   let recordedAdjustments: Adjustments = { ...player.state.value.adjustments }
-  let recordedBackingSource: BackingSource = player.state.value.backingSource
+  let recordedBackingSource = player.state.value.backingSource
+  // Stem Levels stay live while recording (fading the Guide Vocal out
+  // mid-song is a real use), but the Take keeps where they started, as it does
+  // the Adjustments.
+  let recordedStemLevels = { ...player.state.value.stemLevels }
   let pendingUpload: { wavBytes: Uint8Array, durationMs: number } | undefined
 
   watch(() => state.value.monitoring, (on) => {
@@ -162,6 +166,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
     startPositionMs = Math.round(player.state.value.positionMs)
     recordedAdjustments = { ...player.state.value.adjustments }
     recordedBackingSource = player.state.value.backingSource
+    recordedStemLevels = { ...player.state.value.stemLevels }
     if (player.state.value.playing) player.pause()
     // A resume triggered from this click satisfies the browser's user-gesture
     // requirement; the countdown that follows runs on a timer, not a gesture.
@@ -231,7 +236,13 @@ export function useTakeRecorder(trackId: Ref<string>) {
       const take = await uploadTake(
         trackId.value,
         wavBytes,
-        { startPositionMs, durationMs, adjustments: recordedAdjustments, backingSource: recordedBackingSource },
+        {
+          startPositionMs,
+          durationMs,
+          adjustments: recordedAdjustments,
+          backingSource: recordedBackingSource,
+          stemLevels: recordedStemLevels,
+        },
         (percent) => { state.value.uploadProgress = percent },
       )
       pendingUpload = undefined
@@ -325,7 +336,7 @@ function microphoneFailure(error: unknown, t: Translate): ErrorText {
 function uploadTake(
   trackId: string,
   wavBytes: Uint8Array,
-  meta: { startPositionMs: number, durationMs: number, adjustments: Adjustments, backingSource: BackingSource },
+  meta: TakeUploadMeta,
   onProgress: (percent: number) => void,
 ): Promise<Take> {
   return new Promise((resolve, reject) => {

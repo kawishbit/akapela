@@ -103,7 +103,7 @@ describe('cancelling a queued Job', () => {
 
     const detail = await (await api.get(`/api/tracks/${track.id}`)).json()
     expect(detail.separationState).toBe('ready')
-    expect(detail.backingSource).toBe('instrumental')
+    expect(detail.backingSource).toBe('stems')
     expect(readFileSync(join(trackDir(track.id), 'instrumental.wav'), 'utf8')).toBe('the old instrumental')
   })
 

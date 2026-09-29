@@ -6,11 +6,11 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { appendEffects, buildMixFilterGraph, renderMix } from '../../../server/lib/audio'
 import { JobsRunner } from '../../../server/lib/jobs-runner'
-import { runRender } from '../../../server/lib/jobs/render'
+import { planBacking, runRender } from '../../../server/lib/jobs/render'
 import type { JobContext } from '../../../server/lib/jobs-runner'
 import { flacOf, probe, writeBurstThenSilenceWav, writeSineWav } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
-import { rmsWindow, zeroCrossingFrequency } from '../wav-rms'
+import { rmsWindow, toneAmplitude, zeroCrossingFrequency } from '../wav-rms'
 
 const TRACK_ID = 't1'
 const TAKE_ID = 'take1'
@@ -76,6 +76,7 @@ interface InsertMixOptions {
   lowpassHz?: number
   effectsTarget?: string
   backingSource?: string
+  stemLevels?: { guideVocal: number, instrumental: number }
   latencyNudgeMs?: number
   vocalGain?: number
   backingGain?: number
@@ -86,15 +87,16 @@ function insertMix(t: JobTestDb, options: InsertMixOptions): void {
   t.akapela.sqlite
     .prepare(
       `INSERT INTO mixes (id, take_id, mp3_path, wav_path, wav_requested, pitch_semitones,
-        tempo_percent, linked, reverb_amount, lowpass_hz, effects_target, backing_source,
+        tempo_percent, linked, reverb_amount, lowpass_hz, effects_target, backing_source, stem_levels,
         latency_nudge_ms, vocal_gain, backing_gain, job_id, created_at, updated_at)
-       VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1000, 1000)`,
+       VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1000, 1000)`,
     )
     .run(
       options.mixId, options.takeId ?? TAKE_ID, options.wavRequested ? 1 : 0,
       options.pitchSemitones ?? 0, options.tempoPercent ?? 100, options.linked ? 1 : 0,
       options.reverbAmount ?? 0, options.lowpassHz ?? 20000, options.effectsTarget ?? 'backing',
-      options.backingSource ?? 'original', options.latencyNudgeMs ?? 0,
+      options.backingSource ?? 'original', JSON.stringify(options.stemLevels ?? { guideVocal: 0, instrumental: 1 }),
+      options.latencyNudgeMs ?? 0,
       options.vocalGain ?? 1.0, options.backingGain ?? 1.0, options.jobId,
     )
 }
@@ -468,7 +470,7 @@ describe('runRender', () => {
     writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
     insertTrack(t)
     insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 500, durationMs: 500 })
-    insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'instrumental', wavRequested: true })
+    insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'stems', wavRequested: true })
     enqueueRender(t, 'm1')
 
     await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
@@ -478,22 +480,151 @@ describe('runRender', () => {
     expect(existsSync(join(dir, 'mixes', 'm1.wav'))).toBe(true)
   })
 
-  it('fails with a message naming the Instrumental Stem when it has been deleted', async () => {
+  it('fails with a message and code naming the Instrumental Stem when it has been deleted', async () => {
     const t = setup()
     const dir = trackDir(t)
     writeSineWav(join(dir, 'backing.wav'), { frequency: 220, seconds: 2 })
     writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
     insertTrack(t)
     insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 500, durationMs: 500 })
-    insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'instrumental' })
+    insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'stems' })
     enqueueRender(t, 'm1')
 
     await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
 
     const job = getJob(t, 'j1')
     expect(job.state).toBe('failed')
-    expect(job.error).toContain('instrumental')
+    expect(job.error).toContain('Instrumental Stem')
+    expect(job.error_code).toBe('noStems')
     expect(existsSync(join(dir, 'mixes', 'm1.mp3'))).toBe(false)
+  })
+
+  describe('against Stems at their Stem Levels', () => {
+    const GUIDE_HZ = 660
+    const INSTRUMENTAL_HZ = 220
+    const TAKE_HZ = 880
+
+    /** Two Stems of distinct tones, and a Take that sings only in the last half second. */
+    function writeStems(t: JobTestDb, { vocals = true } = {}): string {
+      const dir = trackDir(t)
+      writeSineWav(join(dir, 'backing.wav'), { frequency: 440, seconds: 2 })
+      writeSineWav(join(dir, 'instrumental.wav'), { frequency: INSTRUMENTAL_HZ, seconds: 2 })
+      if (vocals) writeSineWav(join(dir, 'vocals.wav'), { frequency: GUIDE_HZ, seconds: 2 })
+      writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: TAKE_HZ, seconds: 0.5 })
+      insertTrack(t)
+      insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 1500, durationMs: 500 })
+      return dir
+    }
+
+    async function renderAll(t: JobTestDb, count: number): Promise<void> {
+      const runner = new JobsRunner(t.akapela.sqlite, t.dataDir)
+      for (let i = 0; i < count; i++) await runner.runOnce()
+    }
+
+    it('at 0/100 renders exactly what a Mix against the Instrumental Stem always did', async () => {
+      const t = setup()
+      const dir = writeStems(t)
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'stems', wavRequested: true, pitchSemitones: 2 })
+      enqueueRender(t, 'm1')
+      await renderAll(t, 1)
+      expect(getJob(t, 'j1').state).toBe('succeeded')
+
+      // The render as it was before Stem Levels: the Instrumental Stem, alone, as the Backing Track.
+      await renderMix({
+        backing: join(dir, 'instrumental.wav'), vocal: join(dir, 'takes', 'take1.wav'),
+        dstMp3: join(dir, 'before.mp3'), dstWav: join(dir, 'before.wav'),
+        tempo: 1, pitch: 2 ** (2 / 12), vocalWallMs: 1500, vocalGain: 1, backingGain: 1, targetDurationMs: 2000,
+        reverbAmount: 0, lowpassHz: 20000, effectsTarget: 'backing',
+      })
+
+      const { readFileSync } = await import('node:fs')
+      expect(readFileSync(join(dir, 'mixes', 'm1.wav'))).toEqual(readFileSync(join(dir, 'before.wav')))
+    })
+
+    it('carries the Guide Vocal at the level asked for, beside the Instrumental', async () => {
+      const t = setup()
+      const dir = writeStems(t)
+      insertMix(t, { mixId: 'full', jobId: 'j1', backingSource: 'stems', stemLevels: { guideVocal: 1, instrumental: 1 }, wavRequested: true })
+      insertMix(t, { mixId: 'half', jobId: 'j2', backingSource: 'stems', stemLevels: { guideVocal: 0.5, instrumental: 1 }, wavRequested: true })
+      insertMix(t, { mixId: 'none', jobId: 'j3', backingSource: 'stems', stemLevels: { guideVocal: 0, instrumental: 1 }, wavRequested: true })
+      enqueueRender(t, 'full', 'j1')
+      enqueueRender(t, 'half', 'j2')
+      enqueueRender(t, 'none', 'j3')
+      await renderAll(t, 3)
+      for (const job of ['j1', 'j2', 'j3']) expect(getJob(t, job).state).toBe('succeeded')
+
+      const guide = (mix: string) => toneAmplitude(join(dir, 'mixes', `${mix}.wav`), GUIDE_HZ, 0.2, 1.2)
+      const instrumental = (mix: string) => toneAmplitude(join(dir, 'mixes', `${mix}.wav`), INSTRUMENTAL_HZ, 0.2, 1.2)
+      expect(guide('half') / guide('full')).toBeCloseTo(0.5, 1)
+      expect(guide('none')).toBeLessThan(guide('full') * 0.01)
+      expect(instrumental('half')).toBeCloseTo(instrumental('full'), -1)
+    })
+
+    it('plays the Guide Vocal alone with the Instrumental at 0', async () => {
+      const t = setup()
+      const dir = writeStems(t)
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'stems', stemLevels: { guideVocal: 1, instrumental: 0 }, wavRequested: true })
+      enqueueRender(t, 'm1')
+      await renderAll(t, 1)
+      expect(getJob(t, 'j1').state).toBe('succeeded')
+
+      const mix = join(dir, 'mixes', 'm1.wav')
+      expect(toneAmplitude(mix, INSTRUMENTAL_HZ, 0.2, 1.2)).toBeLessThan(toneAmplitude(mix, GUIDE_HZ, 0.2, 1.2) * 0.01)
+    })
+
+    it('renders both at 0 as a silent backing under the vocal, rather than failing', async () => {
+      const t = setup()
+      const dir = writeStems(t)
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'stems', stemLevels: { guideVocal: 0, instrumental: 0 }, wavRequested: true })
+      enqueueRender(t, 'm1')
+      await renderAll(t, 1)
+      expect(getJob(t, 'j1').state).toBe('succeeded')
+
+      const mix = join(dir, 'mixes', 'm1.wav')
+      expect(Math.abs(Number(probe(mix).format.duration) - 2)).toBeLessThan(0.05)
+      expect(rmsWindow(mix, 0.2, 1.2)).toBe(0)
+      expect(rmsWindow(mix, 1.6, 1.9)).toBeGreaterThan(1000)
+    })
+
+    it('stretches the blend once at an adjusted tempo, keeping both Stems in it', async () => {
+      const t = setup()
+      const dir = writeStems(t)
+      insertMix(t, {
+        mixId: 'm1', jobId: 'j1', backingSource: 'stems', stemLevels: { guideVocal: 0.5, instrumental: 1 },
+        wavRequested: true, tempoPercent: 80,
+      })
+      enqueueRender(t, 'm1')
+      await renderAll(t, 1)
+      expect(getJob(t, 'j1').state).toBe('succeeded')
+
+      const mix = join(dir, 'mixes', 'm1.wav')
+      expect(Math.abs(Number(probe(mix).format.duration) - 2.5)).toBeLessThan(0.05)
+      // A stretch drifts each tone's phase, which a long Goertzel window
+      // cancels, so each tone is measured over short windows and averaged.
+      const tone = (hz: number) => {
+        let sum = 0
+        for (let i = 0; i < 20; i++) sum += toneAmplitude(mix, hz, 0.3 + i * 0.05, 0.35 + i * 0.05)
+        return sum / 20
+      }
+      expect(tone(INSTRUMENTAL_HZ)).toBeGreaterThan(1000)
+      expect(tone(GUIDE_HZ) / tone(INSTRUMENTAL_HZ)).toBeCloseTo(0.5, 1)
+      const { readdirSync } = await import('node:fs')
+      expect(readdirSync(join(dir, 'mixes')).filter(name => name.includes('.part.'))).toEqual([])
+    })
+
+    it('fails with a message and code naming the Vocals Stem when the Guide Vocal needs it and it is gone', async () => {
+      const t = setup()
+      const dir = writeStems(t, { vocals: false })
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'stems', stemLevels: { guideVocal: 0.3, instrumental: 1 } })
+      enqueueRender(t, 'm1')
+      await renderAll(t, 1)
+
+      const job = getJob(t, 'j1')
+      expect(job.state).toBe('failed')
+      expect(job.error).toContain('Vocals Stem')
+      expect(job.error_code).toBe('noStems')
+      expect(existsSync(join(dir, 'mixes', 'm1.mp3'))).toBe(false)
+    })
   })
 
   function writeEffectsTargetInputs(t: JobTestDb): string {
@@ -573,6 +704,24 @@ describe('runRender', () => {
     expect(getJob(t, 'j2').state).toBe('succeeded')
     const { readFileSync } = await import('node:fs')
     expect(readFileSync(join(dir, 'mixes', 'implicit.wav'))).toEqual(readFileSync(join(dir, 'mixes', 'explicit.wav')))
+  })
+})
+
+describe('planBacking', () => {
+  it('takes Original as the one file it is', () => {
+    expect(planBacking('original', { guideVocal: 0.4, instrumental: 1 })).toEqual({ kind: 'file', file: 'original', gain: 1, needs: ['original'] })
+  })
+
+  it('skips the blend whenever one Stem is silent, applying the other one\'s level as gain', () => {
+    expect(planBacking('stems', { guideVocal: 0, instrumental: 1 })).toEqual({ kind: 'file', file: 'instrumental', gain: 1, needs: ['instrumental'] })
+    expect(planBacking('stems', { guideVocal: 0, instrumental: 0.6 })).toMatchObject({ file: 'instrumental', gain: 0.6 })
+    expect(planBacking('stems', { guideVocal: 0.7, instrumental: 0 })).toMatchObject({ file: 'vocals', gain: 0.7, needs: ['vocals'] })
+    expect(planBacking('stems', { guideVocal: 0, instrumental: 0 })).toMatchObject({ file: 'instrumental', gain: 0 })
+  })
+
+  it('blends both Stems when both are heard', () => {
+    expect(planBacking('stems', { guideVocal: 0.3, instrumental: 0.9 }))
+      .toEqual({ kind: 'blend', levels: { guideVocal: 0.3, instrumental: 0.9 }, gain: 1, needs: ['vocals', 'instrumental'] })
   })
 })
 
@@ -675,7 +824,7 @@ describe('renderMix', () => {
       writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
       insertTrack(t)
       insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 500, durationMs: 500 })
-      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'instrumental', wavRequested: true, tempoPercent, pitchSemitones })
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'stems', wavRequested: true, tempoPercent, pitchSemitones })
       enqueueRender(t, 'm1')
       await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
       expect(getJob(t, 'j1').state).toBe('succeeded')
@@ -703,7 +852,7 @@ describe('renderMix', () => {
       writeSineWav(join(dir, 'takes', 'take1.wav'), { frequency: 880, seconds: 0.5 })
       insertTrack(t)
       insertTake(t, { filePath: 'takes/take1.wav', startPositionMs: 700, durationMs: 500 })
-      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'instrumental', wavRequested: true, vocalGain: vocal, backingGain: backing })
+      insertMix(t, { mixId: 'm1', jobId: 'j1', backingSource: 'stems', wavRequested: true, vocalGain: vocal, backingGain: backing })
       enqueueRender(t, 'm1')
       await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
       expect(getJob(t, 'j1').state).toBe('succeeded')

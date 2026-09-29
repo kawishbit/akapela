@@ -11,7 +11,7 @@ import {
   REVERB_AMOUNT_MIN,
   type Adjustments,
 } from '~~/shared/adjustments'
-import { DEFAULT_BACKING_SOURCE, type BackingSource } from '~~/shared/backing-source'
+import { DEFAULT_BACKING_SOURCE, DEFAULT_STEM_LEVELS, type BackingSource, type StemLevels } from '~~/shared/backing-source'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 import type { Take } from '~~/server/db/schema'
 import type { ErrorText } from '~/utils/errors'
@@ -37,6 +37,12 @@ export interface TakeReviewState {
   effectsTarget: EffectsTarget
   /** A Mix-time override of the Take's own (ADR 0003 amendment); never saved back onto it. */
   backingSource: BackingSource
+  /**
+   * How the Stems are blended when the Backing Source is Stems: starts from
+   * the Take's own, is heard live, and is saved back onto the Take like the
+   * gains, so the next Mix starts from what was last heard here.
+   */
+  stemLevels: StemLevels
   error: ErrorText | null
   saveError: ErrorText | null
   deleting: boolean
@@ -44,8 +50,8 @@ export interface TakeReviewState {
 
 /**
  * Drives the Review screen (ticket 08): loads the Take's vocal over its
- * Backing Track through `TakeReviewEngine`, and saves nudge, gains, and
- * pitch back to the Take as they change. Tempo is never sent as changed —
+ * Backing Track through `TakeReviewEngine`, and saves nudge, gains, pitch,
+ * and Stem Levels back to the Take as they change. Tempo is never sent as changed —
  * it always travels back as the Take's own value (ADR 0003).
  */
 export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>) {
@@ -65,6 +71,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     lowpassHz: DEFAULT_ADJUSTMENTS.lowpassHz,
     effectsTarget: DEFAULT_ADJUSTMENTS.effectsTarget,
     backingSource: DEFAULT_BACKING_SOURCE,
+    stemLevels: { ...DEFAULT_STEM_LEVELS },
     error: null,
     saveError: null,
     deleting: false,
@@ -92,6 +99,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     state.value.lowpassHz = current.adjustments.lowpassHz
     state.value.effectsTarget = current.adjustments.effectsTarget
     state.value.backingSource = current.backingSource
+    state.value.stemLevels = { ...current.stemLevels }
 
     engine = new TakeReviewEngine({
       onPosition: (vocalElapsedMs) => {
@@ -234,6 +242,13 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     })
   }
 
+  /** Stem Levels are live, like the gains: a gain on each Stem, never a reload. */
+  function setStemLevels(levels: StemLevels): void {
+    state.value.stemLevels = { ...levels }
+    engine?.setStemLevels(levels)
+    scheduleSave()
+  }
+
   const heardPitch = computed(() => effectivePitchSemitones(currentAdjustments()))
 
   function currentAdjustments(): Adjustments {
@@ -260,6 +275,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
           vocalGain: state.value.vocalGain,
           backingGain: state.value.backingGain,
           adjustments: currentAdjustments(),
+          stemLevels: state.value.stemLevels,
         },
         keepalive: true,
       })
@@ -319,6 +335,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
     setLowpassHz,
     setEffectsTarget,
     setBackingSource,
+    setStemLevels,
     flushSave,
     discard,
     destroy,

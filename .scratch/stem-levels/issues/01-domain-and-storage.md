@@ -18,16 +18,16 @@ The two Stem files keep their current basenames. `BACKING_SOURCE_BASENAMES` chan
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `parseBackingSource('instrumental')` returns `stems`. Unknown values are still refused.
-- [ ] Stem Levels parse from 0 to 1 inclusive, and anything else is refused
-- [ ] The migration moves every `instrumental` Track, Take, and Mix to `stems` at 0/100 and leaves `original` rows alone
-- [ ] A Track's Stem Levels can be set by the API, persist, and come back on Track detail
-- [ ] Setting `stems` on an unseparated Track is refused as `instrumental` was
-- [ ] Deleting Stems resets the Backing Source to Original and keeps the levels
-- [ ] Re-separating keeps the levels, and success switches the Backing Source to Stems
-- [ ] Take upload, Review save, and Mix request carry and validate `stemLevels`
-- [ ] Each Stem can be streamed on its own, with range support
-- [ ] `tests/unit/backing-source.test.ts`, `tests/api/backing-source.test.ts`, `takes.test.ts`, and `mixes.test.ts` cover the above
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] `parseBackingSource('instrumental')` returns `stems`. Unknown values are still refused.
+- [x] Stem Levels parse from 0 to 1 inclusive, and anything else is refused
+- [x] The migration moves every `instrumental` Track, Take, and Mix to `stems` at 0/100 and leaves `original` rows alone
+- [x] A Track's Stem Levels can be set by the API, persist, and come back on Track detail
+- [x] Setting `stems` on an unseparated Track is refused as `instrumental` was
+- [x] Deleting Stems resets the Backing Source to Original and keeps the levels
+- [x] Re-separating keeps the levels, and success switches the Backing Source to Stems
+- [x] Take upload, Review save, and Mix request carry and validate `stemLevels`
+- [x] Each Stem can be streamed on its own, with range support
+- [x] `tests/unit/backing-source.test.ts`, `tests/api/backing-source.test.ts`, `takes.test.ts`, and `mixes.test.ts` cover the above
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass

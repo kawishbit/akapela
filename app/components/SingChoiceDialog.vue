@@ -52,9 +52,9 @@ async function run(action: () => Promise<unknown>) {
 
 /**
  * The original audio is what a Track sings over until its first Separation
- * succeeds. A Track being separated again may be on its old Instrumental
- * Stem, so the choice is made explicit, and the Take records what was
- * actually sung over either way.
+ * succeeds. A Track being separated again may be on its old Stems, so the
+ * choice is made explicit, and the Take records what was actually sung over
+ * either way.
  */
 function singOverOriginal() {
   const entry = choosing.value

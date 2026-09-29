@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
@@ -6,6 +6,7 @@ import { createAkapela } from '../../server/lib/akapela'
 import { listJobs } from '../../server/lib/job-actions'
 import { describeJobFailure } from '../../app/utils/errors'
 import { englishTranslate } from './i18n'
+import { migrationsBefore } from './migrations-before'
 
 const MIGRATIONS = join(process.cwd(), 'server/db/migrations')
 const CODES_MIGRATION = '0022_job_error_codes'
@@ -17,14 +18,8 @@ afterEach(() => {
 
 /** The migrations as they stood before Jobs had codes: everything up to, not including, 0022. */
 function migrationsBeforeCodes(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'akapela-migrations-'))
+  const dir = migrationsBefore(CODES_MIGRATION)
   cleanup.push(dir)
-  cpSync(MIGRATIONS, dir, { recursive: true })
-  rmSync(join(dir, `${CODES_MIGRATION}.sql`))
-  const journalPath = join(dir, 'meta/_journal.json')
-  const journal = JSON.parse(readFileSync(journalPath, 'utf8'))
-  journal.entries = journal.entries.filter((entry: { tag: string }) => entry.tag !== CODES_MIGRATION)
-  writeFileSync(journalPath, JSON.stringify(journal))
   return dir
 }
 

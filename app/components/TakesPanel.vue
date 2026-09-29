@@ -46,6 +46,7 @@ async function render(take: TrackDetail['takes'][number]) {
       body: toMixRequest({
         ...take.adjustments,
         backingSource: take.backingSource,
+        stemLevels: take.stemLevels,
         latencyNudgeMs: take.latencyNudgeMs,
         vocalGain: take.vocalGain,
         backingGain: take.backingGain,
