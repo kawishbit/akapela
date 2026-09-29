@@ -43,4 +43,10 @@ export default defineConfig({
   // One static page, nothing to prefetch and no client framework.
   prefetch: false,
   devToolbar: { enabled: false },
+  vite: {
+    // Named outright rather than discovered. Left to find one, Vite's transform
+    // lands on the repo root's tsconfig, whose references point into `.nuxt/`
+    // — which a Vercel build of `site/` never generates, so the build fails.
+    tsconfig: './tsconfig.json',
+  },
 })
