@@ -1,5 +1,6 @@
 import type { Preset } from '~~/server/db/schema'
 import type { Adjustments } from '~~/shared/adjustments'
+import type { ErrorText } from '~/utils/errors'
 
 /**
  * The global list of Presets (ticket 08): built-ins first, then user Presets
@@ -8,6 +9,7 @@ import type { Adjustments } from '~~/shared/adjustments'
  * Track's panel is open.
  */
 export function usePresets() {
+  const { t } = useI18n()
   const { data: list, refresh } = useAsyncData<Preset[]>(
     'presets',
     () => $fetch<Preset[]>('/api/presets'),
@@ -15,7 +17,7 @@ export function usePresets() {
   )
 
   const saving = ref(false)
-  const saveError = ref<string | null>(null)
+  const saveError = ref<ErrorText | null>(null)
 
   async function save(name: string, adjustments: Adjustments): Promise<boolean> {
     saving.value = true
@@ -26,7 +28,7 @@ export function usePresets() {
       return true
     }
     catch (e) {
-      saveError.value = describeError(e)
+      saveError.value = describeError(e, t)
       return false
     }
     finally {
@@ -41,7 +43,7 @@ export function usePresets() {
       return true
     }
     catch (e) {
-      saveError.value = describeError(e)
+      saveError.value = describeError(e, t)
       return false
     }
   }

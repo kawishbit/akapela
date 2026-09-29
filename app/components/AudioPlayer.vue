@@ -3,6 +3,8 @@ import { Loader2, Pause, Play } from 'lucide-vue-next'
 
 const props = defineProps<{ src: string, ariaLabel?: string }>()
 
+const { t } = useI18n()
+
 const audioEl = ref<HTMLAudioElement | null>(null)
 const playing = ref(false)
 const buffering = ref(false)
@@ -52,7 +54,7 @@ watch(() => props.src, () => {
   <div
     class="flex flex-col gap-1.5"
     role="group"
-    :aria-label="ariaLabel ?? 'Audio player'"
+    :aria-label="ariaLabel ?? t('audioPlayer.label')"
   >
     <!-- `sr-only`, not `hidden`: Chrome skips preloading metadata for a
          `display:none` media element, which is exactly what `preload="metadata"`
@@ -77,7 +79,7 @@ watch(() => props.src, () => {
         type="button"
         class="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
         :disabled="error"
-        :aria-label="playing ? 'Pause' : 'Play'"
+        :aria-label="playing ? t('common.pause') : t('common.play')"
         @click="toggle"
       >
         <Loader2
@@ -98,7 +100,7 @@ watch(() => props.src, () => {
 
       <template v-if="error">
         <p class="min-w-0 flex-1 text-xs text-negative">
-          Couldn't load audio
+          {{ t('audioPlayer.loadFailed') }}
         </p>
       </template>
       <template v-else>
@@ -110,7 +112,7 @@ watch(() => props.src, () => {
           :max="Math.max(durationMs ?? 1, 1)"
           step="100"
           :value="positionMs"
-          aria-label="Seek"
+          :aria-label="t('audioPlayer.seek')"
           :aria-valuetext="formatDuration(positionMs)"
           @input="onSeek"
         >

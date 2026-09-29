@@ -12,6 +12,7 @@ import {
 import { audioFormatOf } from './audio-files'
 import { childEnv, ffmpegPath, killOnAbort, rubberBandWasmPath, stretchCliPath } from './tools'
 import type { AudioFormat } from '../../shared/audio-format'
+import { CodedError, failure, type CodedFailure } from '../../shared/error-codes'
 
 /**
  * Thin wrappers over ffmpeg, ported from `worker/akapela_worker/audio.py`
@@ -25,7 +26,17 @@ import type { AudioFormat } from '../../shared/audio-format'
 export const BACKING_SAMPLE_RATE = 44100
 export const BACKING_CHANNELS = 2
 
-export class AudioError extends Error {}
+/** A failed ffmpeg run, with the code the singer's card shows (`shared/error-codes.ts`). */
+export class AudioError extends CodedError {
+  constructor(message: string, coded: CodedFailure = failure('unexpected')) {
+    super(coded, message)
+  }
+}
+
+/** The same failure, reworded for where it happened, keeping its code unless it has none worth keeping. */
+function reword(error: AudioError, message: string, otherwise: CodedFailure): AudioError {
+  return new AudioError(message, error.code === 'unexpected' ? otherwise : error.failure)
+}
 
 /** Runs ffmpeg and rejects with `AudioError` on a non-zero exit, or once `signal` has killed it. */
 function run(bin: 'ffmpeg', args: string[], signal?: AbortSignal): Promise<string> {
@@ -36,7 +47,10 @@ function run(bin: 'ffmpeg', args: string[], signal?: AbortSignal): Promise<strin
     let stderr = ''
     child.stdout.on('data', d => (stdout += d))
     child.stderr.on('data', d => (stderr += d))
-    child.on('error', error => reject(new AudioError(`could not start ${bin}: ${error.message}`)))
+    child.on('error', (error: NodeJS.ErrnoException) => reject(new AudioError(
+      `could not start ${bin}: ${error.message}`,
+      error.code === 'ENOENT' ? failure('toolMissing', { tool: bin }) : failure('unexpected'),
+    )))
     child.on('close', (code) => {
       if (code === 0) resolve(stdout)
       else reject(new AudioError(`${bin} exited ${code}: ${cleanFfmpegStderr(stderr) || `exit code ${code}`}`))
@@ -114,7 +128,7 @@ export async function normalizeToBackingTrack(src: string, dst: string, signal?:
   catch (error) {
     await rm(tmp, { force: true })
     throw error instanceof AudioError
-      ? new AudioError(`ffmpeg could not decode ${src}: ${error.message.replace(/^ffmpeg exited \d+: /, '')}`)
+      ? reword(error, `ffmpeg could not decode ${src}: ${error.message.replace(/^ffmpeg exited \d+: /, '')}`, failure('audioUndecodable'))
       : error
   }
   await rename(tmp, dst)
@@ -155,7 +169,9 @@ export async function decodeToWav(src: string, dst: string, signal?: AbortSignal
   }
   catch (error) {
     await rm(dst, { force: true })
-    throw error instanceof AudioError ? new AudioError(`ffmpeg could not decode ${src}: ${ffmpegReason(error)}`) : error
+    throw error instanceof AudioError
+      ? reword(error, `ffmpeg could not decode ${src}: ${ffmpegReason(error)}`, failure('audioUndecodable'))
+      : error
   }
 }
 

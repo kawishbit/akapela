@@ -7,6 +7,7 @@ import { YtDlpFetcher } from './sources'
 import type { Telemetry } from './telemetry'
 import { HEAVY_JOB_TYPE, type Lane } from './jobs'
 import { RunningJobs } from './running-jobs'
+import { toCodedFailure } from '../../shared/error-codes'
 
 export type { Lane }
 
@@ -65,6 +66,8 @@ interface JobRow {
   state: string
   progress: number
   error: string | null
+  error_code: string | null
+  error_params: string | null
   created_at: number
   started_at: number | null
   finished_at: number | null
@@ -81,6 +84,8 @@ function toJob(row: JobRow): Job {
     state: row.state as Job['state'],
     progress: row.progress,
     error: row.error,
+    errorCode: row.error_code,
+    errorParams: row.error_params === null ? null : JSON.parse(row.error_params),
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
@@ -156,8 +161,8 @@ export class JobsRunner {
            SELECT id FROM jobs WHERE state = 'queued' ${laneFilter(this.lane)}
            ORDER BY created_at, rowid LIMIT 1
          )
-         RETURNING id, type, target_id, state, progress, error, created_at, started_at, finished_at, trace_parent,
-           separation_model, detail`,
+         RETURNING id, type, target_id, state, progress, error, error_code, error_params, created_at, started_at,
+           finished_at, trace_parent, separation_model, detail`,
       )
       .get(Date.now()) as JobRow | undefined
     return row ? toJob(row) : null
@@ -201,10 +206,17 @@ export class JobsRunner {
     catch (error) {
       if (!run.signal.aborted) {
         span?.failed(error)
+        // The raw English stays in `error`, as it always has, for the log and
+        // the Details; the code is what the singer reads (ADR 0014). Anything
+        // thrown without one is `unexpected`.
         const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+        const { code, params } = toCodedFailure(error)
         this.sqlite
-          .prepare(`UPDATE jobs SET state = 'failed', error = ?, finished_at = ? WHERE id = ? AND state = 'running'`)
-          .run(message, Date.now(), job.id)
+          .prepare(
+            `UPDATE jobs SET state = 'failed', error = ?, error_code = ?, error_params = ?, finished_at = ?
+             WHERE id = ? AND state = 'running'`,
+          )
+          .run(message, code, JSON.stringify(params), Date.now(), job.id)
       }
     }
     finally {

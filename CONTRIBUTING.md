@@ -39,6 +39,17 @@ AKAPELA_SERVER_URL=http://localhost:3000 pnpm dev
 
 That opens a window on a server you're already running, so hot reload and the Dashboard keep working.
 
+## Adding a string
+
+Every word the app shows lives in `i18n/locales/` (ADR 0014), never in a component. Add the key to `en.json`, namespaced by screen or component, and use it with `t('settings.backup.heading')`. English is the source of truth: `pnpm test` fails when a key the app uses is missing from `en.json`. Other Languages may lag behind, and fall back to English one key at a time.
+
+- Build a sentence as one key with placeholders (`"Akapela {version} is available."`), never by joining fragments, since word order differs between Languages. A link or button inside a sentence goes through `<i18n-t>` and a slot.
+- Counts use plural forms (`"{count} Track | {count} Tracks"`), not `n === 1 ? … : …`.
+- Lyrics, Track titles and artists, and names the singer typed are passed in as parameters and never translated.
+- A failure the server sends has a code in `shared/error-codes.ts` and words under `errors.` in `en.json`; the browser shows it through `ErrorMessage.vue`.
+
+Translating into a Language starts from `i18n/glossary.md`, which fixes one rendering for each `CONTEXT.md` term. `pnpm i18n:completeness` reports which keys each Language is missing, and which it still has that English no longer does.
+
 ## Where to read next
 
 - `AGENTS.md` — day-to-day development, configuring the AppHost, reading traces, building installers.

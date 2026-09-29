@@ -1,6 +1,8 @@
-import { createError, defineEventHandler } from 'h3'
+import { defineEventHandler } from 'h3'
 import { requireTrack } from '../../../lib/require-track'
 import { deleteStems, hasStems } from '../../../lib/tracks'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * Removes a Track's two Stems and reclaims their disk space: ADR 0005 puts a
@@ -13,7 +15,7 @@ import { deleteStems, hasStems } from '../../../lib/tracks'
 export default defineEventHandler((event) => {
   const track = requireTrack(event)
   if (!hasStems(event.context.akapela, track)) {
-    throw createError({ statusCode: 409, statusMessage: 'This Track has no Stems to delete' })
+    throw apiError(409, failure('noStems'), 'This Track has no Stems to delete')
   }
   return deleteStems(event.context.akapela, track)
 })

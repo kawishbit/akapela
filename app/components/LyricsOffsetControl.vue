@@ -5,6 +5,8 @@ import { LYRICS_OFFSET_MAX_MS, LYRICS_OFFSET_MIN_MS, nudgeLyricsOffset } from '~
 const props = defineProps<{ offsetMs: number }>()
 const emit = defineEmits<{ change: [offsetMs: number] }>()
 
+const { t, locale } = useI18n()
+
 /**
  * The prop only catches up on the next render, so a run of quick taps — which
  * is how a singer finds the right offset — would all count from the same
@@ -81,7 +83,7 @@ onBeforeUnmount(stopHold)
       type="button"
       class="flex size-9 items-center justify-center rounded-full text-text-muted transition hover:bg-card hover:text-text disabled:opacity-40"
       :disabled="shownOffsetMs <= LYRICS_OFFSET_MIN_MS"
-      aria-label="Lyrics Offset earlier by a tenth of a second, held to move faster"
+      :aria-label="t('lyricsOffset.earlier')"
       @click="tap(-1)"
       @pointerdown="startHold(-1)"
       @pointerup="stopHold"
@@ -92,14 +94,14 @@ onBeforeUnmount(stopHold)
     </button>
 
     <p class="min-w-20 text-center text-xs font-bold tabular-nums text-text">
-      <span class="sr-only">Lyrics Offset </span>{{ formatLyricsOffset(shownOffsetMs) }}
+      <span class="sr-only">{{ t('lyricsOffset.label') }} </span>{{ formatLyricsOffset(shownOffsetMs, locale) }}
     </p>
 
     <button
       type="button"
       class="flex size-9 items-center justify-center rounded-full text-text-muted transition hover:bg-card hover:text-text disabled:opacity-40"
       :disabled="shownOffsetMs >= LYRICS_OFFSET_MAX_MS"
-      aria-label="Lyrics Offset later by a tenth of a second, held to move faster"
+      :aria-label="t('lyricsOffset.later')"
       @click="tap(1)"
       @pointerdown="startHold(1)"
       @pointerup="stopHold"
@@ -113,7 +115,7 @@ onBeforeUnmount(stopHold)
       v-if="shownOffsetMs !== 0"
       type="button"
       class="flex size-9 items-center justify-center rounded-full text-text-muted transition hover:bg-card hover:text-text"
-      aria-label="Reset the Lyrics Offset"
+      :aria-label="t('lyricsOffset.reset')"
       @click="set(0)"
     >
       <RotateCcw class="size-4" />

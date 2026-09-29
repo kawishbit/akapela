@@ -3,6 +3,8 @@ import { encodeWav } from '~/audio/wav'
 import type { Take } from '~~/server/db/schema'
 import type { Adjustments } from '~~/shared/adjustments'
 import type { BackingSource } from '~~/shared/backing-source'
+import type { ErrorText } from '~/utils/errors'
+import type { Translate } from '~/utils/i18n'
 
 const DEVICE_STORAGE_KEY = 'akapela:mic-device-id'
 const COUNTDOWN_SECONDS = 3
@@ -22,7 +24,7 @@ export interface TakeRecorderState {
   levelRms: number
   levelPeak: number
   uploadProgress: number
-  error: string | null
+  error: ErrorText | null
   savedTake: Take | null
 }
 
@@ -34,6 +36,7 @@ export interface TakeRecorderState {
  * so the vocal and the backing advance on one audio clock (ADR 0006).
  */
 export function useTakeRecorder(trackId: Ref<string>) {
+  const { t } = useI18n()
   const player = usePlayer()
   const { micProcessingDefault, monitoringDefault } = useSettings()
 
@@ -88,7 +91,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
     }
     catch (e) {
       state.value.permission = 'denied'
-      state.value.error = describeError(e)
+      state.value.error = microphoneFailure(e, t)
     }
   }
 
@@ -105,7 +108,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
       saveRememberedDeviceId(deviceId)
     }
     catch (e) {
-      state.value.error = describeError(e)
+      state.value.error = microphoneFailure(e, t)
     }
   }
 
@@ -118,7 +121,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
         await openStream(state.value.selectedDeviceId)
       }
       catch (e) {
-        state.value.error = describeError(e)
+        state.value.error = microphoneFailure(e, t)
       }
     }
   }
@@ -148,7 +151,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
     if (state.value.phase !== 'idle' || !stream) return
     const context = player.getAudioContext()
     if (!context) {
-      state.value.error = 'The Backing Track has not loaded yet.'
+      state.value.error = errorText(t('record.notLoaded'))
       return
     }
     state.value.error = null
@@ -183,7 +186,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
         state.value.levelPeak = peak
       },
       onError: (message) => {
-        state.value.error = message
+        state.value.error = { message: t('record.captureStopped'), details: message }
       },
     })
     monitorSource = context.createMediaStreamSource(stream)
@@ -236,7 +239,7 @@ export function useTakeRecorder(trackId: Ref<string>) {
       state.value.phase = 'done'
     }
     catch (e) {
-      state.value.error = describeError(e)
+      state.value.error = describeError(e, t, { headline: t('record.uploadFailed') })
       state.value.phase = 'error'
     }
   }
@@ -301,7 +304,24 @@ function saveRememberedDeviceId(deviceId: string): void {
   }
 }
 
-/** Uploads a Take with `XMLHttpRequest`, the only way to observe upload progress in the browser. */
+/**
+ * Why the microphone could not be opened, in the words that say what to do:
+ * the browser refused it, or there is none. Anything else is unexpected, with
+ * the browser's own reason as the Details.
+ */
+function microphoneFailure(error: unknown, t: Translate): ErrorText {
+  const name = error instanceof DOMException ? error.name : ''
+  if (name === 'NotAllowedError' || name === 'SecurityError') return errorText(t('record.micRefused'))
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return errorText(t('record.noMic'))
+  return describeError(error, t, { headline: t('record.micFailed') })
+}
+
+/**
+ * Uploads a Take with `XMLHttpRequest`, the only way to observe upload
+ * progress in the browser. A refusal rejects with the server's body as `data`,
+ * the shape `describeError` reads a `$fetch` failure in, so its code comes
+ * through.
+ */
 function uploadTake(
   trackId: string,
   wavBytes: Uint8Array,
@@ -321,16 +341,16 @@ function uploadTake(
     }
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText) as Take)
-      else reject(new Error(safeStatusMessage(xhr) ?? `The Take could not be uploaded (${xhr.status}).`))
+      else reject(Object.assign(new Error(`HTTP ${xhr.status}`), { data: responseBody(xhr) }))
     }
-    xhr.onerror = () => reject(new Error('The Take could not be uploaded.'))
+    xhr.onerror = () => reject(new Error('network error'))
     xhr.send(form)
   })
 }
 
-function safeStatusMessage(xhr: XMLHttpRequest): string | undefined {
+function responseBody(xhr: XMLHttpRequest): unknown {
   try {
-    return (JSON.parse(xhr.responseText) as { statusMessage?: string }).statusMessage
+    return JSON.parse(xhr.responseText)
   }
   catch {
     return undefined

@@ -1,7 +1,9 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { requireTrack } from '../../../lib/require-track'
 import { INVALID_SEPARATION_MODEL_MESSAGE, isSeparationModelName } from '../../../lib/separators/models'
 import { startSeparation } from '../../../lib/tracks'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * Enqueue vocal removal on a Track. Asked for per Track rather than done on
@@ -17,15 +19,15 @@ import { startSeparation } from '../../../lib/tracks'
 export default defineEventHandler(async (event) => {
   const track = requireTrack(event)
   if (track.importState !== 'ready') {
-    throw createError({ statusCode: 409, statusMessage: 'A Track can only be separated once it has imported' })
+    throw apiError(409, failure('trackNotImported'), 'A Track can only be separated once it has imported')
   }
   if (track.separationState === 'separating') {
-    throw createError({ statusCode: 409, statusMessage: 'This Track is already separating' })
+    throw apiError(409, failure('alreadySeparating'), 'This Track is already separating')
   }
   const body = (await readBody(event).catch(() => null)) as { separationModel?: unknown } | null
   const requested = body?.separationModel
   if (requested !== undefined && !isSeparationModelName(requested)) {
-    throw createError({ statusCode: 400, statusMessage: INVALID_SEPARATION_MODEL_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_SEPARATION_MODEL_MESSAGE)
   }
   return startSeparation(event.context.akapela, track, requested)
 })

@@ -34,6 +34,8 @@ export function enqueueJob(
     state: 'queued',
     progress: 0,
     error: null,
+    errorCode: null,
+    errorParams: null,
     createdAt: Date.now(),
     startedAt: null,
     finishedAt: null,

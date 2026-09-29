@@ -35,7 +35,20 @@ export const jobs = sqliteTable('jobs', {
   targetId: text('target_id'),
   state: text('state', { enum: JOB_STATES }).notNull().default('queued'),
   progress: integer('progress').notNull().default(0),
+  /**
+   * Why the Job failed, as the raw English the server caught — for logs,
+   * traces, and the Details under a failure. What the singer reads comes from
+   * `errorCode` and `errorParams` instead (ADR 0014).
+   */
   error: text('error'),
+  /**
+   * The failure's code from `shared/error-codes.ts`, `unexpected` when the
+   * server had none for it. Null on every Job that hasn't failed, and on Jobs
+   * that failed before codes existed, which read as `unexpected`.
+   */
+  errorCode: text('error_code'),
+  /** The code's parameters, as JSON. Null wherever `errorCode` is. */
+  errorParams: text('error_params', { mode: 'json' }).$type<Record<string, string | number>>(),
   createdAt: integer('created_at').notNull(),
   startedAt: integer('started_at'),
   finishedAt: integer('finished_at'),
@@ -55,9 +68,10 @@ export const jobs = sqliteTable('jobs', {
    */
   separationModel: text('separation_model', { enum: SEPARATION_MODEL_NAMES }),
   /**
-   * One line about what the Job is doing or did that its state and progress
-   * cannot say — "Downloading Inst_HQ_3" while a model arrives. Null when
-   * there is nothing to add.
+   * What the Job is doing or did that its state and progress cannot say, as a
+   * token from `shared/job-detail.ts` the browser puts into words —
+   * `downloadingModel` while a model arrives. Null when there is nothing to
+   * add. Rows written before the tokens hold English, shown as it is.
    */
   detail: text('detail'),
 })

@@ -3,6 +3,7 @@ import { asc, desc, eq, sql } from 'drizzle-orm'
 import { presets, type Preset } from '../db/schema'
 import { DUPLICATE_PRESET_NAME_MESSAGE, type PresetCreate } from '../../shared/preset'
 import type { Akapela } from './akapela'
+import { CodedError, failure } from '../../shared/error-codes'
 
 /**
  * Every Preset, built-ins first in the order the migration seeded them, then
@@ -39,7 +40,7 @@ export function createPreset(akapela: Akapela, input: PresetCreate): Preset {
   const needle = foldName(input.name)
   const clash = akapela.db.select({ name: presets.name }).from(presets).all()
     .some(row => foldName(row.name) === needle)
-  if (clash) throw new Error(DUPLICATE_PRESET_NAME_MESSAGE)
+  if (clash) throw new CodedError(failure('presetNameTaken'), DUPLICATE_PRESET_NAME_MESSAGE)
 
   const id = randomUUID()
   const now = Date.now()

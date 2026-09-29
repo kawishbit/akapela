@@ -40,6 +40,7 @@ describe('updating yt-dlp', () => {
     const res = await api.post('/api/tools/yt-dlp', {})
 
     expect(res.status).toBe(409)
+    expect((await res.json()).data).toEqual({ code: 'ytDlpNotManaged', params: {} })
   })
 
   test('downloads the latest release when the app owns its own copy', async () => {
@@ -66,6 +67,7 @@ describe('updating yt-dlp', () => {
     const res = await api.post('/api/tools/yt-dlp', {})
 
     expect(res.status).toBe(502)
+    expect((await res.json()).data.code).toBe('ytDlpDownloadFailed')
     expect(existsSync(dest)).toBe(false)
   })
 })

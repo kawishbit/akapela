@@ -2,6 +2,7 @@
 import { ImagePlus, Loader2 } from 'lucide-vue-next'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { TRACK_FIELD_MAX_LENGTH } from '~~/shared/track-details'
+import type { ErrorText } from '~/utils/errors'
 
 /**
  * Renames a Track and replaces its cover art. The title and artist are the
@@ -20,12 +21,14 @@ const props = defineProps<{
  */
 const emit = defineEmits<{ saved: [], changed: [], cancel: [] }>()
 
+const { t } = useI18n()
+
 const title = ref('')
 const artist = ref('')
 const coverFile = ref<File | null>(null)
 const coverPreview = ref<string | null>(null)
 const saving = ref(false)
-const error = ref<string | null>(null)
+const error = ref<ErrorText | null>(null)
 
 const titleInput = ref<HTMLInputElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -81,7 +84,7 @@ async function save() {
     emit('saved')
   }
   catch (e) {
-    error.value = describeError(e)
+    error.value = describeError(e, t)
     if (renamed) emit('changed')
   }
   finally {
@@ -107,20 +110,20 @@ function onKeydown(event: KeyboardEvent) {
         class="w-full max-w-md rounded-[8px] bg-card p-6 shadow-[var(--shadow-heavy)]"
         role="dialog"
         aria-modal="true"
-        aria-label="Edit Track"
+        :aria-label="t('trackEdit.title')"
         @submit.prevent="save"
       >
         <h2 class="text-lg font-semibold leading-[1.3]">
-          Edit Track
+          {{ t('trackEdit.title') }}
         </h2>
 
         <div class="mt-5 flex gap-4">
           <button
             type="button"
             class="group relative size-28 shrink-0 overflow-hidden rounded-[6px] bg-surface-mid disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Choose cover art"
+            :aria-label="t('trackEdit.chooseCover')"
             :disabled="coverLocked"
-            :title="coverLocked ? 'Cover art can be changed once the Track has finished importing' : undefined"
+            :title="coverLocked ? t('trackEdit.coverLocked') : undefined"
             @click="fileInput?.click()"
           >
             <img
@@ -130,7 +133,7 @@ function onKeydown(event: KeyboardEvent) {
             >
             <span class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 text-xs font-bold text-text opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
               <ImagePlus class="size-5" />
-              Change
+              {{ t('trackEdit.change') }}
             </span>
           </button>
           <input
@@ -143,7 +146,7 @@ function onKeydown(event: KeyboardEvent) {
 
           <div class="flex min-w-0 flex-1 flex-col gap-3">
             <label class="flex flex-col gap-1 text-xs font-bold text-text-muted">
-              Title
+              {{ t('trackEdit.titleLabel') }}
               <input
                 ref="titleInput"
                 v-model="title"
@@ -154,11 +157,11 @@ function onKeydown(event: KeyboardEvent) {
               >
             </label>
             <label class="flex flex-col gap-1 text-xs font-bold text-text-muted">
-              Artist
+              {{ t('trackEdit.artistLabel') }}
               <input
                 v-model="artist"
                 type="text"
-                placeholder="Unknown artist"
+                :placeholder="t('common.unknownArtist')"
                 :maxlength="TRACK_FIELD_MAX_LENGTH"
                 class="h-11 rounded-pill bg-surface-mid px-4 text-sm font-normal text-text placeholder:text-text-muted focus:outline-none focus:shadow-[var(--shadow-inset-border)]"
               >
@@ -167,16 +170,13 @@ function onKeydown(event: KeyboardEvent) {
         </div>
 
         <p class="mt-3 text-xs text-text-muted">
-          Cover art can be a PNG, JPEG, or WebP. The Song used to find Lyrics is not changed here.
+          {{ t('trackEdit.hint') }}
         </p>
 
-        <p
-          v-if="error"
-          class="mt-3 text-sm text-negative"
-          role="alert"
-        >
-          {{ error }}
-        </p>
+        <ErrorMessage
+          class="mt-3"
+          :error="error"
+        />
 
         <div class="mt-6 flex justify-end gap-2">
           <button
@@ -185,7 +185,7 @@ function onKeydown(event: KeyboardEvent) {
             :disabled="saving"
             @click="emit('cancel')"
           >
-            Cancel
+            {{ t('common.cancel') }}
           </button>
           <button
             type="submit"
@@ -196,7 +196,7 @@ function onKeydown(event: KeyboardEvent) {
               v-if="saving"
               class="size-4 animate-spin"
             />
-            Save
+            {{ t('common.save') }}
           </button>
         </div>
       </form>

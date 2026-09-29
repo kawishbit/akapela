@@ -12,6 +12,7 @@ import type { TrackWithJob } from '~~/server/lib/tracks'
  * Importing is the Library's job: a song that isn't there is out of reach
  * here, and the empty result says so.
  */
+const { t } = useI18n()
 const open = ref(false)
 const query = ref('')
 const input = ref<HTMLInputElement | null>(null)
@@ -49,13 +50,13 @@ function hide() {
       @click="show"
     >
       <Plus class="size-4" />
-      Add a song
+      {{ t('queueAdd.open') }}
     </button>
 
     <section
       v-else
       class="rounded-[8px] bg-surface p-3 shadow-[var(--shadow-medium)]"
-      aria-label="Add a song from the Library"
+      :aria-label="t('queueAdd.label')"
     >
       <div class="flex items-center gap-2">
         <div class="relative min-w-0 flex-1">
@@ -66,8 +67,8 @@ function hide() {
             type="search"
             autocomplete="off"
             enterkeyhint="search"
-            placeholder="Search the Library"
-            aria-label="Search the Library for a song to add"
+            :placeholder="t('queueAdd.search')"
+            :aria-label="t('queueAdd.searchLabel')"
             class="w-full appearance-none rounded-pill bg-surface-mid py-3 pl-11 pr-4 text-base text-text shadow-[var(--shadow-inset-border)] outline-none placeholder:text-text-muted focus:shadow-[var(--shadow-inset-border),0_0_0_2px_var(--color-text)]"
             @keydown.escape="hide"
           >
@@ -75,7 +76,7 @@ function hide() {
         <button
           type="button"
           class="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
-          aria-label="Close the search"
+          :aria-label="t('queueAdd.close')"
           @click="hide"
         >
           <X class="size-4" />
@@ -87,17 +88,23 @@ function hide() {
         class="px-2 pb-1 pt-4 text-sm text-text-muted"
         role="status"
       >
-        Nothing in the Library matches. Import it from the
-        <NuxtLink
-          to="/"
-          class="font-bold text-text underline"
-        >Library</NuxtLink> first.
+        <i18n-t
+          keypath="queueAdd.noMatches"
+          scope="global"
+        >
+          <template #library>
+            <NuxtLink
+              to="/"
+              class="font-bold text-text underline"
+            >{{ t('queueAdd.library') }}</NuxtLink>
+          </template>
+        </i18n-t>
       </p>
 
       <ul
         v-else
         class="mt-2 flex max-h-[50vh] flex-col overflow-y-auto"
-        aria-label="Songs in the Library"
+        :aria-label="t('queueAdd.results')"
       >
         <li
           v-for="track in results"
@@ -106,7 +113,7 @@ function hide() {
           <button
             type="button"
             class="flex w-full items-center gap-3 rounded-[6px] p-2 text-left transition hover:bg-surface-mid focus-visible:bg-surface-mid focus-visible:outline-none"
-            :aria-label="`Add ${track.title} to the Queue`"
+            :aria-label="t('queueAdd.add', { title: track.title })"
             @click="ask(track)"
           >
             <img
@@ -119,7 +126,7 @@ function hide() {
             >
             <span class="min-w-0 flex-1">
               <span class="block truncate text-sm font-bold">{{ track.title }}</span>
-              <span class="block truncate text-xs text-text-muted">{{ track.artist ?? 'Unknown artist' }}</span>
+              <span class="block truncate text-xs text-text-muted">{{ track.artist ?? t('common.unknownArtist') }}</span>
             </span>
             <ListPlus class="size-4 shrink-0 text-text-muted" />
           </button>

@@ -1,8 +1,10 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { INVALID_TAKE_REVIEW_MESSAGE, TAKE_TEMPO_LOCKED_MESSAGE, parseTakeReviewUpdate } from '../../../../../shared/take'
 import { requireTake } from '../../../../lib/require-take'
 import { requireTrack } from '../../../../lib/require-track'
 import { updateTakeReview } from '../../../../lib/takes'
+import { apiError } from '../../../../lib/api-error'
+import { failure } from '../../../../../shared/error-codes'
 
 /**
  * Saves the Review screen's settings on a Take: latency nudge, vocal and
@@ -18,10 +20,10 @@ export default defineEventHandler(async (event) => {
     update = parseTakeReviewUpdate(await readBody(event))
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_TAKE_REVIEW_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_TAKE_REVIEW_MESSAGE)
   }
   if (update.adjustments.tempoPercent !== take.adjustments.tempoPercent) {
-    throw createError({ statusCode: 400, statusMessage: TAKE_TEMPO_LOCKED_MESSAGE })
+    throw apiError(400, failure('tempoLocked'), TAKE_TEMPO_LOCKED_MESSAGE)
   }
 
   return updateTakeReview(event.context.akapela, take, update)

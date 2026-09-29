@@ -5,6 +5,7 @@ const route = useRoute()
 const showPlayerBar = computed(() => route.meta.playerBar !== false)
 
 const { theme } = useTheme()
+const { language } = useLanguage()
 const { shown: hasTitleBar } = useTitleBar()
 
 // Wherever Akapela draws its own title bar — the Desktop App, or the installed
@@ -25,7 +26,7 @@ watch(() => route.fullPath, () => scroller.value?.scrollTo({ top: 0 }))
 // color in sync afterward, including a live system-preference change or a
 // choice made on the Settings page.
 useHead(() => ({
-  htmlAttrs: { 'data-theme': theme.value },
+  htmlAttrs: { 'lang': language.value, 'data-theme': theme.value },
   meta: [{ name: 'theme-color', content: theme.value === 'light' ? '#ffffff' : '#121212' }],
 }))
 </script>

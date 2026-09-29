@@ -1,7 +1,9 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { INVALID_TRACK_DETAILS_MESSAGE, parseTrackDetails, type TrackDetails } from '../../../../shared/track-details'
 import { requireTrack } from '../../../lib/require-track'
 import { saveTrackDetails } from '../../../lib/tracks'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * Rename a Track: `{ title, artist }`, the names the library lists it by. The
@@ -14,7 +16,7 @@ export default defineEventHandler(async (event) => {
     details = parseTrackDetails(await readBody(event))
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_TRACK_DETAILS_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_TRACK_DETAILS_MESSAGE)
   }
   return saveTrackDetails(event.context.akapela, track, details)
 })

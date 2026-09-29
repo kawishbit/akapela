@@ -2,6 +2,7 @@ import type { AppSettings, SettingsChanges } from '~~/server/lib/settings'
 import { DEFAULT_LYRICS_PROVIDER, type LyricsProviderName } from '~~/shared/lyrics'
 import { DEFAULT_SEPARATION_MODEL, type SeparationModelName } from '~~/server/lib/separators/models'
 import { DEFAULT_AUDIO_FORMAT, type AudioFormat } from '~~/shared/audio-format'
+import type { ErrorText } from '~/utils/errors'
 
 /**
  * The choices that apply to every Track, and the Lyrics Providers this Akapela
@@ -9,6 +10,7 @@ import { DEFAULT_AUDIO_FORMAT, type AudioFormat } from '~~/shared/audio-format'
  * the same question: which providers are there, and which one is the default.
  */
 export function useSettings() {
+  const { t } = useI18n()
   /** What the page shows before the server has answered: the provider that needs no account, both toggles off. */
   const beforeLoaded: AppSettings = {
     defaultLyricsProvider: DEFAULT_LYRICS_PROVIDER,
@@ -32,7 +34,7 @@ export function useSettings() {
   )
 
   const saving = ref(false)
-  const saveError = ref<string | null>(null)
+  const saveError = ref<ErrorText | null>(null)
 
   /** Saves whichever of the three choices changed, and shares the failure or the result with every reader. */
   async function save(changes: SettingsChanges) {
@@ -42,7 +44,7 @@ export function useSettings() {
       data.value = await $fetch<AppSettings>('/api/settings', { method: 'PUT', body: changes })
     }
     catch (error) {
-      saveError.value = describeError(error)
+      saveError.value = describeError(error, t)
     }
     finally {
       saving.value = false

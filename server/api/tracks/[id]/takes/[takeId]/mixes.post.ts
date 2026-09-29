@@ -1,10 +1,12 @@
-import { createError, defineEventHandler, readBody, setResponseStatus } from 'h3'
+import { defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { NO_STEMS_MESSAGE } from '../../../../../../shared/backing-source'
 import { INVALID_MIX_REQUEST_MESSAGE, MIX_TEMPO_LOCKED_MESSAGE, parseMixRequest } from '../../../../../../shared/mix'
 import { createMix } from '../../../../../lib/mixes'
 import { requireTake } from '../../../../../lib/require-take'
 import { requireTrack } from '../../../../../lib/require-track'
 import { hasStems } from '../../../../../lib/tracks'
+import { apiError } from '../../../../../lib/api-error'
+import { failure } from '../../../../../../shared/error-codes'
 
 /**
  * Requests a Mix: enqueues a render job that produces it in the background.
@@ -22,13 +24,13 @@ export default defineEventHandler(async (event) => {
     request = parseMixRequest(await readBody(event))
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_MIX_REQUEST_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_MIX_REQUEST_MESSAGE)
   }
   if (request.adjustments.tempoPercent !== take.adjustments.tempoPercent) {
-    throw createError({ statusCode: 400, statusMessage: MIX_TEMPO_LOCKED_MESSAGE })
+    throw apiError(400, failure('tempoLocked'), MIX_TEMPO_LOCKED_MESSAGE)
   }
   if (request.backingSource === 'instrumental' && !hasStems(event.context.akapela, track)) {
-    throw createError({ statusCode: 409, statusMessage: NO_STEMS_MESSAGE })
+    throw apiError(409, failure('noStems'), NO_STEMS_MESSAGE)
   }
 
   const mix = createMix(event.context.akapela, take, request)

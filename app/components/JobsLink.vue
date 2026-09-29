@@ -10,6 +10,7 @@ import { ListChecks } from 'lucide-vue-next'
  */
 withDefaults(defineProps<{ size?: 'xs' | 'sm' | 'md' }>(), { size: 'md' })
 
+const { t } = useI18n()
 const { activeCount, refresh } = useJobs()
 
 // A Job started on another screen should show here without waiting for the
@@ -18,8 +19,8 @@ const route = useRoute()
 watch(() => route.path, () => void refresh())
 
 const label = computed(() => activeCount.value === 0
-  ? 'Jobs'
-  : `Jobs, ${activeCount.value} queued or running`)
+  ? t('jobsLink.label')
+  : t('jobsLink.labelActive', { count: activeCount.value }))
 </script>
 
 <template>

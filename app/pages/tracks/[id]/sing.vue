@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ChevronDown, Loader2, Pause, Play, Volume2, VolumeX } from 'lucide-vue-next'
 import { effectivePitchSemitones } from '~~/shared/adjustments'
-import { BACKING_SOURCE_LABELS } from '~~/shared/backing-source'
-import { LYRICS_PROVIDER_LABELS } from '~~/shared/lyrics'
 import { VOLUME_MAX, VOLUME_MIN } from '~/audio/volume'
+import type { ErrorText } from '~/utils/errors'
 
 // The Lyrics fill the screen here; the persistent player bar would only steal
 // room from them, so this page carries its own transport.
@@ -12,6 +11,7 @@ definePageMeta({ playerBar: false, updatePrompt: false })
 
 const SAVE_DEBOUNCE_MS = 400
 
+const { t, locale } = useI18n()
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const player = usePlayer()
@@ -85,7 +85,8 @@ const songLabel = computed(() => {
 const lyricsLabel = computed(() => {
   const lyrics = track.value?.lyrics
   if (!lyrics) return null
-  return `${lyrics.kind === 'synced' ? 'Synced' : 'Plain'} Lyrics from ${LYRICS_PROVIDER_LABELS[lyrics.provider]}`
+  const provider = t(`lyricsProviders.${lyrics.provider}`)
+  return lyrics.kind === 'synced' ? t('sing.lyricsSynced', { provider }) : t('sing.lyricsPlain', { provider })
 })
 
 // The Lyrics Offset moves under the singer's thumb and is saved once the
@@ -93,7 +94,7 @@ const lyricsLabel = computed(() => {
 const offsetMs = ref(0)
 watch(track, value => (offsetMs.value = value?.lyricsOffsetMs ?? 0), { immediate: true })
 
-const saveError = ref<string | null>(null)
+const saveError = ref<ErrorText | null>(null)
 let pendingSave: { timer: ReturnType<typeof setTimeout>, run: () => void } | undefined
 
 function setOffset(next: number) {
@@ -111,7 +112,7 @@ function setOffset(next: number) {
         saveError.value = null
       })
       .catch((error) => {
-        saveError.value = describeError(error)
+        saveError.value = describeError(error, t)
       })
   }
   pendingSave = { timer: setTimeout(run, SAVE_DEBOUNCE_MS), run }
@@ -147,7 +148,7 @@ function onVolumeInput(event: Event) {
   player.setVolume(Number((event.target as HTMLInputElement).value))
 }
 
-useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : 'Akapela' }))
+useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('sing.pageTitle', { title: track.value.title }) }) : 'Akapela' }))
 </script>
 
 <template>
@@ -173,7 +174,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
       <NuxtLink
         :to="`/tracks/${id}`"
         class="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
-        aria-label="Back to the Track"
+        :aria-label="t('sing.back')"
       >
         <ChevronDown class="size-6" />
       </NuxtLink>
@@ -188,8 +189,8 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
           v-if="adjustments"
           class="truncate text-xs text-text-muted"
         >
-          {{ formatPitch(effectivePitchSemitones(adjustments)) }} · {{ formatTempo(adjustments.tempoPercent) }}
-          <template v-if="backingSource"> · {{ BACKING_SOURCE_LABELS[backingSource] }}</template>
+          {{ formatPitch(effectivePitchSemitones(adjustments), locale) }} · {{ formatTempo(adjustments.tempoPercent) }}
+          <template v-if="backingSource"> · {{ t(`backingSources.${backingSource}`) }}</template>
           <template v-if="lyricsLabel"> · {{ lyricsLabel }}</template>
         </p>
       </div>
@@ -211,26 +212,27 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
         class="flex h-full flex-col items-center justify-center px-6 text-center"
       >
         <h1 class="text-lg font-semibold">
-          {{ notFound ? 'Track not found' : 'No Lyrics yet' }}
+          {{ notFound ? t('track.notFound') : t('sing.noLyrics') }}
         </h1>
         <p class="mt-2 max-w-sm text-sm text-text-muted">
           <template v-if="notFound">
-            It may have been deleted.
+            {{ t('track.notFoundBody') }}
           </template>
           <template v-else-if="track?.songTitle">
-            {{ LYRICS_PROVIDER_LABELS[track.lyricsProvider] }} has no words for
-            {{ track.songArtist }} · {{ track.songTitle }}. Open the Track to try another provider or
-            paste them yourself.
+            {{ t('sing.noWords', {
+              provider: t(`lyricsProviders.${track.lyricsProvider}`),
+              song: `${track.songArtist} · ${track.songTitle}`,
+            }) }}
           </template>
           <template v-else>
-            Confirm which Song this Track is and Akapela will fetch its Lyrics.
+            {{ t('sing.noSong') }}
           </template>
         </p>
         <NuxtLink
           :to="`/tracks/${id}`"
           class="mt-6 inline-flex h-12 items-center rounded-pill bg-surface-mid px-6 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
         >
-          Open the Track
+          {{ t('sing.openTrack') }}
         </NuxtLink>
       </div>
     </div>
@@ -239,13 +241,11 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
       class="relative z-10 flex flex-col items-center gap-3 px-4 pt-3 sm:px-6"
       style="padding-bottom: calc(max(0.5rem, env(safe-area-inset-bottom)) + 1.5rem)"
     >
-      <p
+      <ErrorMessage
         v-if="saveError"
-        class="text-xs text-negative"
-        role="alert"
-      >
-        The Lyrics Offset could not be saved: {{ saveError }}
-      </p>
+        class="text-xs"
+        :error="{ message: t('sing.offsetNotSaved', { reason: saveError.message }), details: saveError.details }"
+      />
 
       <LyricsOffsetControl
         v-if="track?.lyrics && transportAvailable"
@@ -266,7 +266,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
           step="100"
           :value="shownMs"
           :disabled="!isCurrent || playerState.loading || playerState.error !== null"
-          aria-label="Seek"
+          :aria-label="t('audioPlayer.seek')"
           @input="onScrub"
           @change="onSeek"
         >
@@ -275,7 +275,7 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
           type="button"
           class="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
           :disabled="!isCurrent || playerState.error !== null"
-          :aria-label="playerState.playing ? 'Pause' : 'Play'"
+          :aria-label="playerState.playing ? t('common.pause') : t('common.play')"
           @click="player.toggle()"
         >
           <Loader2
@@ -316,19 +316,16 @@ useHead(() => ({ title: track.value ? `Sing ${track.value.title} · Akapela` : '
           :max="VOLUME_MAX"
           step="0.01"
           :value="playerState.volume"
-          aria-label="Backing Track volume"
+          :aria-label="t('playerBar.volume')"
           :aria-valuetext="formatGain(playerState.volume)"
           @input="onVolumeInput"
         >
       </div>
 
-      <p
-        v-if="isCurrent && playerState.error"
-        class="text-sm text-negative"
-        role="alert"
-      >
-        {{ playerState.error }}
-      </p>
+      <ErrorMessage
+        v-if="isCurrent"
+        :error="playerState.error"
+      />
 
       <RecordControl
         v-if="track?.importState === 'ready'"

@@ -1,5 +1,6 @@
 import { LYRICS_PROVIDER_LABELS, type LyricsKind, type LyricsLine, type LyricsProviderName } from '../../shared/lyrics'
 import type { Song, SongGuess } from '../../shared/song'
+import { CodedError, failure } from '../../shared/error-codes'
 
 /**
  * A Lyrics Provider is where Lyrics come from. Everything remote about
@@ -40,9 +41,11 @@ export interface FetchedLyrics {
 }
 
 /** Raised when a provider is reachable but unhappy, so the singer sees why rather than a blank list. */
-export class LyricsProviderError extends Error {
+export class LyricsProviderError extends CodedError<'lyricsProviderUnreachable'> {
   constructor(provider: LyricsProviderName, detail: string) {
-    super(`${LYRICS_PROVIDER_LABELS[provider]} could not be reached: ${detail}`)
-    this.name = 'LyricsProviderError'
+    super(
+      failure('lyricsProviderUnreachable', { provider: LYRICS_PROVIDER_LABELS[provider] }),
+      `${LYRICS_PROVIDER_LABELS[provider]} could not be reached: ${detail}`,
+    )
   }
 }

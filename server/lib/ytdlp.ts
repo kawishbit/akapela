@@ -3,6 +3,7 @@ import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { spawn } from 'node:child_process'
 import { childEnv, ytDlpIsManaged, ytDlpPath } from './tools'
+import { CodedError, failure } from '../../shared/error-codes'
 
 /**
  * The one thing the desktop app can do that the container cannot: replace its
@@ -22,7 +23,12 @@ import { childEnv, ytDlpIsManaged, ytDlpPath } from './tools'
  * inert.
  */
 
-export class YtDlpDownloadError extends Error {}
+/** Akapela's own copy of yt-dlp could not be fetched. */
+export class YtDlpDownloadError extends CodedError<'ytDlpDownloadFailed'> {
+  constructor(message: string) {
+    super(failure('ytDlpDownloadFailed'), message)
+  }
+}
 
 const RELEASE_BASE = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download'
 const VERSION_TIMEOUT_MS = 30_000

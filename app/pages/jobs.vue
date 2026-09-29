@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ArrowLeft, ListChecks, Loader2 } from 'lucide-vue-next'
 import type { JobListEntry } from '~~/server/lib/job-actions'
+import type { ErrorText } from '~/utils/errors'
 
-useHead({ title: 'Jobs · Akapela' })
+const { t } = useI18n()
+
+useHead(() => ({ title: t('app.pageTitle', { page: t('jobs.title') }) }))
 
 const { jobs, loaded, error, cancel, retry, clearFinished } = useJobs()
 
@@ -24,7 +27,7 @@ watch([highlightedId, loaded, jobs], async ([id]) => {
 
 const busyId = ref<string | null>(null)
 const clearing = ref(false)
-const actionError = ref<string | null>(null)
+const actionError = ref<ErrorText | null>(null)
 
 async function act(job: JobListEntry, action: (job: JobListEntry) => Promise<void>) {
   busyId.value = job.id
@@ -33,7 +36,7 @@ async function act(job: JobListEntry, action: (job: JobListEntry) => Promise<voi
     await action(job)
   }
   catch (failure) {
-    actionError.value = describeError(failure)
+    actionError.value = describeError(failure, t)
   }
   finally {
     busyId.value = null
@@ -47,7 +50,7 @@ async function onClearFinished() {
     await clearFinished()
   }
   catch (failure) {
-    actionError.value = describeError(failure)
+    actionError.value = describeError(failure, t)
   }
   finally {
     clearing.value = false
@@ -62,27 +65,24 @@ async function onClearFinished() {
       class="mb-4 inline-flex h-11 items-center gap-2 rounded-pill pr-4 text-sm font-bold text-text-muted transition hover:text-text"
     >
       <ArrowLeft class="size-4" />
-      Library
+      {{ t('common.library') }}
     </NuxtLink>
 
     <h1 class="mb-6 text-2xl font-bold tracking-tight">
-      Jobs
+      {{ t('jobs.title') }}
     </h1>
 
-    <p
-      v-if="actionError || error"
-      class="mb-4 text-sm text-negative"
-      role="alert"
-    >
-      {{ actionError ?? error }}
-    </p>
+    <ErrorMessage
+      class="mb-4"
+      :error="actionError ?? error"
+    />
 
     <div
       v-if="!loaded"
       class="flex items-center gap-2 text-sm text-text-muted"
     >
       <Loader2 class="size-4 animate-spin" />
-      Loading…
+      {{ t('jobs.loading') }}
     </div>
 
     <div
@@ -91,13 +91,13 @@ async function onClearFinished() {
     >
       <ListChecks class="size-10 text-text-muted" />
       <p class="text-base text-text-muted">
-        Nothing running. Imports, Separations, and Mixes show up here.
+        {{ t('jobs.empty') }}
       </p>
       <NuxtLink
         to="/"
         class="inline-flex items-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110"
       >
-        Go to the Library
+        {{ t('jobs.goToLibrary') }}
       </NuxtLink>
     </div>
 
@@ -111,7 +111,7 @@ async function onClearFinished() {
           id="jobs-running"
           class="mb-3 text-lg font-semibold"
         >
-          Running
+          {{ t('jobs.running') }}
         </h2>
         <ul class="flex flex-col gap-2">
           <JobRow
@@ -134,7 +134,7 @@ async function onClearFinished() {
           id="jobs-queued"
           class="mb-3 text-lg font-semibold"
         >
-          Queued
+          {{ t('jobs.queued') }}
         </h2>
         <ul class="flex flex-col gap-2">
           <JobRow
@@ -157,7 +157,7 @@ async function onClearFinished() {
             id="jobs-finished"
             class="text-lg font-semibold"
           >
-            Finished
+            {{ t('jobs.finished') }}
           </h2>
           <button
             type="button"
@@ -169,7 +169,7 @@ async function onClearFinished() {
               v-if="clearing"
               class="size-3.5 animate-spin"
             />
-            Clear finished
+            {{ t('jobs.clearFinished') }}
           </button>
         </div>
         <ul class="flex flex-col gap-2">

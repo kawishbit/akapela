@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ArrowLeft, ListPlus, Loader2, Mic2, Pause, Pencil, Play, XCircle } from 'lucide-vue-next'
+import type { ErrorText } from '~/utils/errors'
 
+const { t } = useI18n()
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const player = usePlayer()
@@ -47,13 +49,15 @@ const adjustments = computed(() => (isCurrent.value ? playerState.value.adjustme
 
 const sourceLabel = computed(() => {
   if (!track.value) return ''
-  return track.value.sourceKind === 'youtube' ? 'From YouTube' : `Uploaded from ${track.value.sourceRef}`
+  return track.value.sourceKind === 'youtube'
+    ? t('track.fromYoutube')
+    : t('track.uploadedFrom', { file: track.value.sourceRef })
 })
 
-const failure = computed(() => errorSummary(track.value?.job?.error))
+const failure = computed(() => track.value?.job ? describeJobFailure(track.value.job, t) : null)
 
 const retrying = ref(false)
-const actionError = ref<string | null>(null)
+const actionError = ref<ErrorText | null>(null)
 async function retry() {
   if (!track.value) return
   retrying.value = true
@@ -63,7 +67,7 @@ async function retry() {
     await refresh()
   }
   catch (e) {
-    actionError.value = describeError(e)
+    actionError.value = describeError(e, t)
   }
   finally {
     retrying.value = false
@@ -76,7 +80,7 @@ async function onEdited() {
   await refresh()
 }
 
-useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akapela' }))
+useHead(() => ({ title: track.value ? t('app.pageTitle', { page: track.value.title }) : 'Akapela' }))
 </script>
 
 <template>
@@ -86,7 +90,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
       class="mb-4 inline-flex h-11 items-center gap-2 rounded-pill pr-4 text-sm font-bold text-text-muted transition hover:text-text"
     >
       <ArrowLeft class="size-4" />
-      Library
+      {{ t('common.library') }}
     </NuxtLink>
 
     <section
@@ -94,10 +98,10 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
       class="flex flex-col items-center rounded-[8px] bg-surface px-6 py-16 text-center shadow-[var(--shadow-medium)]"
     >
       <h1 class="text-lg font-semibold">
-        Track not found
+        {{ t('track.notFound') }}
       </h1>
       <p class="mt-2 text-sm text-text-muted">
-        It may have been deleted.
+        {{ t('track.notFoundBody') }}
       </p>
     </section>
 
@@ -110,7 +114,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
         <div class="relative mx-auto w-full max-w-64 shrink-0 sm:mx-0 sm:w-56">
           <img
             :src="`/api/tracks/${track.id}/cover?v=${track.updatedAt}`"
-            :alt="`Cover art for ${track.title}`"
+            :alt="t('trackCard.cover', { title: track.title })"
             class="aspect-square w-full rounded-[6px] bg-surface-mid object-cover shadow-[var(--shadow-heavy)]"
             :class="{ 'opacity-40': track.importState !== 'ready' }"
             width="512"
@@ -122,7 +126,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
           >
             <Loader2 class="size-8 animate-spin text-accent" />
             <p class="text-xs font-bold">
-              {{ track.job?.state === 'running' ? `Importing ${track.job.progress}%` : 'Waiting for worker' }}
+              {{ track.job?.state === 'running' ? t('trackCard.importing', { progress: track.job.progress }) : t('trackCard.waiting') }}
             </p>
           </div>
           <div
@@ -135,7 +139,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
 
         <div class="min-w-0 flex-1 text-center sm:text-left">
           <p class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-            Track
+            {{ t('track.eyebrow') }}
           </p>
           <div class="mt-1 flex items-start justify-center gap-2 sm:justify-start">
             <h1 class="min-w-0 break-words text-2xl font-bold tracking-tight sm:text-3xl">
@@ -144,15 +148,15 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
             <button
               type="button"
               class="flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
-              aria-label="Edit title, artist, and cover art"
-              title="Edit"
+              :aria-label="t('track.editLabel')"
+              :title="t('common.edit')"
               @click="editing = true"
             >
               <Pencil class="size-4" />
             </button>
           </div>
           <p class="mt-1 text-sm text-text-muted">
-            <span>{{ track.artist ?? 'Unknown artist' }}</span>
+            <span>{{ track.artist ?? t('common.unknownArtist') }}</span>
             <span v-if="track.importState === 'ready'"> · {{ formatDuration(track.durationMs) }}</span>
           </p>
           <p class="mt-1 truncate text-xs text-text-muted">
@@ -181,7 +185,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
                 class="size-5"
                 fill="currentColor"
               />
-              {{ isCurrent && playerState.playing ? 'Pause' : 'Play' }}
+              {{ isCurrent && playerState.playing ? t('common.pause') : t('common.play') }}
             </button>
             <NuxtLink
               v-if="track.importState === 'ready'"
@@ -189,7 +193,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
               class="inline-flex h-12 items-center gap-2 rounded-pill bg-surface-mid px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
             >
               <Mic2 class="size-4" />
-              Sing
+              {{ t('common.sing') }}
             </NuxtLink>
             <button
               v-if="track.importState === 'ready'"
@@ -198,7 +202,7 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
               @click="askToQueue(track)"
             >
               <ListPlus class="size-4" />
-              Add to queue
+              {{ t('common.addToQueue') }}
             </button>
             <button
               v-if="track.importState === 'failed'"
@@ -211,31 +215,24 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
                 v-if="retrying"
                 class="size-4 animate-spin"
               />
-              Retry import
+              {{ t('track.retryImport') }}
             </button>
           </div>
 
-          <p
+          <ErrorMessage
             v-if="track.importState === 'failed'"
-            class="mt-3 text-sm text-negative"
-            :title="track.job?.error ?? undefined"
-          >
-            {{ failure }}
-          </p>
-          <p
-            v-if="isCurrent && playerState.error"
-            class="mt-3 text-sm text-negative"
-            role="alert"
-          >
-            {{ playerState.error }}
-          </p>
-          <p
-            v-if="actionError"
-            class="mt-3 text-sm text-negative"
-            role="alert"
-          >
-            {{ actionError }}
-          </p>
+            class="mt-3"
+            :error="failure"
+          />
+          <ErrorMessage
+            v-if="isCurrent"
+            class="mt-3"
+            :error="playerState.error"
+          />
+          <ErrorMessage
+            class="mt-3"
+            :error="actionError"
+          />
         </div>
       </header>
 
@@ -273,13 +270,14 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
         @change="player.setAdjustments($event)"
         @reset="player.resetAdjustments()"
       />
-      <p
+      <ErrorMessage
         v-if="isCurrent && playerState.saveError"
-        class="mt-3 text-sm text-negative"
-        role="alert"
-      >
-        Adjustments could not be saved: {{ playerState.saveError }}
-      </p>
+        class="mt-3"
+        :error="{
+          message: t('track.adjustmentsNotSaved', { reason: playerState.saveError.message }),
+          details: playerState.saveError.details,
+        }"
+      />
 
       <TrackEditDialog
         :open="editing"
@@ -290,12 +288,10 @@ useHead(() => ({ title: track.value ? `${track.value.title} · Akapela` : 'Akape
       />
     </template>
 
-    <p
+    <ErrorMessage
       v-else-if="error"
-      class="rounded-[6px] bg-surface p-3 text-sm text-negative"
-      role="alert"
-    >
-      {{ describeError(error) }}
-    </p>
+      class="rounded-[6px] bg-surface p-3"
+      :error="describeError(error, t)"
+    />
   </main>
 </template>

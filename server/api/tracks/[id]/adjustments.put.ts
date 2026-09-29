@@ -1,7 +1,9 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { INVALID_ADJUSTMENTS_MESSAGE, parseAdjustments, type Adjustments } from '../../../../shared/adjustments'
 import { requireTrack } from '../../../lib/require-track'
 import { saveAdjustments } from '../../../lib/tracks'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /** Save the Adjustments last used on a Track. The body is the whole parameter object. */
 export default defineEventHandler(async (event) => {
@@ -11,7 +13,7 @@ export default defineEventHandler(async (event) => {
     adjustments = parseAdjustments(await readBody(event))
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_ADJUSTMENTS_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_ADJUSTMENTS_MESSAGE)
   }
   return saveAdjustments(event.context.akapela, track, adjustments)
 })

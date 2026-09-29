@@ -148,20 +148,21 @@ describe("replacing a Track's cover art", () => {
   })
 
   test.each([
-    ['a file that is not an image', new TextEncoder().encode('<html></html>')],
-    ['an SVG', new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')],
+    ['a file that is not an image', new TextEncoder().encode('<html></html>'), { code: 'unsupportedCover', params: {} }],
+    ['an SVG', new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), { code: 'unsupportedCover', params: {} }],
     ['an image too large to be cover art', (() => {
       const big = new Uint8Array(8 * 1024 * 1024 + 1)
       big.set(PNG)
       return big
-    })()],
-  ])('%s is refused and the cover is kept', async (_case, bytes) => {
+    })(), { code: 'coverTooLarge', params: { megabytes: 8 } }],
+  ])('%s is refused and the cover is kept', async (_case, bytes, coded) => {
     const track = await importTrack()
 
     const res = await uploadCover(track.id, bytes)
 
     expect(res.status).toBe(400)
     expect(res.statusText).toMatch(/PNG, JPEG, or WebP|too large/)
+    expect((await res.json()).data).toEqual(coded)
     expect((await (await api.get(`/api/tracks/${track.id}`)).json()).coverPath).toBe('cover.svg')
     expect(existsSync(join(api.dataDir, 'tracks', track.id, 'cover.svg'))).toBe(true)
   })

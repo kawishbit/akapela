@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { ArrowLeft, ListMusic, Loader2 } from 'lucide-vue-next'
 import type { QueueEntryWithTrack } from '~~/server/lib/queue'
+import type { ErrorText } from '~/utils/errors'
 
-useHead({ title: 'Queue · Akapela' })
+const { t } = useI18n()
+
+useHead(() => ({ title: t('app.pageTitle', { page: t('queue.title') }) }))
 
 const { entries, loaded, error, count, holding, remove, clear, move, playNext, rename, preview } = useQueue({ poll: true })
 
 const { sing } = useSingEntry()
 
 const busyId = ref<string | null>(null)
-const actionError = ref<string | null>(null)
+const actionError = ref<ErrorText | null>(null)
 const confirmingClear = ref(false)
 const clearing = ref(false)
 
@@ -25,7 +28,7 @@ async function act(entry: QueueEntryWithTrack, action: () => Promise<void>) {
   }
   catch (failure) {
     const status = (failure as { statusCode?: number }).statusCode
-    if (status !== 404) actionError.value = describeError(failure)
+    if (status !== 404) actionError.value = describeError(failure, t)
   }
   finally {
     busyId.value = null
@@ -98,7 +101,7 @@ async function onClear() {
     confirmingClear.value = false
   }
   catch (failure) {
-    actionError.value = describeError(failure)
+    actionError.value = describeError(failure, t)
   }
   finally {
     clearing.value = false
@@ -113,19 +116,19 @@ async function onClear() {
       class="mb-4 inline-flex h-11 items-center gap-2 rounded-pill pr-4 text-sm font-bold text-text-muted transition hover:text-text"
     >
       <ArrowLeft class="size-4" />
-      Library
+      {{ t('common.library') }}
     </NuxtLink>
 
     <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold tracking-tight">
-          Queue
+          {{ t('queue.title') }}
         </h1>
         <p
           v-if="count > 0"
           class="text-sm text-text-muted"
         >
-          {{ count }} {{ count === 1 ? 'song' : 'songs' }} waiting
+          {{ t('queue.waiting', { count }, count) }}
         </p>
       </div>
       <button
@@ -134,17 +137,14 @@ async function onClear() {
         class="inline-flex items-center gap-2 rounded-pill border border-border-light px-4 py-2 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:border-text"
         @click="confirmingClear = true"
       >
-        Clear
+        {{ t('queue.clear') }}
       </button>
     </header>
 
-    <p
-      v-if="actionError || error"
-      class="mb-4 text-sm text-negative"
-      role="alert"
-    >
-      {{ actionError ?? error }}
-    </p>
+    <ErrorMessage
+      class="mb-4"
+      :error="actionError ?? error"
+    />
 
     <QueueAddSong />
 
@@ -153,7 +153,7 @@ async function onClear() {
       class="flex items-center gap-2 text-sm text-text-muted"
     >
       <Loader2 class="size-4 animate-spin" />
-      Loading…
+      {{ t('queue.loading') }}
     </div>
 
     <div
@@ -162,13 +162,13 @@ async function onClear() {
     >
       <ListMusic class="size-10 text-text-muted" />
       <p class="text-base text-text-muted">
-        Nobody's up yet. Add a song from your Library.
+        {{ t('queue.empty') }}
       </p>
       <NuxtLink
         to="/"
         class="inline-flex items-center gap-2 rounded-pill bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110"
       >
-        Go to the Library
+        {{ t('queue.goToLibrary') }}
       </NuxtLink>
     </div>
 
@@ -176,7 +176,7 @@ async function onClear() {
       v-else
       ref="list"
       class="flex flex-col gap-2"
-      aria-label="Who sings next"
+      :aria-label="t('queue.listLabel')"
     >
       <QueueRow
         v-for="(entry, index) in entries"
@@ -197,9 +197,9 @@ async function onClear() {
 
     <ConfirmDialog
       :open="confirmingClear"
-      title="Clear the Queue?"
-      :message="`All ${count} ${count === 1 ? 'entry' : 'entries'} will be taken off the Queue, on every device. The Tracks stay in your Library.`"
-      confirm-label="Clear"
+      :title="t('queue.clearTitle')"
+      :message="t('queue.clearMessage', { count }, count)"
+      :confirm-label="t('queue.clear')"
       :busy="clearing"
       @confirm="onClear"
       @cancel="confirmingClear = false"

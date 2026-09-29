@@ -1,7 +1,9 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { INVALID_MANUAL_LYRICS_MESSAGE } from '../../../../shared/lyrics'
 import { requireTrack } from '../../../lib/require-track'
 import { saveManualLyrics } from '../../../lib/track-lyrics'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * Put the Lyrics the singer typed on this Track. The body is `{ text }`, one
@@ -15,6 +17,6 @@ export default defineEventHandler(async (event) => {
     return saveManualLyrics(event.context.akapela, track, body?.text)
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_MANUAL_LYRICS_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_MANUAL_LYRICS_MESSAGE)
   }
 })

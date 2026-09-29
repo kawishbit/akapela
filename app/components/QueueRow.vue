@@ -26,7 +26,12 @@ const emit = defineEmits<{
 }>()
 
 const first = computed(() => props.index === 0)
-const who = computed(() => props.entry.singerName ? ` for ${props.entry.singerName}` : '')
+const { t } = useI18n()
+
+/** The entry as a label reads it: the Track, and who is singing it when someone said. */
+const entryName = computed(() => props.entry.singerName
+  ? t('queueRow.entryFor', { title: props.entry.track.title, name: props.entry.singerName })
+  : props.entry.track.title)
 
 function onHandleKeydown(event: KeyboardEvent) {
   if (event.key === 'ArrowUp' && props.index > 0) {
@@ -70,7 +75,7 @@ function finishEditing(save: boolean) {
       type="button"
       :data-queue-handle="entry.id"
       class="flex size-10 shrink-0 cursor-grab touch-none items-center justify-center rounded-full text-text-muted transition hover:bg-card hover:text-text active:cursor-grabbing"
-      :aria-label="`Move ${entry.track.title}${who}, number ${index + 1} of ${count}. Use the arrow keys, or drag.`"
+      :aria-label="t('queueRow.move', { entry: entryName, position: index + 1, count })"
       @pointerdown="emit('drag-start', $event)"
       @keydown="onHandleKeydown"
     >
@@ -92,7 +97,7 @@ function finishEditing(save: boolean) {
         v-if="first"
         class="text-xs font-bold uppercase tracking-[1.4px] text-accent"
       >
-        Up now
+        {{ t('queueRow.upNow') }}
       </p>
       <p
         class="truncate text-base font-bold"
@@ -101,7 +106,7 @@ function finishEditing(save: boolean) {
         {{ entry.track.title }}
       </p>
       <p class="truncate text-sm text-text-muted">
-        {{ entry.track.artist ?? 'Unknown artist' }}
+        {{ entry.track.artist ?? t('common.unknownArtist') }}
       </p>
       <!-- Queued before its Stems exist: honest about it, without blocking
            anyone. The same percentage the Jobs page shows. -->
@@ -110,14 +115,14 @@ function finishEditing(save: boolean) {
         class="flex items-center gap-1.5 text-xs font-bold text-text-muted"
       >
         <Loader2 class="size-3 shrink-0 animate-spin text-accent" />
-        Separating {{ entry.track.separationProgress ?? 0 }}%
+        {{ t('queueRow.separating', { progress: entry.track.separationProgress ?? 0 }) }}
       </p>
       <p
         v-else-if="entry.track.separationState === 'failed'"
         class="flex items-center gap-1.5 text-xs font-bold text-negative"
       >
         <XCircle class="size-3 shrink-0" />
-        Separation failed
+        {{ t('queueRow.separationFailed') }}
       </p>
       <input
         v-if="editing"
@@ -126,9 +131,9 @@ function finishEditing(save: boolean) {
         type="text"
         maxlength="80"
         autocomplete="off"
-        placeholder="Who's singing?"
+        :placeholder="t('queueRow.whoPlaceholder')"
         class="mt-1 w-full max-w-48 appearance-none rounded-pill bg-card px-3 py-1 text-sm text-text shadow-[var(--shadow-inset-border)] outline-none focus:shadow-[var(--shadow-inset-border),0_0_0_2px_var(--color-text)]"
-        :aria-label="`Who's singing ${entry.track.title}`"
+        :aria-label="t('queueRow.whoLabel', { title: entry.track.title })"
         @keydown.enter.prevent="finishEditing(true)"
         @keydown.escape.prevent="finishEditing(false)"
         @blur="finishEditing(true)"
@@ -138,10 +143,12 @@ function finishEditing(save: boolean) {
         type="button"
         class="group/name -ml-1 inline-flex max-w-full items-center gap-1.5 rounded-pill px-1 text-sm transition hover:text-text"
         :class="entry.singerName ? 'font-bold text-text' : 'text-text-muted'"
-        :aria-label="entry.singerName ? `Rename ${entry.singerName}` : `Add who's singing ${entry.track.title}`"
+        :aria-label="entry.singerName
+          ? t('queueRow.rename', { name: entry.singerName })
+          : t('queueRow.addWho', { title: entry.track.title })"
         @click="startEditing"
       >
-        <span class="truncate">{{ entry.singerName ?? 'Add a name' }}</span>
+        <span class="truncate">{{ entry.singerName ?? t('queueRow.addName') }}</span>
         <Pencil class="size-3 shrink-0 opacity-60 group-hover/name:opacity-100" />
       </button>
     </div>
@@ -152,8 +159,8 @@ function finishEditing(save: boolean) {
         class="mr-1 flex size-10 items-center justify-center rounded-full transition disabled:opacity-60"
         :class="first ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-card text-text hover:bg-card-alt'"
         :disabled="busy"
-        :aria-label="`Sing ${entry.track.title}${who}`"
-        title="Sing"
+        :aria-label="t('queueRow.sing', { entry: entryName })"
+        :title="t('common.sing')"
         @click="emit('sing')"
       >
         <Mic2 class="size-4" />
@@ -163,8 +170,8 @@ function finishEditing(save: boolean) {
         type="button"
         class="flex size-10 items-center justify-center rounded-full text-text-muted transition hover:bg-card hover:text-text disabled:opacity-60"
         :disabled="busy"
-        :aria-label="`Play ${entry.track.title}${who} next`"
-        title="Play next"
+        :aria-label="t('queueRow.playNext', { entry: entryName })"
+        :title="t('queueRow.playNextShort')"
         @click="emit('play-next')"
       >
         <ChevronsUp class="size-4" />
@@ -173,8 +180,8 @@ function finishEditing(save: boolean) {
         type="button"
         class="flex size-10 items-center justify-center rounded-full text-text-muted transition hover:bg-card hover:text-negative disabled:opacity-60"
         :disabled="busy"
-        :aria-label="`Remove ${entry.track.title}${who} from the Queue`"
-        title="Remove"
+        :aria-label="t('queueRow.remove', { entry: entryName })"
+        :title="t('queueRow.removeShort')"
         @click="emit('remove')"
       >
         <Trash2 class="size-4" />

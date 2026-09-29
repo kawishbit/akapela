@@ -1,4 +1,5 @@
 import type { TrackWithJob } from '~~/server/lib/tracks'
+import type { ErrorText } from '~/utils/errors'
 
 const POLL_MS = 1000
 
@@ -8,12 +9,13 @@ const POLL_MS = 1000
  * progress, completion, and failure show up without a reload.
  */
 export function useLibrary() {
+  const { t } = useI18n()
   const player = usePlayer()
   // Every import is a Job; asking the shared list again is what wakes the
   // Jobs badge's poll.
   const { refresh: refreshJobs } = useJobs()
   const query = ref('')
-  const uploadError = ref<string | null>(null)
+  const uploadError = ref<ErrorText | null>(null)
   const uploading = ref(0)
 
   const { data, refresh, status } = useAsyncData<TrackWithJob[]>(
@@ -44,7 +46,7 @@ export function useLibrary() {
 
   async function upload(files: Iterable<File>) {
     uploadError.value = null
-    const failures: string[] = []
+    const failures: ErrorText[] = []
     for (const file of files) {
       uploading.value++
       try {
@@ -55,13 +57,19 @@ export function useLibrary() {
         await Promise.all([refresh(), refreshJobs()])
       }
       catch (error) {
-        failures.push(`${file.name}: ${describeError(error)}`)
+        const { message, details } = describeError(error, t)
+        failures.push({ message: t('library.uploadFailed', { file: file.name, reason: message }), details })
       }
       finally {
         uploading.value--
       }
     }
-    if (failures.length) uploadError.value = failures.join('\n')
+    if (failures.length) {
+      uploadError.value = {
+        message: failures.map(f => f.message).join('\n'),
+        details: failures.map(f => f.details).filter(Boolean).join('\n\n') || null,
+      }
+    }
   }
 
   /** Starts an import from a YouTube URL. Rejects with the server's message when the URL is refused. */

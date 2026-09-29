@@ -3,11 +3,13 @@ import { Check, Loader2, Search } from 'lucide-vue-next'
 import type { SongSearch } from '~~/server/lib/songs'
 import type { SongMatch } from '~~/server/lyrics/provider'
 import type { TrackDetail } from '~~/server/lib/tracks'
-import { LYRICS_PROVIDER_LABELS } from '~~/shared/lyrics'
 import { SONG_FIELD_MAX_LENGTH } from '~~/shared/song'
+import type { ErrorText } from '~/utils/errors'
 
 const props = defineProps<{ track: TrackDetail }>()
 const emit = defineEmits<{ confirmed: [track: TrackDetail] }>()
+
+const { t } = useI18n()
 
 const choosing = ref(false)
 const artist = ref('')
@@ -15,10 +17,10 @@ const title = ref('')
 
 const search = ref<SongSearch | null>(null)
 const searching = ref(false)
-const searchError = ref<string | null>(null)
+const searchError = ref<ErrorText | null>(null)
 
 const confirmingKey = ref<string | null>(null)
-const confirmError = ref<string | null>(null)
+const confirmError = ref<ErrorText | null>(null)
 
 /** The Song the singer is being asked about, held until they answer the dialog. */
 const pendingConfirm = ref<{ song: { artist: string, title: string } & Partial<SongMatch>, key: string } | null>(null)
@@ -53,7 +55,7 @@ async function runSearch(useTyped = false) {
     }
   }
   catch (error) {
-    searchError.value = describeError(error)
+    searchError.value = describeError(error, t)
   }
   finally {
     searching.value = false
@@ -90,7 +92,7 @@ async function confirm(
       pendingConfirm.value = { song, key }
     }
     else {
-      confirmError.value = describeError(error)
+      confirmError.value = describeError(error, t)
     }
   }
   finally {
@@ -106,7 +108,7 @@ function matchKey(match: SongMatch, index: number) {
 <template>
   <section class="rounded-[8px] bg-surface p-4 sm:p-5">
     <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-      Song
+      {{ t('songPanel.heading') }}
     </h2>
 
     <!-- What the Track is, once the singer has said so. -->
@@ -119,7 +121,7 @@ function matchKey(match: SongMatch, index: number) {
           {{ confirmedSong.artist }} · {{ confirmedSong.title }}
         </p>
         <p class="mt-0.5 truncate text-sm text-text-muted">
-          Looked up on {{ LYRICS_PROVIDER_LABELS[track.lyricsProvider] }}
+          {{ t('songPanel.lookedUpOn', { provider: t(`lyricsProviders.${track.lyricsProvider}`) }) }}
         </p>
       </div>
 
@@ -129,7 +131,7 @@ function matchKey(match: SongMatch, index: number) {
           class="inline-flex h-11 items-center rounded-pill bg-surface-mid px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
           @click="openChooser"
         >
-          Change Song
+          {{ t('songPanel.change') }}
         </button>
       </div>
     </div>
@@ -137,7 +139,7 @@ function matchKey(match: SongMatch, index: number) {
     <!-- Picking one, either from what the provider knows or by hand. -->
     <div v-else>
       <p class="mt-1 text-sm text-text-muted">
-        Confirm which Song this Track is and Akapela fetches its Lyrics.
+        {{ t('songPanel.intro') }}
       </p>
 
       <form
@@ -148,16 +150,16 @@ function matchKey(match: SongMatch, index: number) {
           v-model="artist"
           type="text"
           class="h-11 min-w-0 flex-1 rounded-pill bg-surface-mid px-4 text-sm text-text placeholder:text-text-muted focus:outline-none focus:shadow-[var(--shadow-inset-border)]"
-          placeholder="Artist"
-          aria-label="Artist"
+          :placeholder="t('songPanel.artist')"
+          :aria-label="t('songPanel.artist')"
           :maxlength="SONG_FIELD_MAX_LENGTH"
         >
         <input
           v-model="title"
           type="text"
           class="h-11 min-w-0 flex-1 rounded-pill bg-surface-mid px-4 text-sm text-text placeholder:text-text-muted focus:outline-none focus:shadow-[var(--shadow-inset-border)]"
-          placeholder="Title"
-          aria-label="Title"
+          :placeholder="t('songPanel.title')"
+          :aria-label="t('songPanel.title')"
           :maxlength="SONG_FIELD_MAX_LENGTH"
         >
         <button
@@ -173,17 +175,14 @@ function matchKey(match: SongMatch, index: number) {
             v-else
             class="size-4"
           />
-          Search
+          {{ t('songPanel.search') }}
         </button>
       </form>
 
-      <p
-        v-if="searchError"
-        class="mt-3 text-sm text-negative"
-        role="alert"
-      >
-        {{ searchError }}
-      </p>
+      <ErrorMessage
+        class="mt-3"
+        :error="searchError"
+      />
 
       <ul
         v-if="search?.matches.length"
@@ -210,9 +209,9 @@ function matchKey(match: SongMatch, index: number) {
             <span class="min-w-0 flex-1">
               <span class="block truncate text-sm font-bold">{{ match.artist }} · {{ match.title }}</span>
               <span class="block truncate text-xs text-text-muted">
-                {{ match.album ?? 'Unknown album' }}
+                {{ match.album ?? t('songPanel.unknownAlbum') }}
                 <template v-if="match.durationMs"> · {{ formatDuration(match.durationMs) }}</template>
-                <template v-if="match.instrumental"> · instrumental</template>
+                <template v-if="match.instrumental"> · {{ t('songPanel.instrumental') }}</template>
               </span>
             </span>
           </button>
@@ -223,15 +222,14 @@ function matchKey(match: SongMatch, index: number) {
         v-else-if="search && !searching"
         class="mt-3 text-sm text-text-muted"
       >
-        No matches for {{ search.artist || 'that artist' }} · {{ search.title }}. Edit the artist and title, or
-        confirm what you typed anyway.
+        {{ t('songPanel.noMatches', { artist: search.artist || t('songPanel.thatArtist'), title: search.title }) }}
       </p>
 
       <p
         v-if="title.trim() && !artist.trim()"
         class="mt-3 text-sm text-text-muted"
       >
-        Add the artist too: Lyrics are looked up by artist and title.
+        {{ t('songPanel.addArtist') }}
       </p>
 
       <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -245,7 +243,7 @@ function matchKey(match: SongMatch, index: number) {
             v-if="confirmingKey === 'typed'"
             class="size-4 animate-spin"
           />
-          Use {{ canConfirmTyped ? typedSongLabel : 'what I typed' }}
+          {{ canConfirmTyped ? t('songPanel.useTyped', { song: typedSongLabel }) : t('songPanel.useWhatITyped') }}
         </button>
         <button
           v-if="confirmedSong"
@@ -253,24 +251,21 @@ function matchKey(match: SongMatch, index: number) {
           class="inline-flex h-11 items-center rounded-pill px-4 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
           @click="choosing = false"
         >
-          Cancel
+          {{ t('common.cancel') }}
         </button>
       </div>
 
-      <p
-        v-if="confirmError"
-        class="mt-3 text-sm text-negative"
-        role="alert"
-      >
-        {{ confirmError }}
-      </p>
+      <ErrorMessage
+        class="mt-3"
+        :error="confirmError"
+      />
     </div>
 
     <ConfirmDialog
       :open="pendingConfirm !== null"
-      title="Replace the Lyrics you typed?"
-      message="Confirming a Song fetches its Lyrics, which replaces the ones typed on this Track."
-      confirm-label="Replace"
+      :title="t('songPanel.replaceTitle')"
+      :message="t('songPanel.replaceMessage')"
+      :confirm-label="t('songPanel.replace')"
       :busy="confirmingKey !== null"
       @confirm="pendingConfirm && confirm(pendingConfirm.song, pendingConfirm.key, true)"
       @cancel="pendingConfirm = null"

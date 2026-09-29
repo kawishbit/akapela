@@ -114,6 +114,12 @@ _Avoid_: Task, process, operation
 One of the two lines Jobs wait in, which run side by side: the heavy Lane for Separations, and the light Lane for everything else (ADR 0012).
 _Avoid_: Worker, queue, channel
 
+### Interface
+
+**Language**:
+The language the app's words are shown in, and whose conventions its dates and numbers follow. Chosen per device, not per install: it follows the browser's language until the singer picks one, and picking one on a phone changes nothing on the TV. Lyrics, Track titles, and names the singer typed are never translated.
+_Avoid_: Locale, translation, i18n
+
 ### Development
 
 **Desktop App**:

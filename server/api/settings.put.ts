@@ -1,6 +1,7 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import {
   INVALID_LYRICS_PROVIDER_MESSAGE,
+  LYRICS_PROVIDER_LABELS,
   parseLyricsProviderName,
   unavailableProviderMessage,
 } from '../../shared/lyrics'
@@ -8,6 +9,8 @@ import { invalidCpuCoresMessage, parseCpuCores } from '../../shared/separation'
 import { INVALID_AUDIO_FORMAT_MESSAGE, isAudioFormat } from '../../shared/audio-format'
 import { INVALID_SEPARATION_MODEL_MESSAGE, isSeparationModelName } from '../lib/separators/models'
 import { availableLyricsProviders, saveSettings, type SettingsChanges } from '../lib/settings'
+import { apiError } from '../lib/api-error'
+import { failure } from '../../shared/error-codes'
 
 const NOTHING_TO_SAVE_MESSAGE = 'Nothing to save.'
 const INVALID_MIC_PROCESSING_DEFAULT_MESSAGE = 'The microphone processing default is true or false.'
@@ -43,24 +46,24 @@ export default defineEventHandler(async (event) => {
       defaultLyricsProvider = parseLyricsProviderName(body.defaultLyricsProvider)
     }
     catch {
-      throw createError({ statusCode: 400, statusMessage: INVALID_LYRICS_PROVIDER_MESSAGE })
+      throw apiError(400, failure('invalidRequest'), INVALID_LYRICS_PROVIDER_MESSAGE)
     }
     if (!availableLyricsProviders(akapela).includes(defaultLyricsProvider)) {
-      throw createError({ statusCode: 400, statusMessage: unavailableProviderMessage(defaultLyricsProvider) })
+      throw apiError(400, failure('lyricsProviderUnavailable', { provider: LYRICS_PROVIDER_LABELS[defaultLyricsProvider] }), unavailableProviderMessage(defaultLyricsProvider))
     }
     changes.defaultLyricsProvider = defaultLyricsProvider
   }
 
   if (body?.micProcessingDefault !== undefined) {
     if (typeof body.micProcessingDefault !== 'boolean') {
-      throw createError({ statusCode: 400, statusMessage: INVALID_MIC_PROCESSING_DEFAULT_MESSAGE })
+      throw apiError(400, failure('invalidRequest'), INVALID_MIC_PROCESSING_DEFAULT_MESSAGE)
     }
     changes.micProcessingDefault = body.micProcessingDefault
   }
 
   if (body?.monitoringDefault !== undefined) {
     if (typeof body.monitoringDefault !== 'boolean') {
-      throw createError({ statusCode: 400, statusMessage: INVALID_MONITORING_DEFAULT_MESSAGE })
+      throw apiError(400, failure('invalidRequest'), INVALID_MONITORING_DEFAULT_MESSAGE)
     }
     changes.monitoringDefault = body.monitoringDefault
   }
@@ -68,33 +71,33 @@ export default defineEventHandler(async (event) => {
   if (body?.cpuCores !== undefined) {
     const { cores } = await akapela.hardware()
     const cpuCores = parseCpuCores(body.cpuCores, cores)
-    if (cpuCores === null) throw createError({ statusCode: 400, statusMessage: invalidCpuCoresMessage(cores) })
+    if (cpuCores === null) throw apiError(400, failure('invalidRequest'), invalidCpuCoresMessage(cores))
     changes.cpuCores = cpuCores
   }
 
   if (body?.separationModel !== undefined) {
     if (!isSeparationModelName(body.separationModel)) {
-      throw createError({ statusCode: 400, statusMessage: INVALID_SEPARATION_MODEL_MESSAGE })
+      throw apiError(400, failure('invalidRequest'), INVALID_SEPARATION_MODEL_MESSAGE)
     }
     changes.separationModel = body.separationModel
   }
 
   if (body?.audioFormat !== undefined) {
     if (!isAudioFormat(body.audioFormat)) {
-      throw createError({ statusCode: 400, statusMessage: INVALID_AUDIO_FORMAT_MESSAGE })
+      throw apiError(400, failure('invalidRequest'), INVALID_AUDIO_FORMAT_MESSAGE)
     }
     changes.audioFormat = body.audioFormat
   }
 
   if (body?.hardwareAcceleration !== undefined) {
     if (typeof body.hardwareAcceleration !== 'boolean') {
-      throw createError({ statusCode: 400, statusMessage: INVALID_HARDWARE_ACCELERATION_MESSAGE })
+      throw apiError(400, failure('invalidRequest'), INVALID_HARDWARE_ACCELERATION_MESSAGE)
     }
     changes.hardwareAcceleration = body.hardwareAcceleration
   }
 
   if (Object.keys(changes).length === 0) {
-    throw createError({ statusCode: 400, statusMessage: NOTHING_TO_SAVE_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), NOTHING_TO_SAVE_MESSAGE)
   }
 
   return saveSettings(akapela, changes)

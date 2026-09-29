@@ -45,10 +45,11 @@ On what's known today, (b) and (c) can't import the playlists people most want t
 - The browser's language is the default; Settings can override it.
 - Server errors the singer sees (a failed Job's reason, for example) are sent as stable codes, and the browser translates them. Logs stay in English.
 - Worth doing early: every new screen adds more text to move into the JSON files.
+- Indonesian comes after English, and ships complete and reviewed rather than falling back to English half-way.
+- The Language is chosen per device (a cookie), not per install, and URLs carry no language prefix (ADR 0014 amendment).
+- Only the Nuxt app is translated this round. The Desktop shell's own menus, dialogs, and first-launch chooser, and the Website, stay English (see Later).
 
-**Open**
-
-- Which language comes after English.
+Spec and tickets in `.scratch/localisation/`.
 
 ## 3. Automatic lyrics timing (Auto Lyrics Offset)
 
@@ -86,6 +87,7 @@ In roughly this order:
 - Batching chunks into one model call on a GPU (the model's batch dimension); on a CPU it gains nothing
 - Roformer and the other non-MDX-Net Separation Model families, which each need a pipeline of their own
 - AMD (ROCm) and Intel (OpenVINO) acceleration on Linux, each needing its own ONNX Runtime build and image
+- Translating the Desktop shell's own strings (menus, dialogs, the first-launch chooser) and the Website
 - Deezer import
 - SoundCloud import
 - Automatic latency calibration

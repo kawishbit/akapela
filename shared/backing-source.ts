@@ -18,16 +18,6 @@ export type BackingSource = (typeof BACKING_SOURCES)[number]
  */
 export const DEFAULT_BACKING_SOURCE: BackingSource = 'original'
 
-/**
- * What the switch on Track detail and the Sing screen's readout call each one.
- * One word each, because both places are already sharing their room — the
- * readout with pitch and tempo, the switch with the Stems heading.
- */
-export const BACKING_SOURCE_LABELS: Record<BackingSource, string> = {
-  original: 'Original',
-  instrumental: 'Instrumental',
-}
-
 export const INVALID_BACKING_SOURCE_MESSAGE
   = `A Backing Source is either ${BACKING_SOURCES.join(' or ')}.`
 

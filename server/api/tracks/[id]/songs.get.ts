@@ -1,7 +1,8 @@
-import { createError, defineEventHandler, getQuery } from 'h3'
+import { defineEventHandler, getQuery } from 'h3'
 import { LyricsProviderError } from '../../../lyrics/provider'
 import { requireTrack } from '../../../lib/require-track'
 import { searchSongs } from '../../../lib/songs'
+import { apiError } from '../../../lib/api-error'
 
 /**
  * The Songs this Track might be. With no query the guess comes from the
@@ -20,7 +21,7 @@ export default defineEventHandler(async (event) => {
   }
   catch (error) {
     if (error instanceof LyricsProviderError) {
-      throw createError({ statusCode: 502, statusMessage: error.message })
+      throw apiError(502, error.failure, error.message)
     }
     throw error
   }

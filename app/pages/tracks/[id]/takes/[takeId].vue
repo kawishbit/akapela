@@ -2,7 +2,6 @@
 import { ArrowLeft, Disc3, Loader2, Pause, Play, Trash2 } from 'lucide-vue-next'
 import {
   EFFECTS_TARGETS,
-  EFFECTS_TARGET_LABELS,
   LOWPASS_HZ_MAX,
   LOWPASS_HZ_MIN,
   PITCH_SEMITONES_MAX,
@@ -11,23 +10,25 @@ import {
   REVERB_AMOUNT_MIN,
   type EffectsTarget,
 } from '~~/shared/adjustments'
-import { BACKING_SOURCES, BACKING_SOURCE_LABELS, type BackingSource } from '~~/shared/backing-source'
+import { BACKING_SOURCES, type BackingSource } from '~~/shared/backing-source'
 import { takeElapsedAt, takeSongPosition } from '~/audio/song-time'
 import { toMixRequest } from '~~/shared/mix'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
+import type { ErrorText } from '~/utils/errors'
 
 // This screen carries its own playback (the Take over the Backing Track); the
 // persistent player bar would only conflict with it.
 // Reviewing a Take is playback the singer is listening to; an Update waits.
 definePageMeta({ playerBar: false, updatePrompt: false })
 
+const { t, locale } = useI18n()
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const takeId = computed(() => String(route.params.takeId))
 
 const player = usePlayer()
 const { track, notFound, refresh } = useTrackDetail(id)
-const take = computed(() => track.value?.takes.find(t => t.id === takeId.value))
+const take = computed(() => track.value?.takes.find(candidate => candidate.id === takeId.value))
 const takeMissing = computed(() => !notFound.value && track.value?.importState === 'ready' && !take.value)
 const mixes = computed(() => track.value?.mixes.filter(mix => mix.takeId === takeId.value) ?? [])
 
@@ -107,7 +108,7 @@ function onSongSeek(event: Event) {
 
 const wavRequested = ref(false)
 const rendering = ref(false)
-const renderError = ref<string | null>(null)
+const renderError = ref<ErrorText | null>(null)
 
 /** Renders using exactly what is on screen right now, so the Mix sounds like this playback (story 69). */
 async function renderMix() {
@@ -123,7 +124,7 @@ async function renderMix() {
     await refresh()
   }
   catch (e) {
-    renderError.value = describeError(e)
+    renderError.value = describeError(e, t)
   }
   finally {
     rendering.value = false
@@ -213,7 +214,7 @@ function onNudgeChange(event: Event) {
   // a control that simply ignored the singer.
   nudgeClampNotice.value = applied === Math.round(typed)
     ? null
-    : `That is further than the nudge reaches; ${formatLatencyNudge(applied)} was applied.`
+    : t('review.nudgeClamped', { applied: formatLatencyNudge(applied) })
   // Written straight to the field rather than left to the `:value` binding,
   // which has nothing to re-render when the applied value did not change.
   field.value = String(applied)
@@ -244,16 +245,16 @@ const LOWPASS_SLIDER_MAX = 1000
 const lowpassLogMin = Math.log(LOWPASS_HZ_MIN)
 const lowpassLogMax = Math.log(LOWPASS_HZ_MAX)
 const lowpassSliderValue = computed(() => {
-  const t = (Math.log(state.value.lowpassHz) - lowpassLogMin) / (lowpassLogMax - lowpassLogMin)
-  return Math.round(t * LOWPASS_SLIDER_MAX)
+  const fraction = (Math.log(state.value.lowpassHz) - lowpassLogMin) / (lowpassLogMax - lowpassLogMin)
+  return Math.round(fraction * LOWPASS_SLIDER_MAX)
 })
 function onLowpassInput(event: Event) {
   const sliderValue = Number((event.target as HTMLInputElement).value)
-  const t = sliderValue / LOWPASS_SLIDER_MAX
-  review.setLowpassHz(Math.exp(lowpassLogMin + t * (lowpassLogMax - lowpassLogMin)))
+  const fraction = sliderValue / LOWPASS_SLIDER_MAX
+  review.setLowpassHz(Math.exp(lowpassLogMin + fraction * (lowpassLogMax - lowpassLogMin)))
 }
 
-useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Akapela` : 'Akapela' }))
+useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('review.pageTitle', { title: track.value.title }) }) : 'Akapela' }))
 </script>
 
 <template>
@@ -263,7 +264,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
       class="mb-4 inline-flex h-11 items-center gap-2 rounded-pill pr-4 text-sm font-bold text-text-muted transition hover:text-text"
     >
       <ArrowLeft class="size-4" />
-      Back to Track
+      {{ t('review.back') }}
     </NuxtLink>
 
     <section
@@ -271,10 +272,10 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
       class="flex flex-col items-center rounded-[8px] bg-surface px-6 py-16 text-center shadow-[var(--shadow-medium)]"
     >
       <h1 class="text-lg font-semibold">
-        Take not found
+        {{ t('review.notFound') }}
       </h1>
       <p class="mt-2 text-sm text-text-muted">
-        It may have been deleted.
+        {{ t('track.notFoundBody') }}
       </p>
     </section>
 
@@ -285,26 +286,30 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
       />
       <header class="mb-6">
         <p class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          Review Take
+          {{ t('review.eyebrow') }}
         </p>
         <h1 class="mt-1 text-2xl font-bold tracking-tight">
           {{ track.title }}
         </h1>
         <p class="mt-1 text-sm text-text-muted">
-          {{ formatDate(take.createdAt) }} · {{ formatDuration(take.durationMs) }} · from {{ formatDuration(take.startPositionMs) }}
+          {{ t('review.meta', {
+            date: formatDate(take.createdAt, locale),
+            duration: formatDuration(take.durationMs),
+            start: formatDuration(take.startPositionMs),
+          }) }}
         </p>
       </header>
 
       <section
         class="mb-4 flex flex-col gap-4 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
-        aria-label="Playback"
+        :aria-label="t('review.playback')"
       >
         <div class="flex justify-center">
           <button
             type="button"
             class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink shadow-[var(--shadow-medium)] transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
             :disabled="state.loading || state.error !== null"
-            :aria-label="state.playing ? 'Pause' : 'Play the Take over the Backing Track'"
+            :aria-label="state.playing ? t('common.pause') : t('review.playLabel')"
             @click="review.toggle()"
           >
             <Loader2
@@ -329,7 +334,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             <label
               for="review-seek-take"
               class="text-sm font-bold"
-            >Your Take</label>
+            >{{ t('review.yourTake') }}</label>
             <span class="text-xs tabular-nums text-text-muted">
               {{ formatDuration(shownElapsedMs) }} / {{ formatDuration(take.durationMs) }}
             </span>
@@ -343,7 +348,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             step="100"
             :value="shownElapsedMs"
             :disabled="!seekable"
-            aria-label="Seek within your Take"
+            :aria-label="t('review.seekTake')"
             :aria-valuetext="formatDuration(shownElapsedMs)"
             @input="onTakeScrub"
             @change="onTakeSeek"
@@ -355,7 +360,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             <label
               for="review-seek-song"
               class="text-sm font-bold"
-            >Backing Track</label>
+            >{{ t('review.backingTrack') }}</label>
             <span class="text-xs tabular-nums text-text-muted">
               {{ formatDuration(shownSongMs) }} / {{ formatDuration(songDurationMs) }}
             </span>
@@ -369,14 +374,14 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             step="100"
             :value="shownSongMs"
             :disabled="!seekable"
-            aria-label="Seek by song position"
+            :aria-label="t('review.seekSong')"
             :aria-valuetext="formatDuration(shownSongMs)"
             @input="onSongScrub"
             @change="onSongSeek"
           >
           <div
             class="relative h-1 overflow-hidden rounded-pill bg-surface-mid"
-            :title="`The stretch of the song your Take covers, out of the whole ${formatDuration(songDurationMs)}`"
+            :title="t('review.windowTitle', { length: formatDuration(songDurationMs) })"
             aria-hidden="true"
           >
             <div
@@ -385,10 +390,11 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             />
           </div>
           <p class="mt-1 text-xs text-text-muted">
-            Two clocks, one playhead: this lane runs
-            {{ formatDuration(take.startPositionMs) }}–{{ formatDuration(take.startPositionMs + take.durationMs) }}
-            of the song — the stretch marked above, out of {{ formatDuration(songDurationMs) }} — and dragging
-            either lane moves both.
+            {{ t('review.clocks', {
+              from: formatDuration(take.startPositionMs),
+              to: formatDuration(take.startPositionMs + take.durationMs),
+              length: formatDuration(songDurationMs),
+            }) }}
           </p>
         </div>
 
@@ -398,7 +404,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
               <label
                 for="review-vocal-gain"
                 class="text-sm font-bold"
-              >Vocal volume</label>
+              >{{ t('review.vocalVolume') }}</label>
               <output
                 for="review-vocal-gain"
                 class="text-2xl font-bold tabular-nums"
@@ -412,7 +418,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
               :max="GAIN_MAX"
               step="0.05"
               :value="state.vocalGain"
-              aria-label="Vocal volume"
+              :aria-label="t('review.vocalVolume')"
               :aria-valuetext="formatGain(state.vocalGain)"
               @input="onVocalGainInput"
             >
@@ -423,7 +429,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
               <label
                 for="review-backing-gain"
                 class="text-sm font-bold"
-              >Backing Track volume</label>
+              >{{ t('review.backingVolume') }}</label>
               <output
                 for="review-backing-gain"
                 class="text-2xl font-bold tabular-nums"
@@ -437,24 +443,20 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
               :max="GAIN_MAX"
               step="0.05"
               :value="state.backingGain"
-              aria-label="Backing Track volume"
+              :aria-label="t('review.backingVolume')"
               :aria-valuetext="formatGain(state.backingGain)"
               @input="onBackingGainInput"
             >
           </div>
 
           <p class="text-xs text-text-muted">
-            The balance between the two, saved on the Take: what you hear here is what the Mix is rendered with.
+            {{ t('review.balance') }}
           </p>
         </div>
 
-        <p
-          v-if="state.error"
-          class="text-sm text-negative"
-          role="alert"
-        >
-          {{ state.error }}
-        </p>
+        <ErrorMessage
+          :error="state.error"
+        />
       </section>
 
       <section
@@ -466,10 +468,10 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             id="review-voice-heading"
             class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted"
           >
-            Your voice
+            {{ t('review.yourVoice') }}
           </h2>
           <p class="mt-1 text-xs text-text-muted">
-            Where your recording sits against the Backing Track. What you sang is stored dry and stays that way.
+            {{ t('review.yourVoiceBody') }}
           </p>
         </div>
 
@@ -477,7 +479,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
           <label
             for="review-nudge"
             class="mb-1 block text-sm font-bold"
-          >Latency nudge</label>
+          >{{ t('review.nudge') }}</label>
           <div class="flex items-center gap-2">
             <input
               id="review-nudge"
@@ -490,7 +492,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
               step="1"
               :value="state.latencyNudgeMs"
               :disabled="state.playing"
-              aria-label="Latency nudge in milliseconds"
+              :aria-label="t('review.nudgeField')"
               @change="onNudgeChange"
             >
             <span
@@ -499,15 +501,14 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             >ms</span>
           </div>
           <p class="mt-1 text-xs text-text-muted">
-            Moves your voice earlier or later against the Backing Track. Pause, type a figure, then play back to judge
-            the alignment by ear; anything from {{ LATENCY_NUDGE_MS_MIN }} to {{ LATENCY_NUDGE_MS_MAX }} ms.
+            {{ t('review.nudgeHint', { min: LATENCY_NUDGE_MS_MIN, max: LATENCY_NUDGE_MS_MAX }) }}
           </p>
           <p
             v-if="state.playing"
             class="mt-1 text-xs text-text-muted"
             role="status"
           >
-            Pause to change it.
+            {{ t('review.pauseToChange') }}
           </p>
           <p
             v-if="nudgeClampNotice"
@@ -528,11 +529,10 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             id="review-backing-heading"
             class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted"
           >
-            Backing Track
+            {{ t('review.backingTrack') }}
           </h2>
           <p class="mt-1 text-xs text-text-muted">
-            Pitch, tempo, and Backing Source only ever shape what you sang over — never the recording itself
-            (ADR 0003).
+            {{ t('review.backingBody') }}
           </p>
         </div>
 
@@ -541,12 +541,12 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             <label
               for="review-pitch"
               class="text-sm font-bold"
-            >Backing pitch</label>
+            >{{ t('review.backingPitch') }}</label>
             <output
               for="review-pitch"
               class="text-2xl font-bold tabular-nums"
               :class="state.linked ? 'text-text-muted' : 'text-text'"
-            >{{ formatPitch(heardPitch) }}</output>
+            >{{ formatPitch(heardPitch, locale) }}</output>
           </div>
           <input
             id="review-pitch"
@@ -557,26 +557,26 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             step="1"
             :value="Math.round(heardPitch)"
             :disabled="state.linked"
-            aria-label="Backing Track pitch in semitones"
-            :aria-valuetext="formatPitch(heardPitch)"
+            :aria-label="t('review.backingPitchSlider')"
+            :aria-valuetext="formatPitch(heardPitch, locale)"
             @input="onPitchInput"
           >
           <p
             v-if="state.linked"
             class="mt-1 text-xs text-text-muted"
           >
-            Following tempo, which is locked — pitch can't move on its own.
+            {{ t('review.followingTempo') }}
           </p>
         </div>
 
         <div v-if="track.hasStems">
           <div class="mb-1 flex items-baseline justify-between">
-            <span class="text-sm font-bold">Backing Source</span>
+            <span class="text-sm font-bold">{{ t('review.backingSource') }}</span>
           </div>
           <div
             class="flex items-center gap-1 rounded-pill bg-surface-mid p-1"
             role="group"
-            aria-label="Backing Source"
+            :aria-label="t('review.backingSource')"
           >
             <button
               v-for="source in BACKING_SOURCES"
@@ -589,21 +589,21 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
               :aria-pressed="source === state.backingSource"
               @click="selectBackingSource(source)"
             >
-              {{ BACKING_SOURCE_LABELS[source] }}
+              {{ t(`backingSources.${source}`) }}
             </button>
           </div>
           <p class="mt-1 text-xs text-text-muted">
-            Which audio you sang over, overridden for the next Mix only.
+            {{ t('review.backingSourceHint') }}
           </p>
         </div>
 
         <div class="rounded-[6px] bg-surface-mid px-3 py-2">
           <p class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-            Tempo
+            {{ t('review.tempo') }}
           </p>
           <p class="mt-0.5 text-sm text-text">
             <span class="font-bold tabular-nums">{{ formatTempo(state.tempoPercent) }}</span>
-            · locked, since this Take was sung at this tempo
+            {{ t('review.tempoLocked') }}
           </p>
         </div>
       </section>
@@ -617,22 +617,21 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             id="review-effects-heading"
             class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted"
           >
-            Effects
+            {{ t('review.effects') }}
           </h2>
           <p class="mt-1 text-xs text-text-muted">
-            Reverb and Low-pass are one set, and they go wherever this points — so they sit here rather than under
-            either side.
+            {{ t('review.effectsBody') }}
           </p>
         </div>
 
         <div>
           <p class="mb-1 text-sm font-bold">
-            Apply to
+            {{ t('review.applyTo') }}
           </p>
           <div
             class="flex items-center gap-1 rounded-pill bg-surface-mid p-1"
             role="group"
-            aria-label="Effects Target"
+            :aria-label="t('review.effectsTarget')"
           >
             <button
               v-for="target in EFFECTS_TARGETS"
@@ -645,11 +644,11 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
               :aria-pressed="target === state.effectsTarget"
               @click="selectEffectsTarget(target)"
             >
-              {{ EFFECTS_TARGET_LABELS[target] }}
+              {{ t(`effectsTargets.${target}`) }}
             </button>
           </div>
           <p class="mt-1 text-xs text-text-muted">
-            Your recording stays dry either way — the reverb is added on the way out, at playback and again in the Mix.
+            {{ t('review.effectsDry') }}
           </p>
         </div>
 
@@ -658,7 +657,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             <label
               for="review-reverb"
               class="text-sm font-bold"
-            >Reverb</label>
+            >{{ t('adjustments.reverb') }}</label>
             <output
               for="review-reverb"
               class="text-2xl font-bold tabular-nums"
@@ -672,7 +671,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             :max="REVERB_AMOUNT_MAX"
             step="1"
             :value="state.reverbAmount"
-            aria-label="Reverb amount"
+            :aria-label="t('adjustments.reverbSlider')"
             :aria-valuetext="formatReverbAmount(state.reverbAmount)"
             @input="onReverbInput"
           >
@@ -683,11 +682,11 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             <label
               for="review-lowpass"
               class="text-sm font-bold"
-            >Low-pass</label>
+            >{{ t('adjustments.lowpass') }}</label>
             <output
               for="review-lowpass"
               class="text-2xl font-bold tabular-nums"
-            >{{ formatLowpassHz(state.lowpassHz) }}</output>
+            >{{ formatLowpassHz(state.lowpassHz, t('adjustments.lowpassOff'), locale) }}</output>
           </div>
           <input
             id="review-lowpass"
@@ -697,28 +696,25 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             :max="LOWPASS_SLIDER_MAX"
             step="1"
             :value="lowpassSliderValue"
-            aria-label="Low-pass cutoff"
-            :aria-valuetext="formatLowpassHz(state.lowpassHz)"
+            :aria-label="t('adjustments.lowpassSlider')"
+            :aria-valuetext="formatLowpassHz(state.lowpassHz, t('adjustments.lowpassOff'), locale)"
             @input="onLowpassInput"
           >
         </div>
 
-        <p
+        <ErrorMessage
           v-if="state.saveError"
-          class="text-sm text-negative"
-          role="alert"
-        >
-          Review settings could not be saved: {{ state.saveError }}
-        </p>
+          :error="{ message: t('review.notSaved', { reason: state.saveError.message }), details: state.saveError.details }"
+        />
       </section>
 
       <section
         class="mb-4 flex flex-col gap-3 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
-        aria-label="Render"
+        :aria-label="t('review.render')"
       >
         <div class="flex items-center justify-between">
           <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-            Mixes
+            {{ t('review.mixes') }}
           </h2>
           <label class="flex items-center gap-2 text-sm text-text-muted">
             <input
@@ -726,7 +722,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
               type="checkbox"
               class="size-4 accent-accent"
             >
-            Also render WAV
+            {{ t('review.alsoWav') }}
           </label>
         </div>
 
@@ -744,15 +740,11 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
             v-else
             class="size-4"
           />
-          Render Mix
+          {{ t('review.renderMix') }}
         </button>
-        <p
-          v-if="renderError"
-          class="text-sm text-negative"
-          role="alert"
-        >
-          {{ renderError }}
-        </p>
+        <ErrorMessage
+          :error="renderError"
+        />
 
         <MixList
           v-if="mixes.length > 0"
@@ -769,7 +761,7 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
           class="inline-flex h-14 flex-1 items-center justify-center rounded-pill bg-accent px-6 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110"
           @click="keep"
         >
-          Keep Take
+          {{ t('review.keep') }}
         </button>
         <button
           type="button"
@@ -777,15 +769,15 @@ useHead(() => ({ title: track.value ? `Review Take · ${track.value.title} · Ak
           @click="pendingDiscard = true"
         >
           <Trash2 class="size-4" />
-          Discard
+          {{ t('review.discard') }}
         </button>
       </div>
 
       <ConfirmDialog
         :open="pendingDiscard"
-        title="Discard this Take?"
-        message="This removes the Take. It cannot be undone."
-        confirm-label="Discard"
+        :title="t('review.discardTitle')"
+        :message="t('review.discardMessage')"
+        :confirm-label="t('review.discard')"
         :busy="state.deleting"
         @confirm="confirmDiscard"
         @cancel="pendingDiscard = false"

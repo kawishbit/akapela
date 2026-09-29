@@ -6,8 +6,10 @@ const props = defineProps<{ recorder: ReturnType<typeof useTakeRecorder> }>()
 const recorder = props.recorder
 const state = recorder.state
 
+const { t } = useI18n()
+
 function deviceLabel(device: MediaDeviceInfo, index: number): string {
-  return device.label || `Microphone ${index + 1}`
+  return device.label || t('record.microphoneN', { n: index + 1 })
 }
 
 function onSelectDevice(event: Event) {
@@ -39,15 +41,17 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
           v-else
           class="size-4"
         />
-        Enable microphone
+        {{ t('record.enable') }}
       </button>
-      <p
-        v-if="state.permission === 'denied'"
-        class="max-w-xs text-xs text-negative"
-        role="alert"
-      >
-        {{ state.error ?? 'Microphone access was refused.' }} Allow it in the browser's site settings, then try again.
-      </p>
+      <template v-if="state.permission === 'denied'">
+        <ErrorMessage
+          class="max-w-xs"
+          :error="state.error ?? errorText(t('record.micRefused'))"
+        />
+        <p class="max-w-xs text-xs text-text-muted">
+          {{ t('record.allowHint') }}
+        </p>
+      </template>
     </div>
 
     <template v-else>
@@ -60,7 +64,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
           <select
             v-if="state.devices.length > 1"
             class="h-10 max-w-52 truncate rounded-pill bg-surface-mid px-4 text-xs font-bold text-text focus:outline-none"
-            aria-label="Microphone"
+            :aria-label="t('record.microphone')"
             :value="state.selectedDeviceId ?? undefined"
             @change="onSelectDevice"
           >
@@ -81,7 +85,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
             @click="recorder.setProcessing(!state.processingEnabled)"
           >
             <Settings2 class="size-3.5" />
-            Processing {{ state.processingEnabled ? 'on' : 'off' }}
+            {{ state.processingEnabled ? t('record.processingOn') : t('record.processingOff') }}
           </button>
 
           <button
@@ -92,14 +96,14 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
             @click="state.monitoring = !state.monitoring"
           >
             <Headphones class="size-3.5" />
-            Monitoring {{ state.monitoring ? 'on' : 'off' }}
+            {{ state.monitoring ? t('record.monitoringOn') : t('record.monitoringOff') }}
           </button>
         </div>
 
         <button
           type="button"
           class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink shadow-[var(--shadow-medium)] transition hover:brightness-110"
-          aria-label="Record a Take"
+          :aria-label="t('record.record')"
           @click="recorder.startRecording()"
         >
           <Mic class="size-6" />
@@ -119,7 +123,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
           class="inline-flex h-10 items-center rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
           @click="recorder.cancelCountdown()"
         >
-          Cancel
+          {{ t('common.cancel') }}
         </button>
       </div>
 
@@ -133,12 +137,12 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
             class="size-2 animate-pulse rounded-full bg-accent"
             aria-hidden="true"
           />
-          Recording
+          {{ t('record.recording') }}
         </div>
         <div
           class="h-2 w-full max-w-xs overflow-hidden rounded-pill bg-surface-mid"
           role="meter"
-          aria-label="Microphone level"
+          :aria-label="t('record.level')"
           :aria-valuenow="Math.round(meterFraction * 100)"
           aria-valuemin="0"
           aria-valuemax="100"
@@ -152,7 +156,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
         <button
           type="button"
           class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink shadow-[var(--shadow-medium)] transition hover:brightness-110"
-          aria-label="Stop recording"
+          :aria-label="t('record.stop')"
           @click="recorder.stopRecording()"
         >
           <Square
@@ -169,7 +173,7 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
       >
         <p class="flex items-center gap-2 text-sm font-bold text-text">
           <Loader2 class="size-4 animate-spin" />
-          {{ state.phase === 'encoding' ? 'Preparing the Take…' : 'Saving the Take…' }}
+          {{ state.phase === 'encoding' ? t('record.preparing') : t('record.saving') }}
         </p>
         <div
           v-if="state.phase === 'uploading'"
@@ -193,12 +197,12 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
       >
         <CheckCircle2 class="size-4 shrink-0 text-accent" />
         <p class="text-sm font-bold text-text">
-          Take saved
+          {{ t('record.saved') }}
         </p>
         <button
           type="button"
           class="flex size-8 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:text-text"
-          aria-label="Record another Take"
+          :aria-label="t('record.another')"
           @click="recorder.dismiss()"
         >
           <X class="size-4" />
@@ -210,10 +214,10 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
         v-else-if="state.phase === 'error'"
         class="flex flex-col items-center gap-2 text-center"
       >
-        <p class="flex items-center gap-2 text-sm text-negative">
-          <AlertCircle class="size-4 shrink-0" />
-          {{ state.error }}
-        </p>
+        <div class="flex items-start gap-2 text-left">
+          <AlertCircle class="mt-0.5 size-4 shrink-0 text-negative" />
+          <ErrorMessage :error="state.error" />
+        </div>
         <div class="flex items-center gap-2">
           <button
             type="button"
@@ -221,14 +225,14 @@ const meterFraction = computed(() => Math.min(1, Math.max(state.value.levelPeak,
             @click="recorder.retryUpload()"
           >
             <RotateCcw class="size-3.5" />
-            Retry
+            {{ t('common.retry') }}
           </button>
           <button
             type="button"
             class="inline-flex h-10 items-center rounded-pill px-4 text-xs font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
             @click="recorder.dismiss()"
           >
-            Discard
+            {{ t('record.discard') }}
           </button>
         </div>
       </div>

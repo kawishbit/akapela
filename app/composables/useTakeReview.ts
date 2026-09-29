@@ -14,6 +14,7 @@ import {
 import { DEFAULT_BACKING_SOURCE, type BackingSource } from '~~/shared/backing-source'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '~~/shared/take'
 import type { Take } from '~~/server/db/schema'
+import type { ErrorText } from '~/utils/errors'
 
 const NUDGE_STORAGE_KEY = 'akapela:latency-nudge-ms'
 const SAVE_DEBOUNCE_MS = 300
@@ -36,8 +37,8 @@ export interface TakeReviewState {
   effectsTarget: EffectsTarget
   /** A Mix-time override of the Take's own (ADR 0003 amendment); never saved back onto it. */
   backingSource: BackingSource
-  error: string | null
-  saveError: string | null
+  error: ErrorText | null
+  saveError: ErrorText | null
   deleting: boolean
 }
 
@@ -48,6 +49,7 @@ export interface TakeReviewState {
  * it always travels back as the Take's own value (ADR 0003).
  */
 export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>) {
+  const { t } = useI18n()
   const state = ref<TakeReviewState>({
     loading: true,
     playing: false,
@@ -100,7 +102,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
         state.value.elapsedMs = 0
       },
       onError: (message) => {
-        state.value.error = message
+        state.value.error = { message: t('player.engineFailed'), details: message }
         state.value.loading = false
         state.value.playing = false
       },
@@ -121,7 +123,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
       scheduleSave()
     }
     catch (e) {
-      state.value.error = describeError(e)
+      state.value.error = describeError(e, t, { headline: t('review.loadFailed') })
       state.value.loading = false
     }
   }
@@ -228,7 +230,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
       // engine is still playing `previous`, so the selection shown has to
       // say so too, with the failure surfaced the way a failed initial load already is.
       state.value.backingSource = previous
-      state.value.error = describeError(e)
+      state.value.error = describeError(e, t, { headline: t('player.loadFailed') })
     })
   }
 
@@ -265,7 +267,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
           state.value.saveError = null
         })
         .catch((error) => {
-          state.value.saveError = describeError(error)
+          state.value.saveError = describeError(error, t)
         })
     }
     pendingSave = { timer: setTimeout(run, SAVE_DEBOUNCE_MS), run }
@@ -293,7 +295,7 @@ export function useTakeReview(trackId: Ref<string>, take: Ref<Take | undefined>)
       loadedTakeId = undefined
     }
     catch (e) {
-      state.value.error = describeError(e)
+      state.value.error = describeError(e, t)
       state.value.deleting = false
     }
   }

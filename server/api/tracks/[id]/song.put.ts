@@ -1,8 +1,10 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { INVALID_SONG_MESSAGE, parseSong, type Song } from '../../../../shared/song'
 import { requireTrack } from '../../../lib/require-track'
 import { confirmSong } from '../../../lib/songs'
 import { ManualLyricsOverwriteError } from '../../../lib/track-lyrics'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * Confirm the Song a Track represents, whether tapped from the matches or
@@ -19,7 +21,7 @@ export default defineEventHandler(async (event) => {
     song = parseSong(body)
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_SONG_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_SONG_MESSAGE)
   }
 
   try {
@@ -29,7 +31,7 @@ export default defineEventHandler(async (event) => {
   }
   catch (error) {
     if (error instanceof ManualLyricsOverwriteError) {
-      throw createError({ statusCode: 409, statusMessage: error.message })
+      throw apiError(409, failure('manualLyricsOverwrite'), error.message)
     }
     throw error
   }

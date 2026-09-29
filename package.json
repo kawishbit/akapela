@@ -15,9 +15,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "icons:generate": "node scripts/icons.ts"
+    "icons:generate": "node scripts/icons.ts",
+    "i18n:completeness": "node scripts/i18n-completeness.ts"
   },
   "dependencies": {
+    "@nuxtjs/i18n": "^10.6.0",
     "@vite-pwa/nuxt": "^1.1.1",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2",
@@ -49,6 +51,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.0",
     "vitest": "^4.1.11",
+    "vue-i18n": "11.4.12",
     "vue-tsc": "^3.0.0"
   }
 }
