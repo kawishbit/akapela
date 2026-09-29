@@ -257,6 +257,16 @@
     "searchLabel": "Search your library",
     "clearSearch": "Clear search",
     "tracks": "Tracks",
+    "view": "View",
+    "views": {
+      "grid": "Grid view",
+      "list": "List view"
+    },
+    "pagination": "Library pages",
+    "showing": "{first}–{last} of {total}",
+    "page": "Page {page}",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
     "noMatches": "No matches for “{query}”",
     "noMatchesHint": "Try another title or artist.",
     "emptyTitle": "Nothing to sing yet",

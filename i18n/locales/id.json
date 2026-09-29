@@ -257,6 +257,16 @@
     "searchLabel": "Cari di pustakamu",
     "clearSearch": "Hapus pencarian",
     "tracks": "Trek",
+    "view": "Tampilan",
+    "views": {
+      "grid": "Tampilan kisi",
+      "list": "Tampilan daftar"
+    },
+    "pagination": "Halaman pustaka",
+    "showing": "{first}–{last} dari {total}",
+    "page": "Halaman {page}",
+    "previousPage": "Halaman sebelumnya",
+    "nextPage": "Halaman berikutnya",
     "noMatches": "Tidak ada yang cocok untuk “{query}”",
     "noMatchesHint": "Coba judul atau artis lain.",
     "emptyTitle": "Belum ada yang bisa dinyanyikan",
