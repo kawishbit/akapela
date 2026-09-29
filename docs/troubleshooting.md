@@ -14,6 +14,28 @@ Akapela fetches YouTube audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp). Y
 
 If that gets you nothing newer, the breakage is probably too fresh for a fix. Check [yt-dlp's issue tracker](https://github.com/yt-dlp/yt-dlp/issues) and try again once a fix lands. Importing an audio file is unaffected either way.
 
+## A Spotify playlist won't open
+
+**"Akapela couldn't read that page from Spotify."** Akapela reads a playlist from Spotify's public embed page, with no login. That page is unofficial, and Spotify can change it without warning, the way YouTube changes under yt-dlp. When it does, Akapela needs updating to read the new page:
+
+- **Desktop App:** install the latest Update (Settings, under About).
+- **Docker:** pull and rebuild:
+
+  ```
+  git pull
+  docker compose up -d --build
+  ```
+
+If you're already on the latest version, the change is probably too new for a fix. Import the songs from YouTube one at a time until one lands.
+
+**"That has 150 songs."** A Playlist Import takes up to 100 songs, from a playlist or an album, because Spotify's embed page lists no more than that. Make a shorter playlist from it in Spotify, and paste that link.
+
+**"Spotify has no public playlist or album at that link."** The playlist is private or has been deleted. Make it public in Spotify, or paste a link to a copy that is.
+
+## A song from a playlist found nothing on YouTube
+
+**"Akapela couldn't find … on YouTube."** For each song, Akapela searches YouTube for "artist - title". It takes the first result whose length is within 10 seconds of the length Spotify gives. When nothing is that close, the import fails rather than guessing. Find the song on YouTube yourself, then paste its link into the field on the Track's card or its page. The import runs again from that link, then fetches the song's Lyrics and separates it, like the rest of the playlist.
+
 ## The GPU override won't start, or Settings shows no GPU
 
 If `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up` stops with an error like `could not select device driver "nvidia" with capabilities: [[gpu]]`, Docker can't see the GPU. On Linux, install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) and restart Docker. On Windows, use Docker Desktop's WSL2 backend with a current NVIDIA driver. Check with:

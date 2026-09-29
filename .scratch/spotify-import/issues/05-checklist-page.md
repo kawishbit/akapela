@@ -14,14 +14,14 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Pasting a Spotify playlist or album link in the import field opens the page. YouTube links and files are unchanged.
-- [ ] Rows, states, and ticks behave as above
-- [ ] The count and estimate follow the ticks
-- [ ] Each refusal shows its own message
-- [ ] Every string is in `en.json` and `id.json`, and new terms are in `i18n/glossary.md`
-- [ ] Works at phone width
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Pasting a Spotify playlist or album link in the import field opens the page. YouTube links and files are unchanged.
+- [x] Rows, states, and ticks behave as above
+- [x] The count and estimate follow the ticks
+- [x] Each refusal shows its own message
+- [x] Every string is in `en.json` and `id.json`, and new terms are in `i18n/glossary.md`
+- [x] Works at phone width
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

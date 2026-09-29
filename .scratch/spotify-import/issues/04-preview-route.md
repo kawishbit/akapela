@@ -17,13 +17,13 @@
 
 **Blocked by:** 01, 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Returns name, kind, total, and songs with the right states, against a stubbed reader
-- [ ] A Song already on a Track is `inLibrary` with that Track's id
-- [ ] A repeated Song in the playlist is `duplicate` after its first appearance, and a remaster is not a duplicate of the original
-- [ ] The ratio uses only the default model's succeeded Separations, and falls back when there are none
-- [ ] Refusals pass through with their codes. `invalidPlaylistLink` is in `en.json` and `id.json`.
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Returns name, kind, total, and songs with the right states, against a stubbed reader
+- [x] A Song already on a Track is `inLibrary` with that Track's id
+- [x] A repeated Song in the playlist is `duplicate` after its first appearance, and a remaster is not a duplicate of the original
+- [x] The ratio uses only the default model's succeeded Separations, and falls back when there are none
+- [x] Refusals pass through with their codes. `invalidPlaylistLink` is in `en.json` and `id.json`.
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments

@@ -1,6 +1,6 @@
 # Localisation through one JSON file per language, and error codes from the server
 
-_Built on `feature/localisation`; Indonesian awaits review. See `ROADMAP.md`, item 2, and `.scratch/localisation/`._
+_Built on `feature/localisation`; Indonesian awaits review. See `ROADMAP.md`, item 1, and `.scratch/localisation/`._
 
 Every user-facing string moves into `@nuxtjs/i18n` locale files, one JSON file per language, loaded only when that language is in use, so adding a language means adding a file and nothing else. The browser's language is the default and Settings can override it.
 

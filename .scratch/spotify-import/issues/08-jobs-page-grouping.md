@@ -10,12 +10,14 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Labelled Jobs show as one group row with progress counts, and expand to their Jobs
-- [ ] Cancel all cancels only that group's unfinished Jobs, each with the usual cancel behaviour
-- [ ] Clearing finished Jobs removes an emptied group
-- [ ] Every string is in `en.json` and `id.json`
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Labelled Jobs show as one group row with progress counts, and expand to their Jobs
+- [x] Cancel all cancels only that group's unfinished Jobs, each with the usual cancel behaviour
+- [x] Clearing finished Jobs removes an emptied group
+- [x] Every string is in `en.json` and `id.json`
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Implemented (2026-09-29).** Cancelling an import whose Track is already ready (its Job still fetching Lyrics) keeps the Track. Known gap: the "of N" count is taken from the listed Jobs, so pressing Clear finished part-way through lowers it.

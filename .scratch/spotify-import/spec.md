@@ -1,6 +1,6 @@
 # Spec: Spotify playlist import
 
-Status: ready-for-agent
+Status: done
 
 `ROADMAP.md`, item 1. Capitalised terms (Playlist Import, Track, Song, Source, Job, Lane, Separation, Lyrics) are defined in `CONTEXT.md`.
 
@@ -10,15 +10,15 @@ One ticket per file under [`issues/`](issues/), numbered in the order they must 
 
 | # | Ticket | Status | Blocked by |
 | - | ------ | ------ | ---------- |
-| 01 | [No two Tracks share a Song](issues/01-one-track-per-song.md) | ready-for-agent | — |
-| 02 | [`PlaylistReader` and the Spotify embed reader](issues/02-playlist-reader.md) | ready-for-agent | — |
-| 03 | [The playlist Lane](issues/03-playlist-lane.md) | ready-for-agent | — |
-| 04 | [The preview route](issues/04-preview-route.md) | ready-for-agent | 01, 02 |
-| 05 | [The checklist page](issues/05-checklist-page.md) | ready-for-agent | 04 |
-| 06 | [Starting a Playlist Import](issues/06-starting-an-import.md) | ready-for-agent | 03, 04 |
-| 07 | [No YouTube match](issues/07-no-match.md) | ready-for-agent | 06 |
-| 08 | [Following it on the Jobs page](issues/08-jobs-page-grouping.md) | ready-for-agent | 06 |
-| 09 | [ROADMAP and docs](issues/09-roadmap-and-docs.md) | ready-for-agent | 06 |
+| 01 | [No two Tracks share a Song](issues/01-one-track-per-song.md) | done | — |
+| 02 | [`PlaylistReader` and the Spotify embed reader](issues/02-playlist-reader.md) | done | — |
+| 03 | [The playlist Lane](issues/03-playlist-lane.md) | done | — |
+| 04 | [The preview route](issues/04-preview-route.md) | done | 01, 02 |
+| 05 | [The checklist page](issues/05-checklist-page.md) | done | 04 |
+| 06 | [Starting a Playlist Import](issues/06-starting-an-import.md) | done | 03, 04 |
+| 07 | [No YouTube match](issues/07-no-match.md) | done | 06 |
+| 08 | [Following it on the Jobs page](issues/08-jobs-page-grouping.md) | done | 06 |
+| 09 | [ROADMAP and docs](issues/09-roadmap-and-docs.md) | done | 06 |
 
 01, 02, and 03 can land in any order. 04 then leads to the page (05) and the import itself (06). 07 and 08 build on 06. Everything is on one branch, `feature/spotify-import`.
 

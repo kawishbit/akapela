@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Ban, CircleCheck, Loader2, RotateCcw, X, XCircle } from 'lucide-vue-next'
+import { Ban, CircleCheck, Link, Loader2, RotateCcw, X, XCircle } from 'lucide-vue-next'
 import type { JobListEntry } from '~~/server/lib/job-actions'
 import { DEFAULT_SEPARATION_MODEL } from '~~/server/lib/separators/models'
 
@@ -145,6 +145,16 @@ const active = computed(() => isActiveJob(props.job))
       <X class="size-3.5" />
       <span class="hidden sm:inline">{{ t('jobs.cancel') }}</span>
     </button>
+    <!-- Found nothing on YouTube: searching again would too, so its Track's page asks for a link. -->
+    <NuxtLink
+      v-else-if="job.state === 'failed' && job.errorCode === 'noYoutubeMatch' && job.track"
+      :to="`/tracks/${job.track.id}`"
+      class="inline-flex shrink-0 items-center gap-2 rounded-pill bg-surface-mid px-4 py-2 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
+      :aria-label="t('jobs.pasteLinkLabel', { title })"
+    >
+      <Link class="size-3.5" />
+      <span class="hidden sm:inline">{{ t('jobs.pasteLink') }}</span>
+    </NuxtLink>
     <button
       v-else-if="job.state === 'failed'"
       type="button"

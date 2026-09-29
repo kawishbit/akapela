@@ -13,10 +13,12 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] ROADMAP item 1 matches what was decided and built, with no "Open" left
-- [ ] Later lists routes (b)/(c) for playlists over 100
-- [ ] Troubleshooting covers the two new failures
+- [x] ROADMAP item 1 matches what was decided and built, with no "Open" left
+- [x] Later lists routes (b)/(c) for playlists over 100
+- [x] Troubleshooting covers the two new failures
 
 ## Comments
+
+**Implemented (2026-09-29).** The ROADMAP's later items were renumbered, and ADR 0014's pointer to them updated to match.

@@ -21,15 +21,17 @@ The Spotify-derived fields a Track needs for this (at minimum its duration befor
 
 **Blocked by:** 03, 04
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The route creates one Track and one labelled import Job per chosen song, with the Song confirmed
-- [ ] A song whose Song is already on a Track is skipped, including when two imports race
-- [ ] Matching picks within ±10 s and prefers Topic, then non-video uploads (unit-tested ranking)
-- [ ] After the download, Lyrics are fetched with suffixes stripped from the search, and a Separation is queued with the label
-- [ ] A Lyrics failure leaves the Track ready
-- [ ] Cancelling a labelled import deletes its Track, as any cancelled import does, and frees its Song
-- [ ] Tests stub `SourceFetcher` and the Lyrics Provider. No network.
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] The route creates one Track and one labelled import Job per chosen song, with the Song confirmed
+- [x] A song whose Song is already on a Track is skipped, including when two imports race
+- [x] Matching picks within ±10 s and prefers Topic, then non-video uploads (unit-tested ranking)
+- [x] After the download, Lyrics are fetched with suffixes stripped from the search, and a Separation is queued with the label
+- [x] A Lyrics failure leaves the Track ready
+- [x] Cancelling a labelled import deletes its Track, as any cancelled import does, and frees its Song
+- [x] Tests stub `SourceFetcher` and the Lyrics Provider. No network.
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Implemented (2026-09-29).** A Track with no link yet has `source_ref = ''`, because the column is NOT NULL. Spotify's duration is stored in `duration_ms`. The import keeps Spotify's title rather than the video's. The follow-up (Lyrics, then Separation) runs in the import Job once the Track is ready. It tries the first of several artists alone when all of them together find nothing, keeps the provider's id and album art for the Song, and gives the provider 30 s. Known gap: after a retry, the Lyrics lookup uses YouTube's length rather than Spotify's.

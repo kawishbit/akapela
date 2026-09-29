@@ -235,6 +235,104 @@ describe('confirming the Song a Track represents', () => {
   })
 })
 
+describe('no two Tracks share a Song', () => {
+  test('a Song another Track has is refused, naming that Track, and neither Track changes', async () => {
+    const first = await importTrack('first.mp3')
+    const second = await importTrack('second.mp3')
+    await api.confirmSong(first.id, YESTERDAY)
+
+    const res = await api.confirmSong(second.id, YESTERDAY)
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).data).toEqual({
+      code: 'songInLibrary',
+      params: { title: 'first' },
+      track: { id: first.id, title: 'first' },
+    })
+    expect(await (await api.get(`/api/tracks/${second.id}`)).json()).toMatchObject({ songTitle: null, artist: null })
+    expect(await (await api.get(`/api/tracks/${first.id}`)).json()).toMatchObject({ songTitle: 'Yesterday' })
+  })
+
+  test.each([
+    { artist: 'the beatles', title: 'Yesterday' },
+    { artist: 'The Beatles', title: 'yesterday' },
+    { artist: 'The Beatles feat. Someone', title: 'Yesterday' },
+    { artist: 'The Beatles', title: 'Yesterday - Remastered 2009' },
+  ])('$artist · $title is another Song, and is allowed', async (song) => {
+    const first = await importTrack('first.mp3')
+    const second = await importTrack('second.mp3')
+    await api.confirmSong(first.id, YESTERDAY)
+
+    expect((await api.confirmSong(second.id, song)).status).toBe(200)
+  })
+
+  test('whitespace around the artist and title is trimmed before comparing and storing', async () => {
+    const first = await importTrack('first.mp3')
+    const second = await importTrack('second.mp3')
+    await api.confirmSong(first.id, { artist: '  The Beatles ', title: ' Yesterday  ' })
+
+    expect(await (await api.get(`/api/tracks/${first.id}`)).json())
+      .toMatchObject({ songArtist: 'The Beatles', songTitle: 'Yesterday' })
+    expect((await api.confirmSong(second.id, YESTERDAY)).status).toBe(409)
+  })
+
+  test("confirming a Track's own Song again succeeds", async () => {
+    const track = await importTrack()
+    await api.confirmSong(track.id, YESTERDAY)
+
+    expect((await api.confirmSong(track.id, YESTERDAY)).status).toBe(200)
+  })
+
+  test('is refused before asking about typed Lyrics', async () => {
+    const first = await importTrack('first.mp3')
+    const second = await importTrack('second.mp3')
+    await api.confirmSong(first.id, YESTERDAY)
+    await api.put(`/api/tracks/${second.id}/lyrics`, { text: 'my own words' })
+
+    const res = await api.confirmSong(second.id, YESTERDAY)
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).data.code).toBe('songInLibrary')
+  })
+
+  test('of two confirmations of one Song at once on two Tracks, exactly one succeeds', async () => {
+    const first = await importTrack('first.mp3')
+    const second = await importTrack('second.mp3')
+
+    const statuses = (await Promise.all([
+      api.confirmSong(first.id, YESTERDAY),
+      api.confirmSong(second.id, YESTERDAY),
+    ])).map(res => res.status).sort()
+
+    expect(statuses).toEqual([200, 409])
+    expect(api.akapela.sqlite.prepare(`SELECT count(*) AS n FROM tracks WHERE song_title = 'Yesterday'`).get())
+      .toEqual({ n: 1 })
+  })
+
+  test('deleting the Track that has a Song frees it', async () => {
+    const first = await importTrack('first.mp3')
+    const second = await importTrack('second.mp3')
+    await api.confirmSong(first.id, YESTERDAY)
+    await api.del(`/api/tracks/${first.id}`)
+
+    expect((await api.confirmSong(second.id, YESTERDAY)).status).toBe(200)
+  })
+
+  test('duplicates from before the rule stay, and each can still be edited', async () => {
+    const first = await importTrack('first.mp3')
+    const second = await importTrack('second.mp3')
+    api.akapela.sqlite
+      .prepare(`UPDATE tracks SET song_artist = 'The Beatles', song_title = 'Yesterday' WHERE id IN (?, ?)`)
+      .run(first.id, second.id)
+
+    // Its own Song is not a clash, even though another Track has it too.
+    expect((await api.confirmSong(second.id, YESTERDAY)).status).toBe(200)
+    expect((await api.put(`/api/tracks/${second.id}/details`, { title: 'Renamed', artist: 'X' })).status).toBe(200)
+    expect((await api.confirmSong(second.id, { artist: 'Björk', title: 'Army of Me' })).status).toBe(200)
+    expect((await api.get(`/api/tracks/${first.id}`)).status).toBe(200)
+  })
+})
+
 describe("a Track's Lyrics Offset", () => {
   test('is saved in tenths of a second and comes back when the Track is opened again', async () => {
     const track = await importTrack()

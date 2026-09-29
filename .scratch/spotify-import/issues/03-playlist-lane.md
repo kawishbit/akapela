@@ -10,14 +10,16 @@
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A migration adds the two columns, and an existing database upgrades cleanly
-- [ ] A labelled import runs on the playlist Lane, while a Mix and an unlabelled import run on the light Lane at the same time
-- [ ] A labelled Separation runs on the heavy Lane
-- [ ] Each Lane still runs one Job at a time, in creation order
-- [ ] Cancel and retry work unchanged for labelled Jobs, and a retried Job keeps its label and Lane
-- [ ] ADR 0012 amended
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] A migration adds the two columns, and an existing database upgrades cleanly
+- [x] A labelled import runs on the playlist Lane, while a Mix and an unlabelled import run on the light Lane at the same time
+- [x] A labelled Separation runs on the heavy Lane
+- [x] Each Lane still runs one Job at a time, in creation order
+- [x] Cancel and retry work unchanged for labelled Jobs, and a retried Job keeps its label and Lane
+- [x] ADR 0012 amended
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Implemented (2026-09-29).** The Lane is decided by `laneOf` and, for the runner's claim, by `laneCondition`, which is the same rule written as SQL. A retried import, and a retried Separation, keep their label.

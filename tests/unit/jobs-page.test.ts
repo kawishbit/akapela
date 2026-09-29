@@ -22,6 +22,8 @@ function entry(overrides: Partial<JobListEntry> & Pick<JobListEntry, 'id'>): Job
     traceParent: null,
     separationModel: null,
     detail: null,
+    playlistImportId: null,
+    playlistImportName: null,
     lane: 'light',
     track: { id: 't1', title: 'Yesterday', artist: null, updatedAt: 1 },
     take: null,
@@ -106,6 +108,7 @@ describe('queuedBehind', () => {
   test('says what a queued Job waits behind without saying Lane', () => {
     expect(queuedBehind('heavy', t)).toBe('Waits for other Separations')
     expect(queuedBehind('light', t)).toBe('Waits for imports and Mixes')
+    expect(queuedBehind('playlist', t)).toBe('Waits for other imports from playlists')
   })
 })
 

@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { importHandler } from '../../../server/lib/jobs/import-track'
 import { trackDir } from '../../../server/lib/jobs/track-paths'
 import type { JobContext } from '../../../server/lib/jobs-runner'
 import { SourceError, YtDlpFetcher, type MetadataOptions, type ProgressCallback, type SourceFetcher, type SourceMetadata } from '../../../server/lib/sources'
+import type { YoutubeSearchResult } from '../../../server/lib/youtube-match'
+import { CodedError } from '../../../shared/error-codes'
 import { probe, writeSineMp3 } from '../audio-fixtures'
 import { createJobTestDb, type JobTestDb } from '../job-test-db'
 
@@ -40,10 +42,16 @@ function getTrack(t: JobTestDb): Record<string, unknown> {
 }
 
 /** A JobContext built by hand, so a test can hook into progress reporting directly. */
-function buildCtx(t: JobTestDb, jobId: string, onProgress?: (percent: number) => void): JobContext {
+function buildCtx(
+  t: JobTestDb,
+  jobId: string,
+  onProgress?: (percent: number) => void,
+  options: { playlistImportId?: string } = {},
+): JobContext {
   t.akapela.sqlite
-    .prepare(`INSERT INTO jobs (id, type, target_id, state, progress, error, created_at) VALUES (?, 'import', ?, 'running', 0, NULL, 1000)`)
-    .run(jobId, TRACK_ID)
+    .prepare(`INSERT INTO jobs (id, type, target_id, state, progress, error, created_at, playlist_import_id)
+              VALUES (?, 'import', ?, 'running', 0, NULL, 1000, ?)`)
+    .run(jobId, TRACK_ID, options.playlistImportId ?? null)
   return {
     job: {
       id: jobId,
@@ -52,12 +60,16 @@ function buildCtx(t: JobTestDb, jobId: string, onProgress?: (percent: number) =>
       state: 'running',
       progress: 0,
       error: null,
+      errorCode: null,
+      errorParams: null,
       createdAt: 1000,
       startedAt: 1000,
       finishedAt: null,
       traceParent: null,
       separationModel: null,
       detail: null,
+      playlistImportId: options.playlistImportId ?? null,
+      playlistImportName: options.playlistImportId ? 'All Out 80s' : null,
     },
     dataDir: t.dataDir,
     sqlite: t.akapela.sqlite,
@@ -72,6 +84,8 @@ function buildCtx(t: JobTestDb, jobId: string, onProgress?: (percent: number) =>
 
 class FakeFetcher implements SourceFetcher {
   downloadCalls = 0
+  searches: string[] = []
+  downloadedFrom: string | undefined
   constructor(
     private readonly options: {
       metadata?: SourceMetadata
@@ -79,10 +93,16 @@ class FakeFetcher implements SourceFetcher {
       downloadError?: string
       onDownload?: () => void
       coverBytes?: Uint8Array
+      searchResults?: YoutubeSearchResult[]
     } = {},
   ) {}
 
   metadataOptions: MetadataOptions | undefined
+
+  async searchYoutube(query: string): Promise<YoutubeSearchResult[]> {
+    this.searches.push(query)
+    return this.options.searchResults ?? []
+  }
 
   async fetchMetadata(_url: string, directory: string, options?: MetadataOptions): Promise<SourceMetadata> {
     this.metadataOptions = options
@@ -95,8 +115,9 @@ class FakeFetcher implements SourceFetcher {
     return metadata
   }
 
-  async downloadAudio(_url: string, directory: string, onProgress: ProgressCallback): Promise<string> {
+  async downloadAudio(url: string, directory: string, onProgress: ProgressCallback): Promise<string> {
     this.downloadCalls += 1
+    this.downloadedFrom = url
     this.options.onDownload?.()
     if (this.options.downloadError) throw new SourceError(this.options.downloadError)
     onProgress(0.5)
@@ -366,5 +387,125 @@ describe('importHandler (youtube)', () => {
 
     expect(getTrack(t).import_state).toBe('ready')
     expect(existsSync(join(trackDir(t.dataDir, TRACK_ID), BACKING_TRACK_FILE))).toBe(true)
+  })
+})
+
+describe('importHandler (a Playlist Import\'s song, with no link yet)', () => {
+  const TOPIC: YoutubeSearchResult = {
+    url: 'https://www.youtube.com/watch?v=HgzGwKwLmgM',
+    title: 'Don\'t Stop Me Now (Remastered 2011)',
+    uploader: 'Queen - Topic',
+    durationMs: 209_000,
+  }
+  const VIDEO: YoutubeSearchResult = {
+    url: 'https://www.youtube.com/watch?v=HgzGwKwLmgA',
+    title: 'Queen - Don\'t Stop Me Now (Official Video)',
+    uploader: 'Queen Official',
+    durationMs: 211_000,
+  }
+  const METADATA: SourceMetadata = { title: 'Don\'t Stop Me Now (Remastered 2011)', durationMs: 209_000, coverFile: 'cover.jpg' }
+
+  function insertPlaylistTrack(t: JobTestDb, sourceRef = ''): void {
+    t.akapela.sqlite
+      .prepare(
+        `INSERT INTO tracks (id, title, artist, duration_ms, cover_path, source_kind, source_ref, import_state,
+           song_artist, song_title, song_provider_ids, created_at, updated_at)
+         VALUES (?, 'Don''t Stop Me Now - Remastered 2011', 'Queen', 209413, 'cover.svg', 'youtube', ?, 'importing',
+           'Queen', 'Don''t Stop Me Now - Remastered 2011', '{}', 1000, 1000)`,
+      )
+      .run(TRACK_ID, sourceRef)
+  }
+
+  it('finds the song on YouTube, keeps the link, and imports it under Spotify\'s title', async () => {
+    const t = setup()
+    insertPlaylistTrack(t)
+    const fetcher = new FakeFetcher({ metadata: METADATA, searchResults: [VIDEO, TOPIC] })
+
+    await importHandler(fetcher)(buildCtx(t, 'j1', undefined, { playlistImportId: 'p1' }))
+
+    expect(fetcher.searches).toEqual(['Queen - Don\'t Stop Me Now - Remastered 2011'])
+    expect(fetcher.downloadedFrom).toBe(TOPIC.url)
+    const track = getTrack(t)
+    expect(track).toMatchObject({
+      source_ref: TOPIC.url,
+      import_state: 'ready',
+      title: 'Don\'t Stop Me Now - Remastered 2011',
+      song_title: 'Don\'t Stop Me Now - Remastered 2011',
+      cover_path: 'cover.jpg',
+    })
+  })
+
+  it('fails with noYoutubeMatch when nothing is close in length, keeping the Track\'s Song', async () => {
+    const t = setup()
+    insertPlaylistTrack(t)
+    const fetcher = new FakeFetcher({ metadata: METADATA, searchResults: [{ ...VIDEO, durationMs: 260_000 }] })
+
+    const error = await importHandler(fetcher)(buildCtx(t, 'j1', undefined, { playlistImportId: 'p1' })).catch(e => e)
+
+    expect(error).toBeInstanceOf(CodedError)
+    expect(error.failure).toEqual({
+      code: 'noYoutubeMatch',
+      params: { artist: 'Queen', title: 'Don\'t Stop Me Now - Remastered 2011' },
+    })
+    expect(fetcher.downloadCalls).toBe(0)
+    expect(getTrack(t)).toMatchObject({ import_state: 'failed', source_ref: '', song_title: 'Don\'t Stop Me Now - Remastered 2011' })
+  })
+
+  it('does not search again once it has a link, and downloads from that', async () => {
+    const t = setup()
+    insertPlaylistTrack(t, 'https://www.youtube.com/watch?v=pastedpaste')
+    const fetcher = new FakeFetcher({ metadata: METADATA, searchResults: [TOPIC] })
+
+    await importHandler(fetcher)(buildCtx(t, 'j2', undefined, { playlistImportId: 'p1' }))
+
+    expect(fetcher.searches).toEqual([])
+    expect(fetcher.downloadedFrom).toBe('https://www.youtube.com/watch?v=pastedpaste')
+    expect(getTrack(t).import_state).toBe('ready')
+  })
+
+  it('follows up once the Track is ready, with Spotify\'s length', async () => {
+    const t = setup()
+    insertPlaylistTrack(t)
+    const calls: Array<{ state: unknown, durationMs: number | null }> = []
+
+    await importHandler(new FakeFetcher({ metadata: METADATA, searchResults: [TOPIC] }), {
+      followUp: async (_ctx, trackId, durationMs) => {
+        calls.push({ state: getTrack(t).import_state, durationMs })
+        expect(trackId).toBe(TRACK_ID)
+      },
+    })(buildCtx(t, 'j1', undefined, { playlistImportId: 'p1' }))
+
+    expect(calls).toEqual([{ state: 'ready', durationMs: 209_413 }])
+  })
+
+  it('leaves the Track ready when the follow-up fails', async () => {
+    const t = setup()
+    insertPlaylistTrack(t)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await importHandler(new FakeFetcher({ metadata: METADATA, searchResults: [TOPIC] }), {
+      followUp: async () => {
+        throw new Error('LRCLIB is down')
+      },
+    })(buildCtx(t, 'j1', undefined, { playlistImportId: 'p1' }))
+
+    expect(getTrack(t).import_state).toBe('ready')
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('does not follow up an import nobody asked everything of', async () => {
+    const t = setup()
+    insertTrack(t, { sourceKind: 'youtube', sourceRef: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' })
+    let followedUp = false
+
+    await importHandler(new FakeFetcher({ metadata: METADATA }), {
+      followUp: async () => {
+        followedUp = true
+      },
+    })(buildCtx(t, 'j1'))
+
+    expect(followedUp).toBe(false)
+    expect(getTrack(t).title).toBe(METADATA.title)
   })
 })

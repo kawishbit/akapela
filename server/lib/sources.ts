@@ -5,6 +5,8 @@ import { COVER_BASENAME, coverExtension } from './cover'
 import { childEnv, jsRuntimePath, killOnAbort, ytDlpPath } from './tools'
 import { ensureManagedYtDlp } from './ytdlp'
 import { CodedError, failure, type CodedFailure } from '../../shared/error-codes'
+import { canonicalYoutubeUrl } from '../../shared/youtube'
+import { SEARCH_RESULTS, type YoutubeSearchResult } from './youtube-match'
 
 /**
  * Source fetchers: where a Track's audio and metadata come from. Ported from
@@ -50,6 +52,8 @@ export interface MetadataOptions {
 export interface SourceFetcher {
   fetchMetadata(url: string, directory: string, options?: MetadataOptions): Promise<SourceMetadata>
   downloadAudio(url: string, directory: string, onProgress: ProgressCallback, signal?: AbortSignal): Promise<string>
+  /** YouTube's first results for a search, metadata only: what a Playlist Import picks its video from. */
+  searchYoutube(query: string, signal?: AbortSignal): Promise<YoutubeSearchResult[]>
 }
 
 /** The real thing: the standalone yt-dlp binary, with its progress parsed off stdout. */
@@ -99,6 +103,39 @@ export class YtDlpFetcher implements SourceFetcher {
     if (!written) throw new SourceError(`yt-dlp reported success but wrote no audio for ${url}`, failure('ytDlpFailed'))
     return join(directory, written)
   }
+
+  async searchYoutube(query: string, signal?: AbortSignal): Promise<YoutubeSearchResult[]> {
+    await ensureManagedYtDlp()
+    // Flat: each result's listing only, never its page, so ten results are one request.
+    const stdout = await runYtDlp(
+      ['-J', '--flat-playlist', ...jsRuntimeArgs(), `ytsearch${SEARCH_RESULTS}:${query}`],
+      signal,
+    )
+    return parseYoutubeSearch(stdout)
+  }
+}
+
+/** yt-dlp's `-J --flat-playlist` answer to a `ytsearch`, as results; an entry without an id is left out. */
+export function parseYoutubeSearch(stdout: string): YoutubeSearchResult[] {
+  let info: unknown
+  try {
+    info = JSON.parse(stdout)
+  }
+  catch {
+    return []
+  }
+  const entries = (info && typeof info === 'object' ? (info as { entries?: unknown }).entries : null)
+  if (!Array.isArray(entries)) return []
+  return entries.flatMap((entry: unknown) => {
+    const { id, title, duration, channel, uploader } = (entry ?? {}) as Record<string, unknown>
+    if (typeof id !== 'string' || !id) return []
+    return [{
+      url: canonicalYoutubeUrl(id),
+      title: typeof title === 'string' ? title : '',
+      uploader: typeof channel === 'string' ? channel : typeof uploader === 'string' ? uploader : null,
+      durationMs: typeof duration === 'number' ? Math.round(duration * 1000) : null,
+    }]
+  })
 }
 
 async function originalFiles(directory: string): Promise<string[]> {

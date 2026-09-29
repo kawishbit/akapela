@@ -9,13 +9,15 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] No result within ±10 s fails the Job with `noYoutubeMatch`
-- [ ] Retrying asks for a link, rejects a non-YouTube link, and completes the import with a valid one
-- [ ] The retried Track keeps its Song and still gets Lyrics and a Separation
-- [ ] A Track that failed after matching retries without asking
-- [ ] The code and every string are in `en.json` and `id.json`
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] No result within ±10 s fails the Job with `noYoutubeMatch`
+- [x] Retrying asks for a link, rejects a non-YouTube link, and completes the import with a valid one
+- [x] The retried Track keeps its Song and still gets Lyrics and a Separation
+- [x] A Track that failed after matching retries without asking
+- [x] The code and every string are in `en.json` and `id.json`
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Implemented (2026-09-29).** Retrying without a link is refused with a new code, `youtubeLinkNeeded`, on the Track's retry route and on the Jobs page. On the Jobs page, a `noYoutubeMatch` row links to its Track instead of offering Retry.

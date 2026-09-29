@@ -93,5 +93,7 @@ export function useJobs() {
     cancel: (job: JobListEntry) => act(`/api/jobs/${job.id}/cancel`),
     retry: (job: JobListEntry) => act(`/api/jobs/${job.id}/retry`),
     clearFinished: () => act('/api/jobs/clear'),
+    /** Cancel all: every queued or running Job of one Playlist Import. */
+    cancelPlaylistImport: (playlistImportId: string) => act(`/api/playlist-imports/${encodeURIComponent(playlistImportId)}/cancel`),
   }
 }

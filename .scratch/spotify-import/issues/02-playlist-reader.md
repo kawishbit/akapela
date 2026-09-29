@@ -21,15 +21,17 @@ Test against saved HTML fixtures under `tests/fixtures/spotify/`: a playlist of 
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `parsePlaylistLink` accepts the playlist and album link forms above and rejects track, artist, and non-Spotify links
-- [ ] A 50-song fixture reads with its name, all songs, and the artist string verbatim
-- [ ] A 150-song fixture is refused with `playlistTooLong` and `total: 150`
-- [ ] An unknown total with exactly 100 listed is refused. An unknown total with 99 listed is read.
-- [ ] An album fixture reads the same way
-- [ ] A malformed page is `playlistUnreadable`, and a 404 is `playlistNotFound`
-- [ ] New codes in `shared/error-codes.ts`, `en.json`, and `id.json`
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] `parsePlaylistLink` accepts the playlist and album link forms above and rejects track, artist, and non-Spotify links
+- [x] A 50-song fixture reads with its name, all songs, and the artist string verbatim
+- [x] A 150-song fixture is refused with `playlistTooLong` and `total: 150`
+- [x] An unknown total with exactly 100 listed is refused. An unknown total with 99 listed is read.
+- [x] An album fixture reads the same way
+- [x] A malformed page is `playlistUnreadable`, and a 404 is `playlistNotFound`
+- [x] New codes in `shared/error-codes.ts`, `en.json`, and `id.json`
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Implemented (2026-09-29).** A playlist whose total is unknown and whose embed lists exactly 100 is refused with `total: "100+"`. Any other HTTP failure from Spotify (429, 5xx) reads as `unexpected`, with its English as the Details, rather than `playlistUnreadable`, since the page wasn't the problem. The fixtures are synthetic, built in the shape the spike found.

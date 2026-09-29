@@ -131,6 +131,28 @@ function trimEdges(text: string): string {
   return text.replace(/\s+/g, ' ').replace(EDGE_PUNCTUATION, '').trim()
 }
 
+/**
+ * A trailing note about which edition a recording is, as Spotify writes it:
+ * " - Remastered 2011", " - Remaster", " (Radio Edit)", " - Single Version",
+ * " - Mono", " - Stereo", " - 2009 Mix".
+ */
+const EDITION_SUFFIX = /\s*(?:\s-\s(?:(?:\d{4}\s)?Remaster(?:ed)?(?:\s\d{4})?(?:\sVersion)?|Single\sVersion|Mono|Stereo|\d{4}\sMix)|\(Radio\sEdit\))\s*$/i
+
+/**
+ * The title a Lyrics Provider is searched with for a Song a Playlist Import
+ * confirmed: Spotify's, with the edition note dropped, since a provider lists
+ * "Don't Stop Me Now" once rather than once per remaster. The Song itself
+ * keeps the title exactly as Spotify gave it.
+ */
+export function lyricsSearchTitle(title: string): string {
+  let current = title.trim()
+  for (;;) {
+    const stripped = current.replace(EDITION_SUFFIX, '').trim()
+    if (stripped === current || !stripped) return current
+    current = stripped
+  }
+}
+
 /** Long enough for the wordiest real title, short enough that nothing silly is stored. */
 export const SONG_FIELD_MAX_LENGTH = 300
 

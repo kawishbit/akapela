@@ -12,17 +12,19 @@ On the Track page, confirming a Song another Track already has is refused with a
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Confirming a Song that another Track has is refused with `songInLibrary`, and neither Track changes
-- [ ] Differences in case, artist string, or title suffix are different Songs and are allowed
-- [ ] Outside whitespace is trimmed before comparing (and before storing)
-- [ ] Re-confirming a Track's own Song succeeds
-- [ ] Two concurrent confirmations of the same Song on two Tracks: exactly one succeeds
-- [ ] A database with existing duplicates upgrades and runs. The duplicates are untouched and can still be edited.
-- [ ] The Track page shows the refusal with a link to the other Track
-- [ ] `songInLibrary` is in `shared/error-codes.ts`, `en.json`, and `id.json`
-- [ ] `CONTEXT.md`'s **Song** entry already states the rule. Check it still matches what shipped.
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] Confirming a Song that another Track has is refused with `songInLibrary`, and neither Track changes
+- [x] Differences in case, artist string, or title suffix are different Songs and are allowed
+- [x] Outside whitespace is trimmed before comparing (and before storing)
+- [x] Re-confirming a Track's own Song succeeds
+- [x] Two concurrent confirmations of the same Song on two Tracks: exactly one succeeds
+- [x] A database with existing duplicates upgrades and runs. The duplicates are untouched and can still be edited.
+- [x] The Track page shows the refusal with a link to the other Track
+- [x] `songInLibrary` is in `shared/error-codes.ts`, `en.json`, and `id.json`
+- [x] `CONTEXT.md`'s **Song** entry already states the rule. Check it still matches what shipped.
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
 
 ## Comments
+
+**Implemented (2026-09-29).** `songInLibrary` carries only `title` as its parameter, because every parameter of a code has to appear in its message (`tests/unit/i18n-keys.test.ts`). The other Track's id is sent beside the code, as `track: { id, title }` in the refusal's data. A Track re-confirming the Song it already has never clashes, even with a duplicate from before the rule. `CONTEXT.md`'s Song entry matches what shipped.

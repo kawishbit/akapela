@@ -9,6 +9,7 @@ import { createLrclibProvider } from '../lyrics/lrclib'
 import type { LyricsProvider } from '../lyrics/provider'
 import { hostCores, type Hardware } from './hardware'
 import { RunningJobs } from './running-jobs'
+import { SpotifyEmbedReader, type PlaylistReader } from './playlists'
 
 export interface AkapelaOptions {
   /** Directory holding the database and every Track's files. */
@@ -23,6 +24,8 @@ export interface AkapelaOptions {
   fetch?: typeof globalThis.fetch
   /** The machine this instance separates on. Defaults to this one; tests pass whatever they need to be true. */
   hardware?: () => Promise<Hardware>
+  /** Where a Playlist Import reads its playlist. Defaults to Spotify's embed page; tests pass a stub. */
+  playlistReader?: PlaylistReader
 }
 
 export interface Akapela {
@@ -37,6 +40,8 @@ export interface Akapela {
   runningJobs: RunningJobs
   /** The machine hosting this Akapela, worked out once and remembered. */
   hardware(): Promise<Hardware>
+  /** Reads a playlist or album from another service, for a Playlist Import. */
+  playlistReader: PlaylistReader
   close(): void
 }
 
@@ -67,6 +72,7 @@ export function createAkapela(options: AkapelaOptions): Akapela {
     fetch: options.fetch ?? ((...args) => globalThis.fetch(...args)),
     runningJobs: new RunningJobs(),
     hardware: () => (hardware ??= detect()),
+    playlistReader: options.playlistReader ?? new SpotifyEmbedReader(),
     close() {
       sqlite.close()
     },
