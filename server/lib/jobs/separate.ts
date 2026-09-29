@@ -15,12 +15,12 @@ import type { Accelerator } from '../separators/accelerator'
 import type { Handler, JobContext } from '../jobs-runner'
 import { decodeToWav, storeWavAs } from '../audio'
 import {
-  audioFileCandidates,
   audioFileName,
   audioFormatOf,
   BACKING_BASENAME,
   findAudioFile,
   INSTRUMENTAL_BASENAME,
+  replaceAudioFile,
   VOCALS_BASENAME,
 } from '../audio-files'
 import { audioFormatNow, ensureNotDeleted, trackDir, trackExists } from './track-paths'
@@ -353,9 +353,7 @@ async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: 
         const destination = join(directory, audioFileName(basename, format))
         await rename(path, destination)
         // Stems the previous Separation stored in another Audio Format.
-        for (const other of audioFileCandidates(directory, basename)) {
-          if (other !== destination) await rm(other, { force: true })
-        }
+        await replaceAudioFile(directory, basename, destination)
       }
     }
     finally {

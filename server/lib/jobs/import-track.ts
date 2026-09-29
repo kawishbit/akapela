@@ -1,7 +1,7 @@
-import { readdir, rm } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { audioDurationMs, normalizeToBackingTrack } from '../audio'
-import { audioFileCandidates, audioFileName, BACKING_BASENAME } from '../audio-files'
+import { audioFileName, BACKING_BASENAME, replaceAudioFile } from '../audio-files'
 import { ORIGINAL_BASENAME, type ProgressCallback, type SourceFetcher } from '../sources'
 import type { Handler, JobContext } from '../jobs-runner'
 import { audioFormatNow, ensureNotDeleted, trackDir } from './track-paths'
@@ -62,9 +62,7 @@ export function importHandler(fetcher: SourceFetcher): Handler {
       // left behind in another one.
       const backing = join(directory, audioFileName(BACKING_BASENAME, audioFormatNow(ctx.sqlite)))
       await normalizeToBackingTrack(original, backing, ctx.signal)
-      for (const other of audioFileCandidates(directory, BACKING_BASENAME)) {
-        if (other !== backing) await rm(other, { force: true })
-      }
+      await replaceAudioFile(directory, BACKING_BASENAME, backing)
       ctx.signal.throwIfAborted()
       ctx.progress(PROGRESS_NORMALIZED)
 

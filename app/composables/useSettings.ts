@@ -1,6 +1,6 @@
 import type { AppSettings, SettingsChanges } from '~~/server/lib/settings'
 import { DEFAULT_LYRICS_PROVIDER, type LyricsProviderName } from '~~/shared/lyrics'
-import type { SeparationModelName } from '~~/server/lib/separators/models'
+import { DEFAULT_SEPARATION_MODEL, type SeparationModelName } from '~~/server/lib/separators/models'
 import { DEFAULT_AUDIO_FORMAT, type AudioFormat } from '~~/shared/audio-format'
 
 /**
@@ -16,7 +16,7 @@ export function useSettings() {
     micProcessingDefault: false,
     monitoringDefault: false,
     ytDlpUpdatable: false,
-    separationModel: 'Inst_Main',
+    separationModel: DEFAULT_SEPARATION_MODEL,
     separationModels: [],
     audioFormat: DEFAULT_AUDIO_FORMAT,
     audioFormats: [DEFAULT_AUDIO_FORMAT],
@@ -91,7 +91,7 @@ export function useSettings() {
     micProcessingDefault: computed(() => data.value?.micProcessingDefault ?? false),
     monitoringDefault: computed(() => data.value?.monitoringDefault ?? false),
     ytDlpUpdatable: computed(() => data.value?.ytDlpUpdatable ?? false),
-    separationModel: computed(() => data.value?.separationModel ?? 'Inst_Main'),
+    separationModel: computed(() => data.value?.separationModel ?? DEFAULT_SEPARATION_MODEL),
     separationModels: computed(() => data.value?.separationModels ?? []),
     audioFormat: computed(() => data.value?.audioFormat ?? DEFAULT_AUDIO_FORMAT),
     audioFormats: computed(() => data.value?.audioFormats ?? [DEFAULT_AUDIO_FORMAT]),

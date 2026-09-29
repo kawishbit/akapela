@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { AUDIO_FORMATS, type AudioFormat } from '../../shared/audio-format'
 
@@ -32,6 +33,17 @@ export function audioFileCandidates(directory: string, basename: string): string
  */
 export function findAudioFile(directory: string, basename: string): string | null {
   return audioFileCandidates(directory, basename).find(path => existsSync(path)) ?? null
+}
+
+/**
+ * Removes every file named like `kept` in any other Audio Format, once `kept`
+ * is in place: a master or Stem written in the format in force now replaces
+ * whatever an earlier write left in another, so a Track never holds two.
+ */
+export async function replaceAudioFile(directory: string, basename: string, kept: string): Promise<void> {
+  for (const other of audioFileCandidates(directory, basename)) {
+    if (other !== kept) await rm(other, { force: true })
+  }
 }
 
 /** The Audio Format a stored file is in, from its extension, or null for anything else. */

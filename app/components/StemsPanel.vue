@@ -190,6 +190,11 @@ function useSource(backingSource: BackingSource) {
       >
         <XCircle class="size-4 shrink-0" />
         {{ failure }}
+        <!-- A failed Separation again leaves the Stems it meant to replace. -->
+        <span
+          v-if="track.hasStems"
+          class="text-text-muted"
+        >Still on the Stems {{ track.stemsModel }} made.</span>
       </p>
       <p
         v-else
@@ -226,7 +231,7 @@ function useSource(backingSource: BackingSource) {
       aria-label="Separate again with"
     >
       <p class="text-sm text-text-muted">
-        Separate again with another model. These Stems stay until the new ones are ready.
+        Separate again with another Separation Model. These Stems stay until the new ones are ready.
       </p>
       <button
         v-for="model in otherModels"

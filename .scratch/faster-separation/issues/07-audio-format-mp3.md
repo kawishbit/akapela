@@ -22,4 +22,4 @@
   - **Chrome 154 on Windows:** 321,930 samples, lag 0.
   - **Firefox and Safari:** not tested. There's no browser harness in this repo (ADR 0009), and only Chrome was available on the machine. Safari is the one to check first, since its decoder is Apple's rather than FFmpeg's.
 - Duration comes from the Info frame's frame count × 1152, minus the LAME tag's delay and padding. That equals the source's sample count exactly (`mp3DurationMs`). A file without an Info frame is refused, not estimated.
-- A Mix rendered over an MP3 Instrumental Stem, with the backing muted, is byte-identical to one rendered over the WAV (`tests/unit/jobs/render.test.ts`), so the Take lands on the same sample.
+- A Mix rendered over an MP3 Instrumental Stem places the Take exactly as over the WAV: with the backing muted, the two are byte-identical. With the Take muted, the MP3 backing's cross-correlation with the WAV one peaks at lag 0 (`tests/unit/jobs/render.test.ts`).

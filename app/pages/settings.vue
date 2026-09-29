@@ -299,61 +299,6 @@ useHead({ title: 'Settings · Akapela' })
           {{ hardwareLine }}
         </p>
 
-        <!-- Only where a GPU backend was proven to work here. A Connected
-             Desktop App on a laptop with a GPU, pointed at a server with none,
-             shows nothing, because the server is what separates. -->
-        <template v-if="hardware.gpu">
-          <h3 class="mt-4 text-sm font-bold">
-            Hardware acceleration
-          </h3>
-          <p class="mt-1 text-sm text-text-muted">
-            Separate on the GPU. If it fails partway through, the Separation carries on and finishes on
-            the CPU. A change applies from the next Separation to start.
-          </p>
-          <button
-            type="button"
-            class="mt-3 inline-flex h-12 items-center gap-1.5 rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition disabled:opacity-60"
-            :class="hardwareAcceleration ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
-            :aria-pressed="hardwareAcceleration"
-            :disabled="saving"
-            @click="setHardwareAcceleration(!hardwareAcceleration)"
-          >
-            <Gauge class="size-3.5" />
-            {{ hardware.gpu }} {{ hardwareAcceleration ? 'on' : 'off' }}
-          </button>
-        </template>
-
-        <h3 class="mt-4 text-sm font-bold">
-          Separation Model
-        </h3>
-        <p class="mt-1 text-sm text-text-muted">
-          What a Track is separated with unless you pick another for it. Each model downloads the first
-          time it's used. A Separation already waiting keeps the model it was asked for.
-        </p>
-        <div
-          class="mt-3 flex flex-col gap-1"
-          role="radiogroup"
-          aria-label="Separation Model"
-        >
-          <button
-            v-for="model in separationModels"
-            :key="model.name"
-            type="button"
-            role="radio"
-            class="flex min-h-12 flex-col items-start rounded-[6px] px-4 py-2 text-left transition disabled:opacity-60"
-            :class="model.name === separationModel ? 'bg-text text-ground' : 'bg-surface-mid text-text hover:bg-card'"
-            :aria-checked="model.name === separationModel"
-            :disabled="saving"
-            @click="model.name !== separationModel && setSeparationModel(model.name)"
-          >
-            <span class="text-sm font-bold">{{ model.name }}</span>
-            <span
-              class="text-sm"
-              :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
-            >{{ model.description }}</span>
-          </button>
-        </div>
-
         <h3 class="mt-4 text-sm font-bold">
           CPU cores
         </h3>
@@ -385,6 +330,62 @@ useHead({ title: 'Settings · Akapela' })
             <Plus class="size-5" />
           </button>
         </div>
+
+        <!-- Only where a GPU backend was proven to work here. A Connected
+             Desktop App on a laptop with a GPU, pointed at a server with none,
+             shows nothing, because the server is what separates. -->
+        <template v-if="hardware.gpu">
+          <h3 class="mt-4 text-sm font-bold">
+            Hardware acceleration
+          </h3>
+          <p class="mt-1 text-sm text-text-muted">
+            Separate on the GPU. If it fails partway through, the Separation carries on and finishes on
+            the CPU. A change applies from the next Separation to start.
+          </p>
+          <button
+            type="button"
+            class="mt-3 inline-flex h-12 items-center gap-1.5 rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition disabled:opacity-60"
+            :class="hardwareAcceleration ? 'bg-accent text-accent-ink hover:brightness-110' : 'bg-surface-mid text-text-muted hover:text-text'"
+            :aria-pressed="hardwareAcceleration"
+            :disabled="saving"
+            @click="setHardwareAcceleration(!hardwareAcceleration)"
+          >
+            <Gauge class="size-3.5" />
+            {{ hardware.gpu }} {{ hardwareAcceleration ? 'on' : 'off' }}
+          </button>
+        </template>
+
+        <h3 class="mt-4 text-sm font-bold">
+          Separation Model
+        </h3>
+        <p class="mt-1 text-sm text-text-muted">
+          What a Track is separated with unless you pick another for it. Each Separation Model downloads
+          the first time it's used. A Separation already waiting keeps the one it was asked for.
+        </p>
+        <div
+          class="mt-3 flex flex-col gap-1"
+          role="radiogroup"
+          aria-label="Separation Model"
+        >
+          <button
+            v-for="model in separationModels"
+            :key="model.name"
+            type="button"
+            role="radio"
+            class="flex min-h-12 flex-col items-start rounded-[6px] px-4 py-2 text-left transition disabled:opacity-60"
+            :class="model.name === separationModel ? 'bg-text text-ground' : 'bg-surface-mid text-text hover:bg-card'"
+            :aria-checked="model.name === separationModel"
+            :disabled="saving"
+            @click="model.name !== separationModel && setSeparationModel(model.name)"
+          >
+            <span class="text-sm font-bold">{{ model.name }}</span>
+            <span
+              class="text-sm"
+              :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
+            >{{ model.description }}</span>
+          </button>
+        </div>
+
       </section>
 
       <section class="rounded-[8px] bg-surface p-4 sm:p-5">

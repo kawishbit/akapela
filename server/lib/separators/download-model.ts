@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, open, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { modelUrl, PARTIAL_MD5_BYTES, type SeparationModel } from './models'
+import { modelUrl, PARTIAL_MD5_BYTES, type SeparationModel } from './models.ts'
 
 /**
  * Fetches a Separation Model if it isn't already cached. Mirrors
