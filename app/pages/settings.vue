@@ -27,7 +27,12 @@ const {
   setSeparationModel,
   setAudioFormat,
   setHardwareAcceleration,
+  refresh: refreshSettings,
 } = useSettings()
+
+// The settings are fetched once per app load, and a Separation since then may
+// have downloaded a Separation Model, so ask again for what's downloaded now.
+onMounted(() => void refreshSettings())
 
 /** Whose hardware every Separation choice is about — the server's, even from a Connected Desktop App. */
 const hardwareLine = computed(() => {
@@ -359,8 +364,9 @@ useHead({ title: 'Settings · Akapela' })
           Separation Model
         </h3>
         <p class="mt-1 text-sm text-text-muted">
-          What a Track is separated with unless you pick another for it. Each Separation Model downloads
-          the first time it's used. A Separation already waiting keeps the one it was asked for.
+          What a Track is separated with unless you pick another for it. None come with Akapela: each
+          Separation Model downloads the first time it's used. A Separation already waiting keeps the
+          one it was asked for.
         </p>
         <div
           class="mt-3 flex flex-col gap-1"
@@ -378,7 +384,13 @@ useHead({ title: 'Settings · Akapela' })
             :disabled="saving"
             @click="model.name !== separationModel && setSeparationModel(model.name)"
           >
-            <span class="text-sm font-bold">{{ model.name }}</span>
+            <span class="flex w-full items-baseline justify-between gap-3">
+              <span class="text-sm font-bold">{{ model.name }}</span>
+              <span
+                class="shrink-0 text-xs"
+                :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
+              >{{ separationModelAvailability(model) }}</span>
+            </span>
             <span
               class="text-sm"
               :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"

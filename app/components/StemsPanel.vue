@@ -25,7 +25,10 @@ function stopTicking() {
   ticker = undefined
 }
 onMounted(() => {
-  watch(separating, (running) => {
+  watch(separating, (running, wasRunning) => {
+    // A Separation that ran may have downloaded its model, which the
+    // Separation Model options say.
+    if (wasRunning && !running) void refreshSettings()
     stopTicking()
     now.value = running ? Date.now() : null
     if (running) ticker = setInterval(() => (now.value = Date.now()), 1000)
@@ -81,7 +84,7 @@ function separate(path: 'separate' | 'separate/retry') {
  * these Stems. The Stems stay playable until the new ones exist, so choosing
  * costs nothing but the wait.
  */
-const { separationModels } = useSettings()
+const { separationModels, refresh: refreshSettings } = useSettings()
 const choosingModel = ref(false)
 const otherModels = computed(() => otherSeparationModels(separationModels.value, props.track.stemsModel))
 
@@ -241,7 +244,10 @@ function useSource(backingSource: BackingSource) {
         :disabled="busy"
         @click="separateAgainWith(model.name)"
       >
-        <span class="text-sm font-bold">{{ model.name }}</span>
+        <span class="flex w-full items-baseline justify-between gap-3">
+          <span class="text-sm font-bold">{{ model.name }}</span>
+          <span class="shrink-0 text-xs text-text-muted">{{ separationModelAvailability(model) }}</span>
+        </span>
         <span class="text-sm text-text-muted">{{ model.description }}</span>
       </button>
     </div>

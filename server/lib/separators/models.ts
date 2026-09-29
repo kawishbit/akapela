@@ -12,6 +12,7 @@
  * - `nFft`, `compensate`, and `primaryStem` are that key's entry in UVR's
  *   `mdx_model_data/model_data_new.json` registry (`mdx_n_fft_scale_set`,
  *   `compensate`, `primary_stem`).
+ * - `downloadBytes` is that file's size.
  * - `dimF` and `segmentSize` are the model's own ONNX input shape, read off
  *   the graph (`[batch, 4, dimF, segmentSize]`), which agrees with the
  *   registry's `mdx_dim_f_set` in every case.
@@ -52,6 +53,8 @@ export interface SeparationModel {
   description: string
   fileName: string
   partialMd5: string
+  /** The file's size, which Settings shows on a model not yet downloaded. */
+  downloadBytes: number
   config: MdxNetConfig
 }
 
@@ -64,6 +67,7 @@ export const SEPARATION_MODELS: Record<SeparationModelName, SeparationModel> = {
     name: 'Inst_Main',
     description: 'Fastest. Clean enough for most songs; stops at 17.6 kHz.',
     fileName: 'UVR-MDX-NET-Inst_Main.onnx',
+    downloadBytes: 52_786_726,
     partialMd5: '1c56ec0224f1d559c42fd6fd2a67b154',
     config: { ...MDX_DEFAULTS, nFft: 5120, dimF: 2048, compensate: 1.025, primaryStem: 'instrumental' },
   },
@@ -71,6 +75,7 @@ export const SEPARATION_MODELS: Record<SeparationModelName, SeparationModel> = {
     name: 'Inst_HQ_3',
     description: 'About 1.5× slower. Cleaner instrumentals across the full range.',
     fileName: 'UVR-MDX-NET-Inst_HQ_3.onnx',
+    downloadBytes: 66_759_214,
     partialMd5: '55657dd70583b0fedfba5f67df11d711',
     config: { ...MDX_DEFAULTS, nFft: 6144, dimF: 3072, compensate: 1.022, primaryStem: 'instrumental' },
   },
@@ -78,6 +83,7 @@ export const SEPARATION_MODELS: Record<SeparationModelName, SeparationModel> = {
     name: 'Inst_HQ_4',
     description: 'About 1.2× slower. The newest instrumental model, full range.',
     fileName: 'UVR-MDX-NET-Inst_HQ_4.onnx',
+    downloadBytes: 59_074_342,
     partialMd5: '0f2a6bc5b49d87d64728ee40e23bceb1',
     config: { ...MDX_DEFAULTS, nFft: 5120, dimF: 2560, compensate: 1.019, primaryStem: 'instrumental' },
   },
@@ -85,6 +91,7 @@ export const SEPARATION_MODELS: Record<SeparationModelName, SeparationModel> = {
     name: 'Kim_Vocal_2',
     description: 'About 1.5× slower. Listens for the voice, so less of it is left behind; stops at 17.6 kHz.',
     fileName: 'Kim_Vocal_2.onnx',
+    downloadBytes: 66_759_214,
     partialMd5: '970b3f9492014d18fefeedfe4773cb42',
     config: { ...MDX_DEFAULTS, nFft: 7680, dimF: 3072, compensate: 1.009, primaryStem: 'vocals' },
   },

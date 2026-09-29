@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createTestApi, type TestApi } from './harness'
 
@@ -254,6 +254,29 @@ describe('the Separation Model', () => {
     expect(settings.separationModels.map((m: { name: string }) => m.name))
       .toEqual(['Inst_Main', 'Inst_HQ_3', 'Inst_HQ_4', 'Kim_Vocal_2'])
     expect((await api.put('/api/settings', { separationModel: 'nope' })).status).toBe(400)
+  })
+
+  test('says which models are downloaded, so none looks like it ships with Akapela', async () => {
+    const downloaded = async () => Object.fromEntries(
+      (await (await api.get('/api/settings')).json()).separationModels
+        .map((m: { name: string, downloaded: boolean }) => [m.name, m.downloaded]),
+    )
+    expect(await downloaded()).toEqual({ Inst_Main: false, Inst_HQ_3: false, Inst_HQ_4: false, Kim_Vocal_2: false })
+
+    mkdirSync(join(api.dataDir, 'cache', 'models'), { recursive: true })
+    writeFileSync(join(api.dataDir, 'cache', 'models', 'UVR-MDX-NET-Inst_HQ_4.onnx'), 'weights')
+    // A download still in progress is not a model.
+    writeFileSync(join(api.dataDir, 'cache', 'models', 'Kim_Vocal_2.onnx.part'), 'half')
+    // A cache from before the cache/ split is used where it lies until a Separation moves it.
+    mkdirSync(join(api.dataDir, 'models'), { recursive: true })
+    writeFileSync(join(api.dataDir, 'models', 'UVR-MDX-NET-Inst_Main.onnx'), 'weights')
+
+    expect(await downloaded()).toEqual({ Inst_Main: true, Inst_HQ_3: false, Inst_HQ_4: true, Kim_Vocal_2: false })
+  })
+
+  test('says how big each model is to download', async () => {
+    const settings = await (await api.get('/api/settings')).json()
+    for (const model of settings.separationModels) expect(model.downloadBytes).toBeGreaterThan(50_000_000)
   })
 })
 

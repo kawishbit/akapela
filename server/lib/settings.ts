@@ -11,6 +11,7 @@ import {
 } from './separators/models'
 import { GPU_BACKEND_LABELS } from './separators/accelerator'
 import { ytDlpIsManaged } from './tools'
+import { modelIsDownloaded } from './jobs/separate'
 import type { Akapela } from './akapela'
 
 /**
@@ -36,7 +37,13 @@ export interface AppSettings {
   /** The Separation Model a Separation is asked for with unless it names another. */
   separationModel: SeparationModelName
   /** Every Separation Model there is to choose from, in the order they are shown. */
-  separationModels: Array<{ name: SeparationModelName, description: string }>
+  separationModels: Array<{
+    name: SeparationModelName
+    description: string
+    /** Whether it is on this machine already. None ships with Akapela; each downloads the first time a Separation needs it. */
+    downloaded: boolean
+    downloadBytes: number
+  }>
   /** What a Backing Track master or Stem written from now on is stored as. */
   audioFormat: AudioFormat
   /** Every Audio Format there is to choose from, in the order they are shown. */
@@ -99,7 +106,15 @@ export async function getSettings(akapela: Akapela): Promise<AppSettings> {
     monitoringDefault: row?.monitoringDefault ?? false,
     ytDlpUpdatable: ytDlpIsManaged(),
     separationModel: defaultSeparationModelOf(akapela),
-    separationModels: SEPARATION_MODEL_NAMES.map(name => ({ name, description: SEPARATION_MODELS[name].description })),
+    separationModels: SEPARATION_MODEL_NAMES.map((name) => {
+      const model = SEPARATION_MODELS[name]
+      return {
+        name,
+        description: model.description,
+        downloaded: modelIsDownloaded(akapela.dataDir, model),
+        downloadBytes: model.downloadBytes,
+      }
+    }),
     audioFormat: row?.audioFormat ?? DEFAULT_AUDIO_FORMAT,
     audioFormats: AUDIO_FORMATS,
     cpuCores: cpuCoresFor(row?.cpuCores ?? null, hardware.cores),

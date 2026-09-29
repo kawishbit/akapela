@@ -199,6 +199,16 @@ export function separationPercent(fraction: number): number {
 }
 
 /**
+ * Whether `model` is cached, in either layout, so Settings can say which
+ * Separation Models are already here and which the first use downloads. Only
+ * a download that passed its hash check is renamed into place, so a file
+ * here is the whole model.
+ */
+export function modelIsDownloaded(dataDir: string, model: SeparationModel): boolean {
+  return [MODELS_DIRNAME, LEGACY_MODELS_DIRNAME].some(dir => existsSync(modelPath(join(dataDir, dir), model)))
+}
+
+/**
  * Where model weights are cached, migrating a pre-cache-split layout in
  * place (ticket 01) — a self-hoster upgrading straight past every
  * intermediate version still keeps their cached model instead of
