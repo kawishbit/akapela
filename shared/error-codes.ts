@@ -83,7 +83,7 @@ export const ERROR_CODES = {
   manualLyricsOverwrite: [],
   /** Restoring replaces the whole library; the app asks first. */
   restoreNeedsConfirmation: [],
-  /** The file isn't a backup Akapela can read. */
+  /** The file isn't a backup Akapela can read. Its English, which says why, is kept as the Details. */
   invalidBackup: [],
   /** yt-dlp is baked into this install's image; rebuilding it is the update. */
   ytDlpNotManaged: [],
@@ -145,9 +145,12 @@ const DISK_FULL = /ENOSPC|No space left on device/
  * a full disk wherever it surfaced, and `unexpected` for everything else.
  */
 export function toCodedFailure(error: unknown): CodedFailure {
-  if (error instanceof CodedError && error.code !== 'unexpected') return error.failure
-  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+  // A full disk first: it can surface inside a failure that carries a code of
+  // its own (an ffmpeg run reads as undecodable), and freeing space is still
+  // what fixes it.
+  const errno = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
   const message = error instanceof Error ? error.message : String(error)
-  if (code === 'ENOSPC' || DISK_FULL.test(message)) return failure('diskFull')
+  if (errno === 'ENOSPC' || DISK_FULL.test(message)) return failure('diskFull')
+  if (error instanceof CodedError) return error.failure
   return failure('unexpected')
 }

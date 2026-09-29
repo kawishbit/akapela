@@ -11,19 +11,28 @@ export function formatDuration(ms: number | null | undefined): string {
   return hours ? `${hours}:${minutesAndSeconds}` : minutesAndSeconds
 }
 
+/**
+ * `value` to exactly `digits` decimals, written with the chosen Language's
+ * decimal mark (Indonesian writes `1,5`) and no digit grouping. The functions
+ * below that show a fraction take the Language's `locale` for this.
+ */
+function decimal(value: number, digits: number, locale: string): string {
+  return value.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false })
+}
+
 /** A pitch shift in semitones with its sign, to one decimal when it is not a whole semitone. */
-export function formatPitch(semitones: number): string {
+export function formatPitch(semitones: number, locale: string): string {
   const whole = Number.isInteger(semitones)
   const rounded = whole ? semitones : Number(semitones.toFixed(1))
-  const text = whole ? String(Math.abs(rounded)) : Math.abs(rounded).toFixed(1)
+  const text = whole ? String(Math.abs(rounded)) : decimal(Math.abs(rounded), 1, locale)
   const sign = rounded > 0 ? '+' : rounded < 0 ? '-' : ''
   return `${sign}${text} st`
 }
 
 /** A Lyrics Offset in seconds with its sign, always to one decimal, since it moves in tenths. */
-export function formatLyricsOffset(offsetMs: number): string {
+export function formatLyricsOffset(offsetMs: number, locale: string): string {
   const seconds = offsetMs / 1000
-  return `${offsetMs > 0 ? '+' : offsetMs < 0 ? '-' : ''}${Math.abs(seconds).toFixed(1)} s`
+  return `${offsetMs > 0 ? '+' : offsetMs < 0 ? '-' : ''}${decimal(Math.abs(seconds), 1, locale)} s`
 }
 
 /** A tempo as a percentage of the original. */
@@ -37,9 +46,9 @@ export function formatReverbAmount(amount: number): string {
 }
 
 /** A low-pass cutoff in Hz; its top of range reads as `off` (the word for "Off") since that bypasses the filter. */
-export function formatLowpassHz(hz: number, off: string): string {
+export function formatLowpassHz(hz: number, off: string, locale: string): string {
   if (hz >= LOWPASS_HZ_MAX) return off
-  return hz >= 1000 ? `${(hz / 1000).toFixed(hz % 1000 === 0 ? 0 : 1)} kHz` : `${hz} Hz`
+  return hz >= 1000 ? `${decimal(hz / 1000, hz % 1000 === 0 ? 0 : 1, locale)} kHz` : `${hz} Hz`
 }
 
 /** A latency nudge in milliseconds with its sign, since it moves the vocal earlier or later. */
@@ -54,9 +63,9 @@ export function formatGain(gain: number): string {
 }
 
 /** A byte count as megabytes, the unit Stems land in (ADR 0005 puts a pair at about 80 MB). */
-export function formatMegabytes(bytes: number): string {
+export function formatMegabytes(bytes: number, locale: string): string {
   const mb = bytes / (1024 * 1024)
-  return mb < 10 ? `${mb.toFixed(1)} MB` : `${Math.round(mb)} MB`
+  return mb < 10 ? `${decimal(mb, 1, locale)} MB` : `${decimal(Math.round(mb), 0, locale)} MB`
 }
 
 /**

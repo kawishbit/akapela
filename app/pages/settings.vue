@@ -7,7 +7,7 @@ import { THEME_PREFERENCES, type ThemePreference } from '~/utils/theme'
 import { LANGUAGES, LANGUAGE_NAMES } from '~/utils/language'
 import type { ErrorText } from '~/utils/errors'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const {
   lyricsProviders,
@@ -424,7 +424,7 @@ useHead(() => ({ title: t('app.pageTitle', { page: t('settings.title') }) }))
               <span
                 class="shrink-0 text-xs"
                 :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
-              >{{ separationModelAvailability(model, t) }}</span>
+              >{{ separationModelAvailability(model, t, locale) }}</span>
             </span>
             <span
               class="text-sm"

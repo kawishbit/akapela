@@ -39,11 +39,12 @@ export function activeJobCount(jobs: readonly Pick<JobListEntry, 'state'>[]): nu
   return jobs.filter(isActiveJob).length
 }
 
-const ACTIVITIES: readonly string[] = ['import', 'separate', 'render'] satisfies JobType[]
+/** The Job types with a word of their own under `jobs.activity`; any other reads as `other`. */
+const ACTIVITIES = ['import', 'separate', 'render'] as const satisfies readonly JobType[]
 
 /** What a Job is doing, in a word. A type without one of its own still gets a row. */
 export function jobActivity(type: JobType, t: Translate): string {
-  return ACTIVITIES.includes(type) ? t(`jobs.activity.${type}`) : t('jobs.activity.other')
+  return (ACTIVITIES as readonly JobType[]).includes(type) ? t(`jobs.activity.${type}`) : t('jobs.activity.other')
 }
 
 /** What a queued Job waits behind. The UI never says "Lane". */

@@ -18,10 +18,10 @@ export function otherSeparationModels<T extends { name: SeparationModelName }>(
  * with Akapela, so one that isn't here yet says so, and what its first use
  * will download, rather than looking ready.
  */
-export function separationModelAvailability(model: { downloaded: boolean, downloadBytes: number }, t: Translate): string {
+export function separationModelAvailability(model: { downloaded: boolean, downloadBytes: number }, t: Translate, locale: string): string {
   return model.downloaded
     ? t('separationModels.downloaded')
-    : t('separationModels.notDownloaded', { size: formatMegabytes(model.downloadBytes) })
+    : t('separationModels.notDownloaded', { size: formatMegabytes(model.downloadBytes, locale) })
 }
 
 /**

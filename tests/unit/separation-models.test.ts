@@ -19,11 +19,11 @@ describe('otherSeparationModels', () => {
 
 describe('separationModelAvailability', () => {
   test('says a downloaded model is here', () => {
-    expect(separationModelAvailability({ downloaded: true, downloadBytes: 52_786_726 }, t)).toBe('Downloaded')
+    expect(separationModelAvailability({ downloaded: true, downloadBytes: 52_786_726 }, t, 'en')).toBe('Downloaded')
   })
 
   test('says a model not yet here downloads first, and how much', () => {
-    expect(separationModelAvailability({ downloaded: false, downloadBytes: 66_759_214 }, t)).toBe('Not downloaded · 64 MB')
+    expect(separationModelAvailability({ downloaded: false, downloadBytes: 66_759_214 }, t, 'en')).toBe('Not downloaded · 64 MB')
   })
 })
 

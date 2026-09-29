@@ -33,7 +33,7 @@ Capitalised as in English: a `CONTEXT.md` term keeps its capital letters whereve
 | Effects Target | Sasaran Efek | Its choices: *Vokal*, *Iringan*, *Keduanya*, *Tidak ada*. | Routing, bus |
 | Preset | Preset | The loanword, as audio apps use it. | Mode, profil |
 | Take | Take | The studio word for one recorded attempt, as Indonesian studios use it. *Rekaman* is the audio itself, so it would blur Take into its file. A judgement call: see ticket 08's comments. | Rekaman, sesi, percobaan |
-| Mix | Mix | Rendering one is *merender*. | Ekspor, hasil, bounce |
+| Mix | Mix | Rendering one is *merender*; the button is the loanword *Render*, as audio apps label it. A judgement call: see ticket 08's comments. | Ekspor, hasil, bounce |
 | Monitoring | Monitoring | Hearing yourself in your headphones while you sing, as audio interfaces label it. | Pemutaran, umpan balik |
 | Job | Tugas | | Proses, operasi, pekerjaan |
 | Language | Bahasa | | Lokal, terjemahan |

@@ -91,7 +91,7 @@ async function confirmDelete() {
             </p>
             <p class="text-xs text-text-muted">
               {{ t('mixList.summary', {
-                pitch: formatPitch(mix.pitchSemitones),
+                pitch: formatPitch(mix.pitchSemitones, locale),
                 tempo: formatTempo(mix.tempoPercent),
                 vocal: formatGain(mix.vocalGain),
                 backing: formatGain(mix.backingGain),

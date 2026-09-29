@@ -5,7 +5,7 @@ import { LYRICS_OFFSET_MAX_MS, LYRICS_OFFSET_MIN_MS, nudgeLyricsOffset } from '~
 const props = defineProps<{ offsetMs: number }>()
 const emit = defineEmits<{ change: [offsetMs: number] }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 /**
  * The prop only catches up on the next render, so a run of quick taps — which
@@ -94,7 +94,7 @@ onBeforeUnmount(stopHold)
     </button>
 
     <p class="min-w-20 text-center text-xs font-bold tabular-nums text-text">
-      <span class="sr-only">{{ t('lyricsOffset.label') }} </span>{{ formatLyricsOffset(shownOffsetMs) }}
+      <span class="sr-only">{{ t('lyricsOffset.label') }} </span>{{ formatLyricsOffset(shownOffsetMs, locale) }}
     </p>
 
     <button

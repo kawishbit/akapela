@@ -3,7 +3,7 @@ import { Loader2, Pause, Play, Volume2, VolumeX } from 'lucide-vue-next'
 import { effectivePitchSemitones } from '~~/shared/adjustments'
 import { VOLUME_MAX, VOLUME_MIN } from '~/audio/volume'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const player = usePlayer()
 const state = player.state
 
@@ -15,7 +15,7 @@ const seekable = computed(() => state.value.track !== null && !state.value.loadi
 
 const adjustmentsLabel = computed(() => {
   const adjustments = state.value.adjustments
-  return `${formatPitch(effectivePitchSemitones(adjustments))} · ${formatTempo(adjustments.tempoPercent)}`
+  return `${formatPitch(effectivePitchSemitones(adjustments), locale.value)} · ${formatTempo(adjustments.tempoPercent)}`
 })
 
 function onScrub(event: Event) {

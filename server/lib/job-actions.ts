@@ -25,8 +25,10 @@ import { CodedError, failure } from '../../shared/error-codes'
  */
 
 /** A request the Job's current state cannot honour; the route answers it with a 409. */
-export class JobActionRefused extends CodedError<'jobFinished' | 'notRetryable' | 'jobTargetGone'> {
-  constructor(code: 'jobFinished' | 'notRetryable' | 'jobTargetGone', message: string) {
+type JobRefusal = 'jobFinished' | 'notRetryable' | 'jobTargetGone'
+
+export class JobActionRefused extends CodedError<JobRefusal> {
+  constructor(code: JobRefusal, message: string) {
     super(failure(code), message)
   }
 }

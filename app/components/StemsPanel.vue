@@ -8,7 +8,7 @@ import type { ErrorText } from '~/utils/errors'
 const props = defineProps<{ track: TrackDetail }>()
 const emit = defineEmits<{ changed: [] }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const player = usePlayer()
 
@@ -171,7 +171,7 @@ function useSource(backingSource: BackingSource) {
       @click="pendingDeleteStems = true"
     >
       <Trash2 class="size-3.5" />
-      {{ t('stemsPanel.deleteStems', { size: formatMegabytes(track.stemsBytes) }) }}
+      {{ t('stemsPanel.deleteStems', { size: formatMegabytes(track.stemsBytes, locale) }) }}
     </button>
 
     <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3">
@@ -252,7 +252,7 @@ function useSource(backingSource: BackingSource) {
       >
         <span class="flex w-full items-baseline justify-between gap-3">
           <span class="text-sm font-bold">{{ model.name }}</span>
-          <span class="shrink-0 text-xs text-text-muted">{{ separationModelAvailability(model, t) }}</span>
+          <span class="shrink-0 text-xs text-text-muted">{{ separationModelAvailability(model, t, locale) }}</span>
         </span>
         <span class="text-sm text-text-muted">{{ separationModelDescription(model.name, t) }}</span>
       </button>
@@ -281,7 +281,7 @@ function useSource(backingSource: BackingSource) {
     <ConfirmDialog
       :open="pendingDeleteStems"
       :title="t('stemsPanel.deleteTitle')"
-      :message="t('stemsPanel.deleteMessage', { size: formatMegabytes(track.stemsBytes) })"
+      :message="t('stemsPanel.deleteMessage', { size: formatMegabytes(track.stemsBytes, locale) })"
       :confirm-label="t('stemsPanel.delete')"
       :busy="busy"
       @confirm="confirmDeleteStems"

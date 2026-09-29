@@ -36,7 +36,8 @@
 
   The alternatives either blur a distinction (*rekaman* for Take is also the audio file) or read as a movement rather than a setting (*pergeseran lirik*).
 - **Capitalised terms mid-sentence** (*Trek*, *Antrean*, *Pustaka*) mirror the English. It's unusual in Indonesian, and easy to drop across the file if it reads wrong.
-- **Job activity *Mixing*** stays as the loanword, next to *Mengimpor* and *Memisahkan*.
+- **Job activity *Mixing*** stays as the loanword, next to *Mengimpor* and *Memisahkan*. So do the buttons *Render* and *Render Mix*, with *merender* in running text.
+- **Lyrics Provider *Manual*** is the same word in Indonesian, so it reads unchanged.
 - **"Waiting for worker" = *Menunggu giliran*** ("waiting for its turn"). "Worker" means nothing to a singer.
 - **The Lyrics placeholder** is still the English "Yesterday" line. An Indonesian song's first lines might be friendlier.
 - **Built-in Preset names** (Slowed and Reverb, Nightcore, Practice) stay English, as the spec says. Decide in ticket 09.

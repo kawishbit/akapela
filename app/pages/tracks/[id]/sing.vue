@@ -11,7 +11,7 @@ definePageMeta({ playerBar: false, updatePrompt: false })
 
 const SAVE_DEBOUNCE_MS = 400
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const player = usePlayer()
@@ -189,7 +189,7 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('sing.pageTit
           v-if="adjustments"
           class="truncate text-xs text-text-muted"
         >
-          {{ formatPitch(effectivePitchSemitones(adjustments)) }} · {{ formatTempo(adjustments.tempoPercent) }}
+          {{ formatPitch(effectivePitchSemitones(adjustments), locale) }} · {{ formatTempo(adjustments.tempoPercent) }}
           <template v-if="backingSource"> · {{ t(`backingSources.${backingSource}`) }}</template>
           <template v-if="lyricsLabel"> · {{ lyricsLabel }}</template>
         </p>

@@ -18,7 +18,7 @@ import { presetAdjustments } from '~~/shared/preset'
 const props = defineProps<{ adjustments: Adjustments }>()
 const emit = defineEmits<{ change: [patch: Partial<Adjustments>], reset: [] }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const presets = usePresets()
 
 /** A tap applies all five fields at once, through the same path Reset already uses. */
@@ -218,7 +218,7 @@ function onLowpassInput(event: Event) {
             for="adjust-pitch"
             class="text-2xl font-bold tabular-nums"
             :class="adjustments.linked ? 'text-text-muted' : 'text-text'"
-          >{{ formatPitch(heardPitch) }}</output>
+          >{{ formatPitch(heardPitch, locale) }}</output>
         </div>
         <div class="flex items-center gap-2">
           <button
@@ -240,7 +240,7 @@ function onLowpassInput(event: Event) {
             :value="Math.round(heardPitch)"
             :disabled="adjustments.linked"
             :aria-label="t('adjustments.pitchSlider')"
-            :aria-valuetext="formatPitch(heardPitch)"
+            :aria-valuetext="formatPitch(heardPitch, locale)"
             @input="onPitchInput"
           >
           <button
@@ -365,7 +365,7 @@ function onLowpassInput(event: Event) {
               <output
                 for="adjust-lowpass"
                 class="text-2xl font-bold tabular-nums"
-              >{{ formatLowpassHz(adjustments.lowpassHz, t('adjustments.lowpassOff')) }}</output>
+              >{{ formatLowpassHz(adjustments.lowpassHz, t('adjustments.lowpassOff'), locale) }}</output>
             </div>
             <input
               id="adjust-lowpass"
@@ -376,7 +376,7 @@ function onLowpassInput(event: Event) {
               step="1"
               :value="lowpassSliderValue"
               :aria-label="t('adjustments.lowpassSlider')"
-              :aria-valuetext="formatLowpassHz(adjustments.lowpassHz, t('adjustments.lowpassOff'))"
+              :aria-valuetext="formatLowpassHz(adjustments.lowpassHz, t('adjustments.lowpassOff'), locale)"
               @input="onLowpassInput"
             >
           </div>

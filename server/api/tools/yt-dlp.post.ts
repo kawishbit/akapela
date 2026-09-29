@@ -1,6 +1,8 @@
-import { createError, defineEventHandler } from 'h3'
+import { defineEventHandler } from 'h3'
 import { ytDlpIsManaged } from '../../lib/tools'
 import { updateManagedYtDlp, YtDlpDownloadError } from '../../lib/ytdlp'
+import { apiError } from '../../lib/api-error'
+import { failure } from '../../../shared/error-codes'
 
 /**
  * Replace this Akapela's yt-dlp with the latest release, and say which version
@@ -14,20 +16,22 @@ import { updateManagedYtDlp, YtDlpDownloadError } from '../../lib/ytdlp'
  */
 export default defineEventHandler(async () => {
   if (!ytDlpIsManaged()) {
-    throw createError({
-      statusCode: 409,
-      statusMessage: 'This Akapela does not manage its own yt-dlp. Rebuild the image to update it.',
-    })
+    throw apiError(
+      409,
+      failure('ytDlpNotManaged'),
+      'This Akapela does not manage its own yt-dlp. Rebuild the image to update it.',
+    )
   }
   try {
     return { version: await updateManagedYtDlp() }
   }
   catch (error) {
-    throw createError({
-      statusCode: 502,
-      statusMessage: error instanceof YtDlpDownloadError
+    throw apiError(
+      502,
+      failure('ytDlpDownloadFailed'),
+      error instanceof YtDlpDownloadError
         ? error.message
         : `could not update yt-dlp: ${error instanceof Error ? error.message : error}`,
-    })
+    )
   }
 })

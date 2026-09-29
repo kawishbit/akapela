@@ -546,7 +546,7 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('review.pageT
               for="review-pitch"
               class="text-2xl font-bold tabular-nums"
               :class="state.linked ? 'text-text-muted' : 'text-text'"
-            >{{ formatPitch(heardPitch) }}</output>
+            >{{ formatPitch(heardPitch, locale) }}</output>
           </div>
           <input
             id="review-pitch"
@@ -558,7 +558,7 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('review.pageT
             :value="Math.round(heardPitch)"
             :disabled="state.linked"
             :aria-label="t('review.backingPitchSlider')"
-            :aria-valuetext="formatPitch(heardPitch)"
+            :aria-valuetext="formatPitch(heardPitch, locale)"
             @input="onPitchInput"
           >
           <p
@@ -686,7 +686,7 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('review.pageT
             <output
               for="review-lowpass"
               class="text-2xl font-bold tabular-nums"
-            >{{ formatLowpassHz(state.lowpassHz, t('adjustments.lowpassOff')) }}</output>
+            >{{ formatLowpassHz(state.lowpassHz, t('adjustments.lowpassOff'), locale) }}</output>
           </div>
           <input
             id="review-lowpass"
@@ -697,7 +697,7 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: t('review.pageT
             step="1"
             :value="lowpassSliderValue"
             :aria-label="t('adjustments.lowpassSlider')"
-            :aria-valuetext="formatLowpassHz(state.lowpassHz, t('adjustments.lowpassOff'))"
+            :aria-valuetext="formatLowpassHz(state.lowpassHz, t('adjustments.lowpassOff'), locale)"
             @input="onLowpassInput"
           >
         </div>

@@ -138,6 +138,19 @@ describe('JobsRunner', () => {
     expect(t.getJob('j1').error_code).toBe('diskFull')
   })
 
+  it('records a full disk as such even inside a failure with a code of its own', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const noop: Handler = async () => {
+      throw new CodedError(failure('audioUndecodable'), 'ffmpeg could not decode x.flac: No space left on device')
+    }
+    const runner = new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers: { noop } })
+
+    await runner.runOnce()
+
+    expect(t.getJob('j1').error_code).toBe('diskFull')
+  })
+
   it('leaves a succeeded job without a code', async () => {
     const t = setup()
     t.enqueue('noop', { id: 'j1', createdAt: 1000 })
