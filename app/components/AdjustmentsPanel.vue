@@ -18,6 +18,7 @@ import { presetAdjustments } from '~~/shared/preset'
 const props = defineProps<{ adjustments: Adjustments }>()
 const emit = defineEmits<{ change: [patch: Partial<Adjustments>], reset: [] }>()
 
+const { t } = useI18n()
 const presets = usePresets()
 
 /** A tap applies all five fields at once, through the same path Reset already uses. */
@@ -92,8 +93,8 @@ const lowpassLogMin = Math.log(LOWPASS_HZ_MIN)
 const lowpassLogMax = Math.log(LOWPASS_HZ_MAX)
 
 const lowpassSliderValue = computed(() => {
-  const t = (Math.log(props.adjustments.lowpassHz) - lowpassLogMin) / (lowpassLogMax - lowpassLogMin)
-  return Math.round(t * LOWPASS_SLIDER_MAX)
+  const fraction = (Math.log(props.adjustments.lowpassHz) - lowpassLogMin) / (lowpassLogMax - lowpassLogMin)
+  return Math.round(fraction * LOWPASS_SLIDER_MAX)
 })
 
 function setLowpass(hz: number) {
@@ -103,19 +104,19 @@ function setLowpass(hz: number) {
 
 function onLowpassInput(event: Event) {
   const sliderValue = Number((event.target as HTMLInputElement).value)
-  const t = sliderValue / LOWPASS_SLIDER_MAX
-  setLowpass(Math.exp(lowpassLogMin + t * (lowpassLogMax - lowpassLogMin)))
+  const fraction = sliderValue / LOWPASS_SLIDER_MAX
+  setLowpass(Math.exp(lowpassLogMin + fraction * (lowpassLogMax - lowpassLogMin)))
 }
 </script>
 
 <template>
   <section
     class="rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)] sm:p-5"
-    aria-label="Adjustments"
+    :aria-label="t('adjustments.heading')"
   >
     <div class="mb-4 flex items-center justify-between gap-3">
       <h2 class="text-lg font-semibold">
-        Adjustments
+        {{ t('adjustments.heading') }}
       </h2>
       <button
         type="button"
@@ -124,7 +125,7 @@ function onLowpassInput(event: Event) {
         @click="emit('reset')"
       >
         <RotateCcw class="size-3.5" />
-        Reset
+        {{ t('adjustments.reset') }}
       </button>
     </div>
 
@@ -132,7 +133,7 @@ function onLowpassInput(event: Event) {
       <div
         class="flex flex-wrap items-center gap-2"
         role="group"
-        aria-label="Presets"
+        :aria-label="t('adjustments.presets')"
       >
         <div
           v-for="preset in presets.list.value"
@@ -151,7 +152,7 @@ function onLowpassInput(event: Event) {
             v-if="!preset.builtIn"
             type="button"
             class="absolute inset-y-0 right-1 flex w-6 items-center justify-center text-text-muted opacity-0 transition hover:text-negative focus-visible:opacity-100 group-hover/pill:opacity-100"
-            :aria-label="`Delete Preset ${preset.name}`"
+            :aria-label="t('adjustments.deletePreset', { name: preset.name })"
             @click="deletePreset(preset.id)"
           >
             <X class="size-3.5" />
@@ -167,7 +168,7 @@ function onLowpassInput(event: Event) {
             v-model="saveName"
             type="text"
             autofocus
-            placeholder="Preset name"
+            :placeholder="t('adjustments.presetName')"
             maxlength="60"
             class="h-10 w-36 rounded-pill border border-border-light bg-surface px-3 text-xs font-bold text-text outline-none focus:border-text"
             @keydown.escape="cancelSaveAs"
@@ -181,12 +182,12 @@ function onLowpassInput(event: Event) {
               v-if="presets.saving.value"
               class="size-3.5 animate-spin"
             />
-            <span v-else>Save</span>
+            <span v-else>{{ t('common.save') }}</span>
           </button>
           <button
             type="button"
             class="flex size-10 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
-            aria-label="Cancel saving Preset"
+            :aria-label="t('adjustments.cancelSave')"
             @click="cancelSaveAs"
           >
             <X class="size-4" />
@@ -199,24 +200,20 @@ function onLowpassInput(event: Event) {
           @click="startSaveAs"
         >
           <Plus class="size-3.5" />
-          Save current as…
+          {{ t('adjustments.saveAs') }}
         </button>
       </div>
 
-      <p
-        v-if="presets.saveError.value"
-        class="text-sm text-negative"
-        role="alert"
-      >
-        {{ presets.saveError.value }}
-      </p>
+      <ErrorMessage
+        :error="presets.saveError.value"
+      />
 
       <div>
         <div class="mb-1 flex items-baseline justify-between">
           <label
             for="adjust-pitch"
             class="text-sm font-bold"
-          >Pitch</label>
+          >{{ t('adjustments.pitch') }}</label>
           <output
             for="adjust-pitch"
             class="text-2xl font-bold tabular-nums"
@@ -228,7 +225,7 @@ function onLowpassInput(event: Event) {
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
             :disabled="adjustments.linked || adjustments.pitchSemitones <= PITCH_SEMITONES_MIN"
-            aria-label="Lower pitch one semitone"
+            :aria-label="t('adjustments.lowerPitch')"
             @click="setPitch(adjustments.pitchSemitones - 1)"
           >
             <Minus class="size-5" />
@@ -242,7 +239,7 @@ function onLowpassInput(event: Event) {
             step="1"
             :value="Math.round(heardPitch)"
             :disabled="adjustments.linked"
-            aria-label="Pitch in semitones"
+            :aria-label="t('adjustments.pitchSlider')"
             :aria-valuetext="formatPitch(heardPitch)"
             @input="onPitchInput"
           >
@@ -250,7 +247,7 @@ function onLowpassInput(event: Event) {
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
             :disabled="adjustments.linked || adjustments.pitchSemitones >= PITCH_SEMITONES_MAX"
-            aria-label="Raise pitch one semitone"
+            :aria-label="t('adjustments.raisePitch')"
             @click="setPitch(adjustments.pitchSemitones + 1)"
           >
             <Plus class="size-5" />
@@ -260,7 +257,7 @@ function onLowpassInput(event: Event) {
           v-if="adjustments.linked"
           class="mt-1 text-xs text-text-muted"
         >
-          Following tempo
+          {{ t('adjustments.followingTempo') }}
         </p>
       </div>
 
@@ -269,7 +266,7 @@ function onLowpassInput(event: Event) {
           <label
             for="adjust-tempo"
             class="text-sm font-bold"
-          >Tempo</label>
+          >{{ t('adjustments.tempo') }}</label>
           <output
             for="adjust-tempo"
             class="text-2xl font-bold tabular-nums"
@@ -280,7 +277,7 @@ function onLowpassInput(event: Event) {
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
             :disabled="adjustments.tempoPercent <= TEMPO_PERCENT_MIN"
-            aria-label="Slow tempo one percent"
+            :aria-label="t('adjustments.slower')"
             @click="setTempo(adjustments.tempoPercent - 1)"
           >
             <Minus class="size-5" />
@@ -293,7 +290,7 @@ function onLowpassInput(event: Event) {
             :max="TEMPO_PERCENT_MAX"
             step="1"
             :value="adjustments.tempoPercent"
-            aria-label="Tempo in percent"
+            :aria-label="t('adjustments.tempoSlider')"
             :aria-valuetext="formatTempo(adjustments.tempoPercent)"
             @input="onTempoInput"
           >
@@ -301,7 +298,7 @@ function onLowpassInput(event: Event) {
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
             :disabled="adjustments.tempoPercent >= TEMPO_PERCENT_MAX"
-            aria-label="Speed tempo one percent"
+            :aria-label="t('adjustments.faster')"
             @click="setTempo(adjustments.tempoPercent + 1)"
           >
             <Plus class="size-5" />
@@ -324,12 +321,12 @@ function onLowpassInput(event: Event) {
           v-else
           class="size-4"
         />
-        Link pitch to tempo
+        {{ t('adjustments.link') }}
       </button>
 
       <details class="group border-t border-border-light pt-4">
         <summary class="flex cursor-pointer list-none items-center justify-between text-sm font-bold [&::-webkit-details-marker]:hidden">
-          Effects
+          {{ t('adjustments.effects') }}
           <ChevronDown class="size-4 text-text-muted transition-transform group-open:rotate-180" />
         </summary>
 
@@ -339,7 +336,7 @@ function onLowpassInput(event: Event) {
               <label
                 for="adjust-reverb"
                 class="text-sm font-bold"
-              >Reverb</label>
+              >{{ t('adjustments.reverb') }}</label>
               <output
                 for="adjust-reverb"
                 class="text-2xl font-bold tabular-nums"
@@ -353,7 +350,7 @@ function onLowpassInput(event: Event) {
               :max="REVERB_AMOUNT_MAX"
               step="1"
               :value="adjustments.reverbAmount"
-              aria-label="Reverb amount"
+              :aria-label="t('adjustments.reverbSlider')"
               :aria-valuetext="formatReverbAmount(adjustments.reverbAmount)"
               @input="onReverbInput"
             >
@@ -364,11 +361,11 @@ function onLowpassInput(event: Event) {
               <label
                 for="adjust-lowpass"
                 class="text-sm font-bold"
-              >Low-pass</label>
+              >{{ t('adjustments.lowpass') }}</label>
               <output
                 for="adjust-lowpass"
                 class="text-2xl font-bold tabular-nums"
-              >{{ formatLowpassHz(adjustments.lowpassHz) }}</output>
+              >{{ formatLowpassHz(adjustments.lowpassHz, t('adjustments.lowpassOff')) }}</output>
             </div>
             <input
               id="adjust-lowpass"
@@ -378,8 +375,8 @@ function onLowpassInput(event: Event) {
               :max="LOWPASS_SLIDER_MAX"
               step="1"
               :value="lowpassSliderValue"
-              aria-label="Low-pass cutoff"
-              :aria-valuetext="formatLowpassHz(adjustments.lowpassHz)"
+              :aria-label="t('adjustments.lowpassSlider')"
+              :aria-valuetext="formatLowpassHz(adjustments.lowpassHz, t('adjustments.lowpassOff'))"
               @input="onLowpassInput"
             >
           </div>

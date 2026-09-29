@@ -1,5 +1,6 @@
 import type { QueueEntryWithTrack } from '~~/server/lib/queue'
 import { moveItem } from '~/utils/queue'
+import type { ErrorText } from '~/utils/errors'
 
 const POLL_MS = 3000
 
@@ -19,9 +20,10 @@ let inFlight: Promise<void> | undefined
  * three seconds while the Queue page is open, and not at all otherwise.
  */
 export function useQueue(options: { poll?: boolean } = {}) {
+  const { t } = useI18n()
   const entries = useState<QueueEntryWithTrack[]>('akapela-queue', () => [])
   const loaded = useState<boolean>('akapela-queue-loaded', () => false)
-  const error = useState<string | null>('akapela-queue-error', () => null)
+  const error = useState<ErrorText | null>('akapela-queue-error', () => null)
   /** While a row is being dragged, a poll must not move it out from under the finger. */
   const holding = useState<boolean>('akapela-queue-holding', () => false)
 
@@ -44,7 +46,7 @@ export function useQueue(options: { poll?: boolean } = {}) {
         error.value = null
       })
       .catch((failure) => {
-        error.value = describeError(failure)
+        error.value = describeError(failure, t)
       })
       .finally(() => {
         loaded.value = true

@@ -155,6 +155,13 @@
       "when": 1790638743624,
       "tag": "0021_hardware_acceleration",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1790682583118,
+      "tag": "0022_job_error_codes",
+      "breakpoints": true
     }
   ]
 }

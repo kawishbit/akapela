@@ -4,7 +4,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-09-01',
   devtools: { enabled: false },
   ssr: true,
-  modules: ['@nuxt/eslint', '@vite-pwa/nuxt'],
+  modules: ['@nuxt/eslint', '@vite-pwa/nuxt', '@nuxtjs/i18n'],
   css: ['~/assets/css/main.css'],
   vite: {
     plugins: [tailwindcss()],
@@ -12,7 +12,6 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Akapela',
-      htmlAttrs: { lang: 'en' },
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
         { name: 'theme-color', content: '#121212' },
@@ -76,6 +75,24 @@ export default defineNuxtConfig({
       globPatterns: ['**/*.{js,css,woff2,png,svg}'],
     },
     devOptions: { enabled: false },
+  },
+  i18n: {
+    // One JSON file per Language under `i18n/locales/`, each loaded only when
+    // it is used (ADR 0014). English is the source of truth: every key is in
+    // `en.json`, and any other Language falls back to it a key at a time.
+    locales: [
+      { code: 'en', language: 'en', name: 'English', file: 'en.json' },
+      { code: 'id', language: 'id', name: 'Bahasa Indonesia', file: 'id.json' },
+    ],
+    defaultLocale: 'en',
+    // The Language is per device and never in the URL (ADR 0014 amendment).
+    strategy: 'no_prefix',
+    // Off because the module writes its cookie the moment it detects a
+    // Language, and then "Automatic" could never be told apart from a choice.
+    // `app/plugins/language.ts` detects it instead, and only a pick on the
+    // Settings page writes the cookie.
+    detectBrowserLanguage: false,
+    vueI18n: './i18n.config.ts',
   },
   nitro: {
     experimental: { tasks: false },

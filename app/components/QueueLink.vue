@@ -9,14 +9,15 @@ import { ListMusic } from 'lucide-vue-next'
  */
 withDefaults(defineProps<{ size?: 'xs' | 'sm' | 'md' }>(), { size: 'md' })
 
+const { t } = useI18n()
 const { count, refresh } = useQueue()
 
 const route = useRoute()
 watch(() => route.fullPath, () => void refresh())
 
 const label = computed(() => {
-  if (count.value === 0) return 'Queue'
-  return `Queue, ${count.value} ${count.value === 1 ? 'entry' : 'entries'}`
+  if (count.value === 0) return t('queueLink.label')
+  return t('queueLink.labelCount', { count: count.value }, count.value)
 })
 </script>
 

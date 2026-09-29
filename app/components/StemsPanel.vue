@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { AudioLines, CircleCheck, Loader2, Trash2, XCircle } from 'lucide-vue-next'
-import { BACKING_SOURCES, BACKING_SOURCE_LABELS, type BackingSource } from '~~/shared/backing-source'
+import { BACKING_SOURCES, type BackingSource } from '~~/shared/backing-source'
 import type { TrackDetail } from '~~/server/lib/tracks'
 import type { SeparationModelName } from '~~/server/lib/separators/models'
+import type { ErrorText } from '~/utils/errors'
 
 const props = defineProps<{ track: TrackDetail }>()
 const emit = defineEmits<{ changed: [] }>()
+
+const { t } = useI18n()
 
 const player = usePlayer()
 
@@ -38,16 +41,18 @@ onBeforeUnmount(stopTicking)
 
 const separatingLabel = computed(() => {
   const job = props.track.separationJob
-  if (job?.state !== 'running') return 'Waiting for worker'
+  if (job?.state !== 'running') return t('stemsPanel.waiting')
   // The worker claimed it, so time it from when it did rather than from when
   // the singer asked, which may have been behind another job in the queue.
   const since = job.startedAt ?? job.createdAt
-  const elapsed = now.value === null ? '' : ` · ${formatDuration(now.value - since)}`
   // A model's first use downloads it, which the Job says in its own words.
-  return `${job.detail ?? 'Separating'}… ${job.progress}%${elapsed}`
+  const activity = jobDetailText(job, t) ?? jobActivity('separate', t)
+  return now.value === null
+    ? t('stemsPanel.progress', { activity, progress: job.progress })
+    : t('stemsPanel.progressElapsed', { activity, progress: job.progress, elapsed: formatDuration(now.value - since) })
 })
 
-const failure = computed(() => errorSummary(props.track.separationJob?.error, 'Separation failed'))
+const failure = computed(() => props.track.separationJob ? describeJobFailure(props.track.separationJob, t) : null)
 
 /**
  * Switching Backing Source is the one Adjustment that is a reload rather than a
@@ -57,7 +62,7 @@ const failure = computed(() => errorSummary(props.track.separationJob?.error, 'S
 const loading = computed(() => player.isLoading(props.track.id))
 
 const busy = ref(false)
-const actionError = ref<string | null>(null)
+const actionError = ref<ErrorText | null>(null)
 
 /** Every action here is the same shape: one request, then let the page reload from it. */
 async function ask(request: () => Promise<unknown>) {
@@ -68,7 +73,7 @@ async function ask(request: () => Promise<unknown>) {
     emit('changed')
   }
   catch (error) {
-    actionError.value = describeError(error)
+    actionError.value = describeError(error, t)
   }
   finally {
     busy.value = false
@@ -125,7 +130,7 @@ function useSource(backingSource: BackingSource) {
   <section class="rounded-[8px] bg-surface p-4 sm:p-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-        Stems
+        {{ t('stemsPanel.heading') }}
       </h2>
 
       <!-- Which of this Track's audio files it sings over. Offered only once
@@ -135,7 +140,7 @@ function useSource(backingSource: BackingSource) {
         v-if="track.hasStems"
         class="flex items-center gap-1 rounded-pill bg-surface-mid p-1"
         role="group"
-        aria-label="Backing Source"
+        :aria-label="t('stemsPanel.backingSource')"
       >
         <button
           v-for="source in BACKING_SOURCES"
@@ -153,7 +158,7 @@ function useSource(backingSource: BackingSource) {
             v-if="source === track.backingSource && loading"
             class="size-3.5 animate-spin"
           />
-          {{ BACKING_SOURCE_LABELS[source] }}
+          {{ t(`backingSources.${source}`) }}
         </button>
       </div>
     </div>
@@ -166,7 +171,7 @@ function useSource(backingSource: BackingSource) {
       @click="pendingDeleteStems = true"
     >
       <Trash2 class="size-3.5" />
-      Delete Stems ({{ formatMegabytes(track.stemsBytes) }})
+      {{ t('stemsPanel.deleteStems', { size: formatMegabytes(track.stemsBytes) }) }}
     </button>
 
     <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3">
@@ -183,28 +188,29 @@ function useSource(backingSource: BackingSource) {
         class="flex min-w-0 flex-1 items-center gap-2 text-sm text-text-muted"
       >
         <CircleCheck class="size-4 shrink-0 text-accent" />
-        Separated with {{ track.stemsModel }}: an Instrumental Stem and a Vocals Stem.
+        {{ t('stemsPanel.separatedWith', { model: track.stemsModel }) }}
       </p>
-      <p
+      <div
         v-else-if="state === 'failed'"
-        class="flex min-w-0 flex-1 items-center gap-2 text-sm text-negative"
-        role="alert"
-        :title="track.separationJob?.error ?? undefined"
+        class="flex min-w-0 flex-1 items-start gap-2"
       >
-        <XCircle class="size-4 shrink-0" />
-        {{ failure }}
-        <!-- A failed Separation again leaves the Stems it meant to replace. -->
-        <span
-          v-if="track.hasStems"
-          class="text-text-muted"
-        >Still on the Stems {{ track.stemsModel }} made.</span>
-      </p>
+        <XCircle class="mt-0.5 size-4 shrink-0 text-negative" />
+        <div class="min-w-0">
+          <ErrorMessage :error="failure" />
+          <!-- A failed Separation again leaves the Stems it meant to replace. -->
+          <p
+            v-if="track.hasStems"
+            class="text-sm text-text-muted"
+          >
+            {{ t('stemsPanel.stillOnStems', { model: track.stemsModel }) }}
+          </p>
+        </div>
+      </div>
       <p
         v-else
         class="min-w-0 flex-1 text-sm text-text-muted"
       >
-        Vocal removal splits this Track into an Instrumental Stem to sing over and a Vocals Stem.
-        It runs on the server and takes a few minutes.
+        {{ t('stemsPanel.intro') }}
       </p>
 
       <button
@@ -223,7 +229,7 @@ function useSource(backingSource: BackingSource) {
           v-else
           class="size-4"
         />
-        {{ state === 'failed' ? 'Retry separation' : state === 'ready' ? 'Separate again' : 'Separate' }}
+        {{ state === 'failed' ? t('stemsPanel.retry') : state === 'ready' ? t('stemsPanel.again') : t('stemsPanel.separate') }}
       </button>
     </div>
 
@@ -231,10 +237,10 @@ function useSource(backingSource: BackingSource) {
       v-if="choosingModel && !separating"
       class="mt-3 flex flex-col gap-1"
       role="group"
-      aria-label="Separate again with"
+      :aria-label="t('stemsPanel.againWith')"
     >
       <p class="text-sm text-text-muted">
-        Separate again with another Separation Model. These Stems stay until the new ones are ready.
+        {{ t('stemsPanel.againHint') }}
       </p>
       <button
         v-for="model in otherModels"
@@ -246,9 +252,9 @@ function useSource(backingSource: BackingSource) {
       >
         <span class="flex w-full items-baseline justify-between gap-3">
           <span class="text-sm font-bold">{{ model.name }}</span>
-          <span class="shrink-0 text-xs text-text-muted">{{ separationModelAvailability(model) }}</span>
+          <span class="shrink-0 text-xs text-text-muted">{{ separationModelAvailability(model, t) }}</span>
         </span>
-        <span class="text-sm text-text-muted">{{ model.description }}</span>
+        <span class="text-sm text-text-muted">{{ separationModelDescription(model.name, t) }}</span>
       </button>
     </div>
 
@@ -257,30 +263,26 @@ function useSource(backingSource: BackingSource) {
       class="mt-3 text-sm text-text-muted"
     >
       <template v-if="loading">
-        Switching the Backing Track over. It picks up where it was.
+        {{ t('stemsPanel.switching') }}
       </template>
       <template v-else-if="track.backingSource === 'instrumental'">
-        Singing over the Instrumental Stem. Separation is lossy, so the audio this Track arrived
-        with is kept untouched and is one tap away.
+        {{ t('stemsPanel.onInstrumental') }}
       </template>
       <template v-else>
-        Singing over the audio this Track arrived with, not its Instrumental Stem.
+        {{ t('stemsPanel.onOriginal') }}
       </template>
     </p>
 
-    <p
-      v-if="actionError"
-      class="mt-3 text-sm text-negative"
-      role="alert"
-    >
-      {{ actionError }}
-    </p>
+    <ErrorMessage
+      class="mt-3"
+      :error="actionError"
+    />
 
     <ConfirmDialog
       :open="pendingDeleteStems"
-      title="Delete these Stems?"
-      :message="`The Instrumental and Vocals Stem will be removed, reclaiming ${formatMegabytes(track.stemsBytes)}. The Track and everything sung on it are untouched, and separating again will make Stems anew.`"
-      confirm-label="Delete"
+      :title="t('stemsPanel.deleteTitle')"
+      :message="t('stemsPanel.deleteMessage', { size: formatMegabytes(track.stemsBytes) })"
+      :confirm-label="t('stemsPanel.delete')"
       :busy="busy"
       @confirm="confirmDeleteStems"
       @cancel="pendingDeleteStems = false"

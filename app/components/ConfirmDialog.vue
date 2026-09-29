@@ -9,6 +9,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ confirm: [], cancel: [] }>()
 
+const { t } = useI18n()
+
 const cancelButton = ref<HTMLButtonElement | null>(null)
 
 watch(() => props.open, async (open) => {
@@ -51,7 +53,7 @@ function onKeydown(event: KeyboardEvent) {
             class="rounded-pill px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
             @click="emit('cancel')"
           >
-            Cancel
+            {{ t('common.cancel') }}
           </button>
           <button
             type="button"
@@ -59,7 +61,7 @@ function onKeydown(event: KeyboardEvent) {
             :disabled="busy"
             @click="emit('confirm')"
           >
-            {{ confirmLabel ?? 'Confirm' }}
+            {{ confirmLabel ?? t('common.confirm') }}
           </button>
         </div>
       </div>

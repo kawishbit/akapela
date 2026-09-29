@@ -4,6 +4,7 @@ import type { TrackWithJob } from '~~/server/lib/tracks'
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '~~/shared/adjustments'
 import { DEFAULT_BACKING_SOURCE, type BackingSource } from '~~/shared/backing-source'
 
+import type { ErrorText } from '~/utils/errors'
 /** What the player bar needs to know about the Track it holds. */
 export interface PlayerTrack {
   id: string
@@ -23,7 +24,7 @@ export interface PlayerState {
   backingSource: BackingSource
   /** Fetching and decoding the Backing Track, including while switching Backing Source. */
   loading: boolean
-  error: string | null
+  error: ErrorText | null
   playing: boolean
   positionMs: number
   durationMs: number
@@ -35,7 +36,7 @@ export interface PlayerState {
    */
   volume: number
   /** The last failure to remember Adjustments on the Track; playback carries on regardless. */
-  saveError: string | null
+  saveError: ErrorText | null
 }
 
 const SAVE_DEBOUNCE_MS = 300
@@ -51,6 +52,7 @@ const volumeStore = new VolumeStore()
  * Backing Track engine, with the Adjustments in force remembered on the Track.
  */
 export function usePlayer() {
+  const { t } = useI18n()
   const state = useState<PlayerState>('player', () => ({
     track: null,
     backingSource: DEFAULT_BACKING_SOURCE,
@@ -81,7 +83,8 @@ export function usePlayer() {
           state.value.positionMs = state.value.durationMs
         },
         onError(message) {
-          state.value.error = message
+          // The engine's own words are English and technical: the Details.
+          state.value.error = { message: t('player.engineFailed'), details: message }
           state.value.loading = false
           state.value.playing = false
         },
@@ -144,7 +147,7 @@ export function usePlayer() {
     }
     catch (error) {
       if (state.value.track?.id !== track.id) return
-      state.value.error = describeError(error)
+      state.value.error = describeError(error, t, { headline: t('player.loadFailed') })
       state.value.loading = false
     }
   }
@@ -186,7 +189,7 @@ export function usePlayer() {
     }
     catch (error) {
       if (state.value.track?.id !== trackId) return
-      state.value.error = describeError(error)
+      state.value.error = describeError(error, t, { headline: t('player.loadFailed') })
       state.value.loading = false
     }
   }
@@ -243,7 +246,7 @@ export function usePlayer() {
           state.value.saveError = null
         })
         .catch((error) => {
-          state.value.saveError = describeError(error)
+          state.value.saveError = describeError(error, t)
         })
     }
     pendingSave = { timer: setTimeout(run, SAVE_DEBOUNCE_MS), run }

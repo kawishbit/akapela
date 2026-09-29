@@ -440,7 +440,7 @@ describe('separateHandler', () => {
 
     await runTheJob(t, separator)
 
-    expect(seen).toEqual(['Downloading Kim_Vocal_2'])
+    expect(seen).toEqual(['downloadingModel'])
     expect(getJob(t, 'j1').detail).toBeNull()
   })
 
@@ -542,7 +542,7 @@ describe('separateHandler', () => {
 
     await runTheJob(t, new FakeSeparator({ gpuFailure: 'device removed' }), 8, { backend: 'cuda' })
 
-    expect(getJob(t, 'j1')).toMatchObject({ state: 'succeeded', detail: 'Finished on CPU: the GPU failed' })
+    expect(getJob(t, 'j1')).toMatchObject({ state: 'succeeded', detail: 'finishedOnCpu' })
     expect(existsSync(join(trackDir(t), 'instrumental.wav'))).toBe(true)
   })
 })

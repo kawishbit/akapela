@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import { COVER_BASENAME, coverExtension } from './cover'
 import { childEnv, jsRuntimePath, killOnAbort, ytDlpPath } from './tools'
 import { ensureManagedYtDlp } from './ytdlp'
+import { CodedError, failure, type CodedFailure } from '../../shared/error-codes'
 
 /**
  * Source fetchers: where a Track's audio and metadata come from. Ported from
@@ -19,7 +20,12 @@ import { ensureManagedYtDlp } from './ytdlp'
 export const ORIGINAL_BASENAME = 'original'
 const THUMBNAIL_TIMEOUT_MS = 30_000
 
-export class SourceError extends Error {}
+/** A Source that could not be read, with the code the singer's card shows (`shared/error-codes.ts`). */
+export class SourceError extends CodedError {
+  constructor(message: string, coded: CodedFailure = failure('unexpected')) {
+    super(coded, message)
+  }
+}
 
 export interface SourceMetadata {
   title: string
@@ -60,11 +66,11 @@ export class YtDlpFetcher implements SourceFetcher {
       info = JSON.parse(stdout)
     }
     catch {
-      throw new SourceError(`yt-dlp found nothing at ${url}`)
+      throw new SourceError(`yt-dlp found nothing at ${url}`, failure('sourceNotFound'))
     }
-    if (!info) throw new SourceError(`yt-dlp found nothing at ${url}`)
+    if (!info) throw new SourceError(`yt-dlp found nothing at ${url}`, failure('sourceNotFound'))
     if (info._type === 'playlist' || 'entries' in info) {
-      throw new SourceError(`${url} is a playlist, not a single video`)
+      throw new SourceError(`${url} is a playlist, not a single video`, failure('sourceIsPlaylist'))
     }
 
     const duration = typeof info.duration === 'number' ? info.duration : null
@@ -90,7 +96,7 @@ export class YtDlpFetcher implements SourceFetcher {
     )
 
     const [written] = await originalFiles(directory)
-    if (!written) throw new SourceError(`yt-dlp reported success but wrote no audio for ${url}`)
+    if (!written) throw new SourceError(`yt-dlp reported success but wrote no audio for ${url}`, failure('ytDlpFailed'))
     return join(directory, written)
   }
 }
@@ -128,10 +134,10 @@ function runYtDlp(args: string[], signal?: AbortSignal): Promise<string> {
     let stderr = ''
     child.stdout.on('data', d => (stdout += d))
     child.stderr.on('data', d => (stderr += d))
-    child.on('error', error => reject(new SourceError(`could not start yt-dlp: ${error.message}`)))
+    child.on('error', error => reject(ytDlpStartFailure(error)))
     child.on('close', (code) => {
       if (code === 0) resolve(stdout)
-      else reject(new SourceError(cleanYtDlpMessage(stderr, code)))
+      else reject(ytDlpFailure(stderr, code))
     })
   })
 }
@@ -155,10 +161,10 @@ function runYtDlpWithProgress(args: string[], onProgress: ProgressCallback, sign
       }
     })
     child.stderr.on('data', d => (stderr += d))
-    child.on('error', error => reject(new SourceError(`could not start yt-dlp: ${error.message}`)))
+    child.on('error', error => reject(ytDlpStartFailure(error)))
     child.on('close', (code) => {
       if (code === 0) resolve()
-      else reject(new SourceError(cleanYtDlpMessage(stderr, code)))
+      else reject(ytDlpFailure(stderr, code))
     })
   })
 }
@@ -179,6 +185,13 @@ function jsRuntimeAdvice(): string {
       + 'Install Node 22 or newer (https://nodejs.org), or import the file instead.'
 }
 
+/**
+ * What YouTube says of a video it won't hand over to anyone, whatever yt-dlp's
+ * version: private, removed, age-gated, members-only, or blocked by country.
+ * Updating yt-dlp won't help any of these, so they get their own code.
+ */
+const VIDEO_UNAVAILABLE = /video unavailable|private video|video is private|been removed|no longer available|not available in your country|confirm your age|sign in to confirm|members-only|join this channel/i
+
 /** yt-dlp prefixes its messages with `ERROR:`; the card already says the import failed. */
 function cleanYtDlpMessage(stderr: string, exitCode: number | null): string {
   const cleaned = stderr
@@ -186,6 +199,22 @@ function cleanYtDlpMessage(stderr: string, exitCode: number | null): string {
     .replace(/^(ERROR|WARNING):\s*/, '')
   if (MISSING_JS_RUNTIME.test(cleaned)) return `${jsRuntimeAdvice()}\n\n${cleaned}`
   return cleaned || `yt-dlp failed without a message (exit code ${exitCode})`
+}
+
+/** A failed yt-dlp run, with the code that says what the singer can do about it. */
+export function ytDlpFailure(stderr: string, exitCode: number | null): SourceError {
+  const message = cleanYtDlpMessage(stderr, exitCode)
+  if (MISSING_JS_RUNTIME.test(stderr)) {
+    return new SourceError(message, failure(jsRuntimePath() ? 'jsRuntimeFailed' : 'jsRuntimeMissing'))
+  }
+  if (VIDEO_UNAVAILABLE.test(stderr)) return new SourceError(message, failure('videoUnavailable'))
+  return new SourceError(message, failure('ytDlpFailed'))
+}
+
+/** yt-dlp would not even start, which is almost always that it isn't installed. */
+function ytDlpStartFailure(error: NodeJS.ErrnoException): SourceError {
+  const message = `could not start yt-dlp: ${error.message}`
+  return new SourceError(message, error.code === 'ENOENT' ? failure('toolMissing', { tool: 'yt-dlp' }) : failure('unexpected'))
 }
 
 /** Saves the Source's artwork as `cover.<ext>`. Artwork is optional, so failures only log. */

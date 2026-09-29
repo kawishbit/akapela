@@ -19,12 +19,6 @@ export const AUDIO_FORMAT_LABELS: Record<AudioFormat, string> = {
   mp3: 'MP3',
 }
 
-export const AUDIO_FORMAT_DESCRIPTIONS: Record<AudioFormat, string> = {
-  wav: 'Uncompressed. The largest, and what every Track used before.',
-  flac: 'Lossless, about half the size.',
-  mp3: 'Smallest, lossy. 320 kbps.',
-}
-
 export function isAudioFormat(value: unknown): value is AudioFormat {
   return typeof value === 'string' && (AUDIO_FORMATS as readonly string[]).includes(value)
 }

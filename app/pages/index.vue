@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { Link, Loader2, Music2, Plus, Search, Settings, X } from 'lucide-vue-next'
 import type { TrackWithJob } from '~~/server/lib/tracks'
-import { UNSUPPORTED_UPLOAD_MESSAGE, UPLOAD_ACCEPT, UPLOAD_EXTENSIONS_SENTENCE, uploadExtension } from '~~/shared/upload'
-import { INVALID_YOUTUBE_URL_MESSAGE, youtubeVideoId } from '~~/shared/youtube'
+import { UPLOAD_ACCEPT, UPLOAD_EXTENSIONS, uploadExtension } from '~~/shared/upload'
+import { youtubeVideoId } from '~~/shared/youtube'
+import { failure } from '~~/shared/error-codes'
+import type { ErrorText } from '~/utils/errors'
 
+const { t, locale } = useI18n()
 const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry } = useLibrary()
 // Akapela's own title bar carries these links itself (`TitleBar.vue`); a
 // browser tab has no title bar, so this is its only way to the Queue, Jobs,
@@ -20,17 +23,21 @@ const deleteMessage = computed(() => {
   const track = pendingDelete.value
   if (!track) return ''
   const queued = queueEntries.value.filter(entry => entry.trackId === track.id).length
-  const times = queued === 1 ? '' : queued === 2 ? ' twice' : ` ${queued} times`
-  const queue = queued ? ` It's in the Queue${times}, and will come off it.` : ''
-  return `“${track.title}” and every file under it will be removed. This cannot be undone.${queue}`
+  return queued
+    ? t('library.deleteMessageQueued', { title: track.title, count: queued }, queued)
+    : t('library.deleteMessage', { title: track.title })
 })
 const deleting = ref(false)
-const actionError = ref<string | null>(null)
+const actionError = ref<ErrorText | null>(null)
+
+/** The file types Akapela imports, listed the way the chosen Language lists alternatives. */
+const uploadFormats = computed(() => new Intl.ListFormat(locale.value, { type: 'disjunction' })
+  .format(UPLOAD_EXTENSIONS.map(ext => ext.toUpperCase())))
 
 const urlInput = ref<HTMLInputElement | null>(null)
 const urlFormOpen = ref(false)
 const url = ref('')
-const urlError = ref<string | null>(null)
+const urlError = ref<ErrorText | null>(null)
 const importingUrl = ref(false)
 
 function pickFiles() {
@@ -81,7 +88,8 @@ async function onDrop(event: DragEvent) {
   // `uploadExtension` refuses along with everything else unsupported.
   const refused = items.filter(file => !uploadExtension(file.name))
   if (refused.length) {
-    uploadError.value = refused.map(file => `${file.name}: ${UNSUPPORTED_UPLOAD_MESSAGE}`).join('\n')
+    const reason = describeFailure(failure('unsupportedUpload'), null, t).message
+    uploadError.value = errorText(refused.map(file => t('library.uploadFailed', { file: file.name, reason })).join('\n'))
     return
   }
   await upload(items)
@@ -101,7 +109,7 @@ function closeUrlForm() {
 
 async function submitUrl() {
   if (!youtubeVideoId(url.value)) {
-    urlError.value = INVALID_YOUTUBE_URL_MESSAGE
+    urlError.value = describeFailure(failure('invalidYoutubeUrl'), null, t)
     return
   }
   importingUrl.value = true
@@ -111,7 +119,7 @@ async function submitUrl() {
     closeUrlForm()
   }
   catch (error) {
-    urlError.value = describeError(error)
+    urlError.value = describeError(error, t)
   }
   finally {
     importingUrl.value = false
@@ -127,7 +135,7 @@ async function confirmDelete() {
     pendingDelete.value = null
   }
   catch (error) {
-    actionError.value = describeError(error)
+    actionError.value = describeError(error, t)
   }
   finally {
     deleting.value = false
@@ -140,7 +148,7 @@ async function onRetry(track: TrackWithJob) {
     await retry(track)
   }
   catch (error) {
-    actionError.value = describeError(error)
+    actionError.value = describeError(error, t)
   }
 }
 </script>
@@ -159,13 +167,13 @@ async function onRetry(track: TrackWithJob) {
       aria-hidden="true"
     >
       <p class="text-sm font-bold uppercase tracking-[1.4px] text-text">
-        Drop to import
+        {{ t('library.dropToImport') }}
       </p>
     </div>
 
     <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-2xl font-bold tracking-tight">
-        Your Library
+        {{ t('library.title') }}
       </h1>
       <div class="flex flex-wrap items-center gap-2">
         <QueueLink v-if="!hasTitleBar" />
@@ -174,7 +182,7 @@ async function onRetry(track: TrackWithJob) {
           v-if="!hasTitleBar"
           to="/settings"
           class="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
-          aria-label="Settings"
+          :aria-label="t('library.settings')"
         >
           <Settings class="size-5" />
         </NuxtLink>
@@ -184,7 +192,7 @@ async function onRetry(track: TrackWithJob) {
           @click="openUrlForm"
         >
           <Link class="size-4" />
-          From YouTube
+          {{ t('library.fromYoutube') }}
         </button>
         <button
           type="button"
@@ -200,7 +208,7 @@ async function onRetry(track: TrackWithJob) {
             v-else
             class="size-4"
           />
-          Import file
+          {{ t('library.importFile') }}
         </button>
       </div>
       <input
@@ -217,7 +225,7 @@ async function onRetry(track: TrackWithJob) {
     <form
       v-if="urlFormOpen"
       class="mb-6 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)]"
-      aria-label="Import from YouTube"
+      :aria-label="t('library.importFromYoutube')"
       novalidate
       @submit.prevent="submitUrl"
     >
@@ -225,7 +233,7 @@ async function onRetry(track: TrackWithJob) {
         for="youtube-url"
         class="mb-2 block text-sm font-bold"
       >
-        Paste a YouTube link
+        {{ t('library.pasteLink') }}
       </label>
       <div class="flex flex-col gap-2 sm:flex-row">
         <input
@@ -256,26 +264,23 @@ async function onRetry(track: TrackWithJob) {
               v-else
               class="size-4"
             />
-            Import
+            {{ t('library.import') }}
           </button>
           <button
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
-            aria-label="Cancel"
+            :aria-label="t('common.cancel')"
             @click="closeUrlForm"
           >
             <X class="size-4" />
           </button>
         </div>
       </div>
-      <p
-        v-if="urlError"
+      <ErrorMessage
         id="youtube-url-error"
-        class="mt-3 text-sm text-negative"
-        role="alert"
-      >
-        {{ urlError }}
-      </p>
+        class="mt-3"
+        :error="urlError"
+      />
     </form>
 
     <label class="relative mb-6 block">
@@ -283,40 +288,34 @@ async function onRetry(track: TrackWithJob) {
       <input
         v-model.trim="query"
         type="search"
-        placeholder="Search by title or artist"
+        :placeholder="t('library.search')"
         class="w-full appearance-none rounded-pill bg-surface-mid py-3 pl-11 pr-11 text-base text-text shadow-[var(--shadow-inset-border)] outline-none placeholder:text-text-muted focus:shadow-[var(--shadow-inset-border),0_0_0_2px_var(--color-text)] [&::-webkit-search-cancel-button]:hidden"
-        aria-label="Search your library"
+        :aria-label="t('library.searchLabel')"
       >
       <button
         v-if="query"
         type="button"
         class="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-text-muted hover:text-text"
-        aria-label="Clear search"
+        :aria-label="t('library.clearSearch')"
         @click="query = ''"
       >
         <X class="size-4" />
       </button>
     </label>
 
-    <p
-      v-if="uploadError"
-      class="mb-6 whitespace-pre-wrap rounded-[6px] bg-surface p-3 text-sm text-negative"
-      role="alert"
-    >
-      {{ uploadError }}
-    </p>
-    <p
-      v-if="actionError"
-      class="mb-6 rounded-[6px] bg-surface p-3 text-sm text-negative"
-      role="alert"
-    >
-      {{ actionError }}
-    </p>
+    <ErrorMessage
+      class="mb-6 whitespace-pre-wrap rounded-[6px] bg-surface p-3"
+      :error="uploadError"
+    />
+    <ErrorMessage
+      class="mb-6 rounded-[6px] bg-surface p-3"
+      :error="actionError"
+    />
 
     <section
       v-if="tracks.length"
       class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5"
-      aria-label="Tracks"
+      :aria-label="t('library.tracks')"
     >
       <TrackCard
         v-for="track in tracks"
@@ -336,18 +335,18 @@ async function onRetry(track: TrackWithJob) {
       </div>
       <template v-if="query">
         <h2 class="text-lg font-semibold">
-          No matches for “{{ query }}”
+          {{ t('library.noMatches', { query }) }}
         </h2>
         <p class="mt-2 max-w-sm text-sm text-text-muted">
-          Try another title or artist.
+          {{ t('library.noMatchesHint') }}
         </p>
       </template>
       <template v-else>
         <h2 class="text-lg font-semibold">
-          Nothing to sing yet
+          {{ t('library.emptyTitle') }}
         </h2>
         <p class="mt-2 max-w-sm text-sm text-text-muted">
-          Paste a YouTube link or import an {{ UPLOAD_EXTENSIONS_SENTENCE }} file to add your first Track.
+          {{ t('library.emptyBody', { formats: uploadFormats }) }}
         </p>
         <div class="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -356,7 +355,7 @@ async function onRetry(track: TrackWithJob) {
             @click="openUrlForm"
           >
             <Link class="size-4" />
-            From YouTube
+            {{ t('library.fromYoutube') }}
           </button>
           <button
             type="button"
@@ -364,7 +363,7 @@ async function onRetry(track: TrackWithJob) {
             @click="pickFiles"
           >
             <Plus class="size-4" />
-            Import file
+            {{ t('library.importFile') }}
           </button>
         </div>
       </template>
@@ -372,9 +371,9 @@ async function onRetry(track: TrackWithJob) {
 
     <ConfirmDialog
       :open="pendingDelete !== null"
-      title="Delete this Track?"
+      :title="t('library.deleteTitle')"
       :message="deleteMessage"
-      confirm-label="Delete"
+      :confirm-label="t('library.delete')"
       :busy="deleting"
       @confirm="confirmDelete"
       @cancel="pendingDelete = null"

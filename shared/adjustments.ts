@@ -31,14 +31,6 @@ export interface Adjustments {
 export const EFFECTS_TARGETS = ['vocal', 'backing', 'both', 'none'] as const
 export type EffectsTarget = (typeof EFFECTS_TARGETS)[number]
 
-/** What the picker on the Review screen calls each one; one word each, the way Backing Source's are. */
-export const EFFECTS_TARGET_LABELS: Record<EffectsTarget, string> = {
-  vocal: 'Vocal',
-  backing: 'Backing',
-  both: 'Both',
-  none: 'None',
-}
-
 /** Whether the Effects reach the recorded vocal under this target. */
 export function effectsReachVocal(target: EffectsTarget): boolean {
   return target === 'vocal' || target === 'both'

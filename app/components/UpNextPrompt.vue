@@ -12,6 +12,8 @@ import { Mic2 } from 'lucide-vue-next'
  */
 const props = defineProps<{ trackId: string, recorded: boolean }>()
 
+const { t } = useI18n()
+
 const ended = useState<EndedTurn | null>('akapela-turn-ended', () => null)
 const { entries, refresh } = useQueue()
 const { sing } = useSingEntry()
@@ -69,7 +71,7 @@ onBeforeUnmount(() => {
       id="up-next-label"
       class="min-w-0 flex-1 text-base"
     >
-      <span class="font-bold">Up next:</span>
+      <span class="font-bold">{{ t('upNext.label') }}</span>
       {{ upNextLabel(first) }}
     </p>
     <div class="flex gap-2">
@@ -78,7 +80,7 @@ onBeforeUnmount(() => {
         class="rounded-pill px-4 py-2 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
         @click="notNow"
       >
-        Not now
+        {{ t('upNext.notNow') }}
       </button>
       <button
         type="button"
@@ -87,7 +89,7 @@ onBeforeUnmount(() => {
         @click="onSing"
       >
         <Mic2 class="size-4" />
-        Sing
+        {{ t('common.sing') }}
       </button>
     </div>
   </section>

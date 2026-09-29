@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '../../shared/take'
-import { errorSummary, formatMegabytes, formatDuration, formatGain, formatLatencyNudge, formatLowpassHz, formatLyricsOffset, formatPitch, formatReverbAmount, formatTempo } from '../../app/utils/format'
+import { formatMegabytes, formatDuration, formatGain, formatLatencyNudge, formatLowpassHz, formatLyricsOffset, formatPitch, formatReverbAmount, formatTempo } from '../../app/utils/format'
 
 describe('formatPitch', () => {
   test('shows whole semitones with an explicit sign', () => {
@@ -32,18 +32,18 @@ describe('formatReverbAmount', () => {
 
 describe('formatLowpassHz', () => {
   test('shows Hz below 1000', () => {
-    expect(formatLowpassHz(200)).toBe('200 Hz')
-    expect(formatLowpassHz(999)).toBe('999 Hz')
+    expect(formatLowpassHz(200, 'Off')).toBe('200 Hz')
+    expect(formatLowpassHz(999, 'Off')).toBe('999 Hz')
   })
 
   test('shows kHz at 1000 and above, one decimal unless whole', () => {
-    expect(formatLowpassHz(1000)).toBe('1 kHz')
-    expect(formatLowpassHz(1500)).toBe('1.5 kHz')
-    expect(formatLowpassHz(8000)).toBe('8 kHz')
+    expect(formatLowpassHz(1000, 'Off')).toBe('1 kHz')
+    expect(formatLowpassHz(1500, 'Off')).toBe('1.5 kHz')
+    expect(formatLowpassHz(8000, 'Off')).toBe('8 kHz')
   })
 
   test('reads as Off at the bypass value', () => {
-    expect(formatLowpassHz(20000)).toBe('Off')
+    expect(formatLowpassHz(20000, 'Off')).toBe('Off')
   })
 })
 
@@ -103,23 +103,5 @@ describe('formatMegabytes', () => {
 
   test('rounds to whole megabytes from 10 MB up, matching two Stems at ADR 0005\'s rates', () => {
     expect(formatMegabytes(162 * 1024 * 1024)).toBe('162 MB')
-  })
-})
-
-describe('errorSummary', () => {
-  test('keeps the first line and drops the Python exception type', () => {
-    const error = 'AudioError: ffmpeg could not decode original.mp3: Invalid data found\nTraceback (most recent call last):\n  File ...'
-    expect(errorSummary(error)).toBe('ffmpeg could not decode original.mp3: Invalid data found')
-  })
-
-  test('falls back to a generic message when there is no error text', () => {
-    expect(errorSummary(null)).toBe('Import failed')
-    expect(errorSummary('')).toBe('Import failed')
-  })
-
-  test('the fallback names the job the singer was watching', () => {
-    expect(errorSummary(null, 'Separation failed')).toBe('Separation failed')
-    expect(errorSummary('SeparationError:', 'Separation failed')).toBe('Separation failed')
-    expect(errorSummary('SeparationError: no network', 'Separation failed')).toBe('no network')
   })
 })

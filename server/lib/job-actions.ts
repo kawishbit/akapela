@@ -59,6 +59,8 @@ interface JobListRow {
   state: string
   progress: number
   error: string | null
+  error_code: string | null
+  error_params: string | null
   created_at: number
   started_at: number | null
   finished_at: number | null
@@ -83,7 +85,7 @@ interface JobListRow {
 export function listJobs(akapela: Akapela): JobListEntry[] {
   const rows = akapela.sqlite
     .prepare(
-      `SELECT j.id, j.type, j.target_id, j.state, j.progress, j.error, j.created_at,
+      `SELECT j.id, j.type, j.target_id, j.state, j.progress, j.error, j.error_code, j.error_params, j.created_at,
          j.started_at, j.finished_at, j.trace_parent, j.separation_model, j.detail,
          tr.id AS track_id, tr.title AS track_title, tr.artist AS track_artist, tr.updated_at AS track_updated_at,
          tk.id AS take_id, tk.created_at AS take_created_at,
@@ -105,6 +107,8 @@ export function listJobs(akapela: Akapela): JobListEntry[] {
     state: row.state as Job['state'],
     progress: row.progress,
     error: row.error,
+    errorCode: row.error_code,
+    errorParams: row.error_params === null ? null : JSON.parse(row.error_params),
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,

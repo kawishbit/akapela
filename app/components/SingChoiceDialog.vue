@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { ErrorText } from '~/utils/errors'
+
 /**
  * The choice an entry whose Stems are not there yet offers before anyone is
  * on the Sing screen: **Sing over the original**, or **Leave it for now**,
@@ -8,6 +10,7 @@
  *
  * Mounted once in `app.vue`; `useSingEntry` opens it.
  */
+const { t } = useI18n()
 const { choosing } = useSingEntry()
 const { entries, move } = useQueue()
 
@@ -18,7 +21,7 @@ const index = computed(() => entries.value.findIndex(entry => entry.id === choos
 const last = computed(() => index.value === -1 || index.value >= entries.value.length - 1)
 
 const busy = ref(false)
-const failure = ref<string | null>(null)
+const failure = ref<ErrorText | null>(null)
 const firstButton = ref<HTMLButtonElement | null>(null)
 
 watch(choosing, async (entry) => {
@@ -40,7 +43,7 @@ async function run(action: () => Promise<unknown>) {
     await action()
   }
   catch (error) {
-    failure.value = describeError(error)
+    failure.value = describeError(error, t)
   }
   finally {
     busy.value = false
@@ -100,33 +103,36 @@ function onKeydown(event: KeyboardEvent) {
           id="sing-choice-title"
           class="text-lg font-semibold leading-[1.3]"
         >
-          {{ readiness === 'failed' ? 'Separation failed' : 'Still separating' }}
+          {{ readiness === 'failed' ? t('singChoice.failedTitle') : t('singChoice.separatingTitle') }}
         </h2>
         <p
           id="sing-choice-message"
           class="mt-2 text-sm text-text-muted"
         >
-          <template v-if="readiness === 'failed'">
-            {{ choosing.track.title }} has no Instrumental Stem to sing over.
-            <NuxtLink
-              :to="`/tracks/${choosing.trackId}`"
-              class="font-bold text-text underline"
-              @click="close"
-            >Retry it on the Track page</NuxtLink>,
-            or sing over the original audio now.
-          </template>
+          <i18n-t
+            v-if="readiness === 'failed'"
+            keypath="singChoice.failedMessage"
+            scope="global"
+          >
+            <template #title>
+              {{ choosing.track.title }}
+            </template>
+            <template #link>
+              <NuxtLink
+                :to="`/tracks/${choosing.trackId}`"
+                class="font-bold text-text underline"
+                @click="close"
+              >{{ t('singChoice.retryLink') }}</NuxtLink>
+            </template>
+          </i18n-t>
           <template v-else>
-            {{ choosing.track.title }} is {{ live?.track.separationProgress ?? 0 }}% separated. Sing it over
-            the original audio now, or let the next person go first.
+            {{ t('singChoice.separatingMessage', { title: choosing.track.title, progress: live?.track.separationProgress ?? 0 }) }}
           </template>
         </p>
-        <p
-          v-if="failure"
-          class="mt-3 text-sm text-negative"
-          role="alert"
-        >
-          {{ failure }}
-        </p>
+        <ErrorMessage
+          class="mt-3"
+          :error="failure"
+        />
         <div class="mt-6 flex flex-col gap-2">
           <button
             ref="firstButton"
@@ -135,7 +141,7 @@ function onKeydown(event: KeyboardEvent) {
             :disabled="busy"
             @click="singOverOriginal"
           >
-            Sing over the original
+            {{ t('singChoice.singOverOriginal') }}
           </button>
           <button
             type="button"
@@ -143,7 +149,7 @@ function onKeydown(event: KeyboardEvent) {
             :disabled="busy"
             @click="leaveForNow"
           >
-            Leave it for now
+            {{ t('singChoice.leaveForNow') }}
           </button>
         </div>
       </div>

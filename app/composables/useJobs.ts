@@ -1,5 +1,6 @@
 import type { JobListEntry } from '~~/server/lib/job-actions'
 import { activeJobCount } from '~/utils/jobs'
+import type { ErrorText } from '~/utils/errors'
 
 const POLL_MS = 1000
 
@@ -23,9 +24,10 @@ let onFocus: (() => void) | undefined
  * idle. No SSE.
  */
 export function useJobs() {
+  const { t } = useI18n()
   const jobs = useState<JobListEntry[]>('akapela-jobs', () => [])
   const loaded = useState<boolean>('akapela-jobs-loaded', () => false)
-  const error = useState<string | null>('akapela-jobs-error', () => null)
+  const error = useState<ErrorText | null>('akapela-jobs-error', () => null)
 
   function stop() {
     if (timer) clearTimeout(timer)
@@ -46,7 +48,7 @@ export function useJobs() {
         error.value = null
       })
       .catch((failure) => {
-        error.value = describeError(failure)
+        error.value = describeError(failure, t)
       })
       .finally(() => {
         loaded.value = true

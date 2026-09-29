@@ -24,6 +24,7 @@ import {
 import type { Song } from '../../shared/song'
 import type { TrackDetails } from '../../shared/track-details'
 import type { LyricsProviderName } from '../../shared/lyrics'
+import type { CodedFailure } from '../../shared/error-codes'
 import { COVER_BASENAME, coverExtension, placeholderCoverSvg } from './cover'
 import { enqueueJob } from './jobs'
 import { getLyrics } from './lyrics'
@@ -98,6 +99,8 @@ export type TrackDetail = TrackWithJob & {
    * fetched Lyrics failed. Never stored; absent unless this response tried.
    */
   lyricsError?: string
+  /** What `lyricsError` says, as a code the browser puts into words (ADR 0014). */
+  lyricsFailure?: CodedFailure
 }
 
 /** Absolute path of the directory owning every file of one Track. */

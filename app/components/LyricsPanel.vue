@@ -2,14 +2,16 @@
 import { ClipboardPaste, Loader2, Pencil, RefreshCw } from 'lucide-vue-next'
 import type { TrackDetail } from '~~/server/lib/tracks'
 import {
-  LYRICS_PROVIDER_LABELS,
   MANUAL_LYRICS_MAX_LENGTH,
   lyricsText,
   type LyricsProviderName,
 } from '~~/shared/lyrics'
+import type { ErrorText } from '~/utils/errors'
 
 const props = defineProps<{ track: TrackDetail }>()
 const emit = defineEmits<{ changed: [track: TrackDetail] }>()
+
+const { t } = useI18n()
 
 const { lyricsProviders, defaultLyricsProvider, setDefaultLyricsProvider, saving: savingDefault }
   = useSettings()
@@ -17,7 +19,7 @@ const { lyricsProviders, defaultLyricsProvider, setDefaultLyricsProvider, saving
 const busy = ref(false)
 /** The provider being fetched from right now, so its button is the one that spins. */
 const fetching = ref<LyricsProviderName | null>(null)
-const actionError = ref<string | null>(null)
+const actionError = ref<ErrorText | null>(null)
 
 /** The fetch the singer is being asked about, held until they answer the dialog. */
 const pendingFetch = ref<LyricsProviderName | null>(null)
@@ -28,20 +30,28 @@ const draft = ref('')
 const lyrics = computed(() => props.track.lyrics)
 const hasSong = computed(() => Boolean(props.track.songTitle))
 
+/** A Lyrics Provider as a singer reads it: a service's own name, or Manual in their Language. */
+function providerName(provider: LyricsProviderName): string {
+  return t(`lyricsProviders.${provider}`)
+}
+
 const summary = computed(() => {
   if (!lyrics.value) return null
-  const kind = lyrics.value.kind === 'synced' ? 'Synced' : 'Plain'
   const count = lyrics.value.lines.length
-  return `${kind} Lyrics from ${LYRICS_PROVIDER_LABELS[lyrics.value.provider]} · ${count} line${count === 1 ? '' : 's'}`
+  const params = { provider: providerName(lyrics.value.provider), count }
+  return lyrics.value.kind === 'synced'
+    ? t('lyricsPanel.summarySynced', params, count)
+    : t('lyricsPanel.summaryPlain', params, count)
 })
 
 /** Why there are no Lyrics yet, in the words that say what to do about it. */
 const emptyReason = computed(() => {
-  if (props.track.lyricsError) return props.track.lyricsError
-  if (!hasSong.value) return 'Confirm which Song this Track is, or paste the Lyrics yourself.'
-  if (props.track.lyricsProvider === 'manual') return 'These Lyrics are yours to type. Paste them below.'
-  return `No Lyrics for this Song on ${LYRICS_PROVIDER_LABELS[props.track.lyricsProvider]}.`
-    + ' Try another provider, or paste them yourself.'
+  if (props.track.lyricsError) {
+    return describeFailure(props.track.lyricsFailure ?? null, props.track.lyricsError, t).message
+  }
+  if (!hasSong.value) return t('lyricsPanel.noSong')
+  if (props.track.lyricsProvider === 'manual') return t('lyricsPanel.manual')
+  return t('lyricsPanel.notFound', { provider: providerName(props.track.lyricsProvider) })
 })
 
 const canSetDefault = computed(() =>
@@ -64,7 +74,7 @@ async function fetchFrom(provider: LyricsProviderName, overwriteManual = false) 
   }
   catch (error) {
     if ((error as { statusCode?: number }).statusCode === 409) pendingFetch.value = provider
-    else actionError.value = describeError(error)
+    else actionError.value = describeError(error, t)
   }
   finally {
     busy.value = false
@@ -95,7 +105,7 @@ async function saveTyped() {
     emit('changed', detail)
   }
   catch (error) {
-    actionError.value = describeError(error)
+    actionError.value = describeError(error, t)
   }
   finally {
     busy.value = false
@@ -107,7 +117,7 @@ async function saveTyped() {
   <section class="rounded-[8px] bg-surface p-4 sm:p-5">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-        Lyrics
+        {{ t('lyricsPanel.heading') }}
       </h2>
 
       <!-- Where this Track's Lyrics come from. Providers this Akapela has no
@@ -115,7 +125,7 @@ async function saveTyped() {
       <div
         class="flex items-center gap-1 rounded-pill bg-surface-mid p-1"
         role="group"
-        aria-label="Lyrics Provider"
+        :aria-label="t('lyricsPanel.providerLabel')"
       >
         <button
           v-for="provider in lyricsProviders"
@@ -133,7 +143,7 @@ async function saveTyped() {
             v-if="fetching === provider"
             class="size-3.5 animate-spin"
           />
-          {{ LYRICS_PROVIDER_LABELS[provider] }}
+          {{ providerName(provider) }}
         </button>
       </div>
     </div>
@@ -163,7 +173,7 @@ async function saveTyped() {
           :disabled="savingDefault"
           @click="setDefaultLyricsProvider(track.lyricsProvider)"
         >
-          Use {{ LYRICS_PROVIDER_LABELS[track.lyricsProvider] }} for new Tracks
+          {{ t('lyricsPanel.useForNew', { provider: providerName(track.lyricsProvider) }) }}
         </button>
       </div>
 
@@ -183,7 +193,7 @@ async function saveTyped() {
             v-else
             class="size-4"
           />
-          Fetch again
+          {{ t('lyricsPanel.fetchAgain') }}
         </button>
         <button
           type="button"
@@ -198,7 +208,7 @@ async function saveTyped() {
             v-else
             class="size-4"
           />
-          {{ lyrics ? 'Edit Lyrics' : 'Paste Lyrics' }}
+          {{ lyrics ? t('lyricsPanel.edit') : t('lyricsPanel.paste') }}
         </button>
       </div>
     </div>
@@ -213,7 +223,7 @@ async function saveTyped() {
         class="text-sm text-text-muted"
         for="lyrics-text"
       >
-        One line per line sung. Saving makes these Lyrics yours, so fetching again will ask first.
+        {{ t('lyricsPanel.editHint') }}
       </label>
       <textarea
         id="lyrics-text"
@@ -221,7 +231,7 @@ async function saveTyped() {
         rows="12"
         class="mt-2 w-full rounded-[6px] bg-surface-mid p-3 font-mono text-sm leading-relaxed text-text placeholder:text-text-muted focus:outline-none focus:shadow-[var(--shadow-inset-border)]"
         :maxlength="MANUAL_LYRICS_MAX_LENGTH"
-        placeholder="Yesterday&#10;All my troubles seemed so far away"
+        :placeholder="t('lyricsPanel.placeholder')"
         spellcheck="false"
       />
       <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -234,31 +244,28 @@ async function saveTyped() {
             v-if="busy"
             class="size-4 animate-spin"
           />
-          Save Lyrics
+          {{ t('lyricsPanel.save') }}
         </button>
         <button
           type="button"
           class="inline-flex h-11 items-center rounded-pill px-4 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
           @click="editing = false"
         >
-          Cancel
+          {{ t('common.cancel') }}
         </button>
       </div>
     </form>
 
-    <p
-      v-if="actionError"
-      class="mt-3 text-sm text-negative"
-      role="alert"
-    >
-      {{ actionError }}
-    </p>
+    <ErrorMessage
+      class="mt-3"
+      :error="actionError"
+    />
 
     <ConfirmDialog
       :open="pendingFetch !== null"
-      title="Replace the Lyrics you typed?"
-      :message="`Fetching from ${pendingFetch ? LYRICS_PROVIDER_LABELS[pendingFetch] : ''} replaces the Lyrics on this Track with the ones it has.`"
-      confirm-label="Replace"
+      :title="t('lyricsPanel.replaceTitle')"
+      :message="t('lyricsPanel.replaceMessage', { provider: pendingFetch ? providerName(pendingFetch) : '' })"
+      :confirm-label="t('songPanel.replace')"
       :busy="busy"
       @confirm="pendingFetch && fetchFrom(pendingFetch, true)"
       @cancel="pendingFetch = null"

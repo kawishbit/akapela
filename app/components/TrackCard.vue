@@ -5,6 +5,8 @@ import type { TrackWithJob } from '~~/server/lib/tracks'
 const props = defineProps<{ track: TrackWithJob }>()
 const emit = defineEmits<{ delete: [], retry: [] }>()
 
+const { t } = useI18n()
+
 const progress = computed(() => {
   const job = props.track.job
   if (!job) return 0
@@ -13,11 +15,11 @@ const progress = computed(() => {
 
 const importLabel = computed(() => {
   const job = props.track.job
-  if (!job || job.state === 'queued') return 'Waiting for worker'
-  return `Importing ${job.progress}%`
+  if (!job || job.state === 'queued') return t('trackCard.waiting')
+  return t('trackCard.importing', { progress: job.progress })
 })
 
-const failure = computed(() => errorSummary(props.track.job?.error))
+const failure = computed(() => props.track.job ? describeJobFailure(props.track.job, t) : null)
 
 // A separating Track can be queued; its entry says how far along it is. One
 // still importing cannot be sung at all.
@@ -37,13 +39,13 @@ function jobLink(jobId: string | null | undefined): string {
     <NuxtLink
       :to="`/tracks/${track.id}`"
       class="absolute inset-0 rounded-[8px] outline-none focus-visible:ring-2 focus-visible:ring-text"
-      :aria-label="`Open ${track.title}`"
+      :aria-label="t('trackCard.open', { title: track.title })"
     />
 
     <div class="pointer-events-none relative aspect-square overflow-hidden rounded-[6px] bg-surface-mid shadow-[var(--shadow-medium)]">
       <img
         :src="`/api/tracks/${track.id}/cover?v=${track.updatedAt}`"
-        :alt="`Cover art for ${track.title}`"
+        :alt="t('trackCard.cover', { title: track.title })"
         class="size-full object-cover"
         :class="{ 'opacity-40': track.importState !== 'ready' }"
         loading="lazy"
@@ -61,7 +63,7 @@ function jobLink(jobId: string | null | undefined): string {
         <NuxtLink
           :to="jobLink(track.job?.id)"
           class="pointer-events-auto flex w-full max-w-32 flex-col items-center gap-3 rounded-[6px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-text"
-          :aria-label="`${importLabel}: show on the Jobs page`"
+          :aria-label="t('trackCard.importOnJobs', { status: importLabel })"
         >
           <span class="text-xs font-bold text-text">
             {{ importLabel }}
@@ -85,10 +87,10 @@ function jobLink(jobId: string | null | undefined): string {
         v-else-if="track.separationState === 'separating'"
         :to="jobLink(track.separationJobId)"
         class="pointer-events-auto absolute bottom-2 left-2 inline-flex items-center gap-1.5 rounded-pill bg-black/70 px-3 py-1.5 text-xs font-bold text-white outline-none hover:bg-black/85 focus-visible:ring-2 focus-visible:ring-text"
-        :aria-label="`Separating ${track.title}: show on the Jobs page`"
+        :aria-label="t('trackCard.separatingOnJobs', { title: track.title })"
       >
         <AudioLines class="size-3.5 text-accent" />
-        Separating
+        {{ t('trackCard.separating') }}
       </NuxtLink>
 
       <div
@@ -107,7 +109,7 @@ function jobLink(jobId: string | null | undefined): string {
         {{ track.title }}
       </h3>
       <p class="truncate text-sm text-text-muted">
-        <span>{{ track.artist ?? 'Unknown artist' }}</span>
+        <span>{{ track.artist ?? t('common.unknownArtist') }}</span>
         <span v-if="track.importState === 'ready'"> · {{ formatDuration(track.durationMs) }}</span>
       </p>
       <div
@@ -116,9 +118,9 @@ function jobLink(jobId: string | null | undefined): string {
       >
         <p
           class="line-clamp-3 text-xs text-negative"
-          :title="track.job?.error ?? undefined"
+          :title="failure?.details ?? undefined"
         >
-          {{ failure }}
+          {{ failure?.message }}
         </p>
         <button
           type="button"
@@ -126,7 +128,7 @@ function jobLink(jobId: string | null | undefined): string {
           @click="emit('retry')"
         >
           <RotateCcw class="size-3.5" />
-          Retry
+          {{ t('common.retry') }}
         </button>
       </div>
     </div>
@@ -135,8 +137,8 @@ function jobLink(jobId: string | null | undefined): string {
       v-if="track.importState === 'ready'"
       type="button"
       class="absolute right-16 top-4 flex size-10 items-center justify-center rounded-full bg-black/60 text-white shadow-[var(--shadow-medium)] transition hover:bg-black/80 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-      :aria-label="`Add ${track.title} to the Queue`"
-      title="Add to queue"
+      :aria-label="t('trackCard.addToQueue', { title: track.title })"
+      :title="t('trackCard.addToQueueShort')"
       @click="askToQueue(track)"
     >
       <ListPlus class="size-4" />
@@ -145,7 +147,7 @@ function jobLink(jobId: string | null | undefined): string {
     <button
       type="button"
       class="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-black/60 text-text-muted shadow-[var(--shadow-medium)] transition hover:text-negative focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-      :aria-label="`Delete ${track.title}`"
+      :aria-label="t('trackCard.delete', { title: track.title })"
       @click="emit('delete')"
     >
       <Trash2 class="size-4" />

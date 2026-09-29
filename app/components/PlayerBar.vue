@@ -3,6 +3,7 @@ import { Loader2, Pause, Play, Volume2, VolumeX } from 'lucide-vue-next'
 import { effectivePitchSemitones } from '~~/shared/adjustments'
 import { VOLUME_MAX, VOLUME_MIN } from '~/audio/volume'
 
+const { t } = useI18n()
 const player = usePlayer()
 const state = player.state
 
@@ -36,7 +37,7 @@ function onVolumeInput(event: Event) {
   <footer
     class="fixed inset-x-0 bottom-0 z-20 bg-ground/95 shadow-[0_-1px_0_var(--color-surface-mid)] backdrop-blur"
     style="padding-bottom: env(safe-area-inset-bottom)"
-    aria-label="Player"
+    :aria-label="t('playerBar.label')"
   >
     <div class="mx-auto max-w-6xl px-4 py-2">
       <div class="flex items-center gap-3">
@@ -47,7 +48,7 @@ function onVolumeInput(event: Event) {
           >
             <img
               :src="`/api/tracks/${state.track.id}/cover?v=${state.track.coverVersion}`"
-              :alt="`Cover art for ${state.track.title}`"
+              :alt="t('trackCard.cover', { title: state.track.title })"
               class="size-11 shrink-0 rounded-[6px] bg-surface-mid object-cover"
               width="44"
               height="44"
@@ -59,16 +60,17 @@ function onVolumeInput(event: Event) {
               <p
                 v-if="state.error"
                 class="truncate text-xs text-negative"
+                :title="state.error.details ?? undefined"
               >
-                {{ state.error }}
+                {{ state.error.message }}
               </p>
               <p
                 v-else
                 class="truncate text-xs text-text-muted"
               >
-                <span>{{ state.track.artist ?? 'Unknown artist' }}</span>
+                <span>{{ state.track.artist ?? t('common.unknownArtist') }}</span>
                 <span aria-hidden="true"> · </span>
-                <span aria-label="Adjustments">{{ adjustmentsLabel }}</span>
+                <span :aria-label="t('playerBar.adjustments')">{{ adjustmentsLabel }}</span>
               </p>
             </div>
           </NuxtLink>
@@ -83,7 +85,7 @@ function onVolumeInput(event: Event) {
               step="100"
               :value="shownMs"
               :disabled="!seekable"
-              aria-label="Seek"
+              :aria-label="t('audioPlayer.seek')"
               @input="onScrub"
               @change="onSeek"
             >
@@ -108,7 +110,7 @@ function onVolumeInput(event: Event) {
               :max="VOLUME_MAX"
               step="0.01"
               :value="state.volume"
-              aria-label="Backing Track volume"
+              :aria-label="t('playerBar.volume')"
               :aria-valuetext="formatGain(state.volume)"
               @input="onVolumeInput"
             >
@@ -118,7 +120,7 @@ function onVolumeInput(event: Event) {
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition hover:brightness-110 disabled:bg-surface-mid disabled:text-text-muted"
             :disabled="!seekable"
-            :aria-label="state.playing ? 'Pause' : 'Play'"
+            :aria-label="state.playing ? t('common.pause') : t('common.play')"
             @click="player.toggle()"
           >
             <Loader2
@@ -145,17 +147,17 @@ function onVolumeInput(event: Event) {
           />
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-bold text-text">
-              Nothing playing
+              {{ t('playerBar.nothingPlaying') }}
             </p>
             <p class="truncate text-xs text-text-muted">
-              Open a Track to play its Backing Track
+              {{ t('playerBar.openATrack') }}
             </p>
           </div>
           <button
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text-muted"
             disabled
-            aria-label="Play"
+            :aria-label="t('common.play')"
           >
             <Play
               class="size-5 translate-x-px"
@@ -178,7 +180,7 @@ function onVolumeInput(event: Event) {
           step="100"
           :value="shownMs"
           :disabled="!seekable"
-          aria-label="Seek"
+          :aria-label="t('audioPlayer.seek')"
           @input="onScrub"
           @change="onSeek"
         >

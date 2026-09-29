@@ -14,6 +14,7 @@ import { CloudDownload, Loader2 } from 'lucide-vue-next'
  * not update an unsigned app — opens the download page instead.
  */
 
+const { t } = useI18n()
 const { isDesktop, version, openExternal } = useDesktop()
 const {
   offer,
@@ -45,37 +46,35 @@ function dismiss() {
         class="w-full max-w-sm rounded-[8px] bg-card p-6 shadow-[var(--shadow-heavy)]"
         role="alertdialog"
         aria-modal="true"
-        aria-label="An Update is available"
+        :aria-label="t('updatePrompt.label')"
       >
         <h2 class="flex items-center gap-2 text-lg font-semibold leading-[1.3]">
           <CloudDownload class="size-5 text-accent" />
-          Akapela {{ offer.version }} is available
+          {{ t('updatePrompt.title', { version: offer.version }) }}
         </h2>
 
         <p class="mt-2 text-sm text-text-muted">
-          You're running {{ version }}.
+          {{ t('updatePrompt.running', { version }) }}
           <button
             type="button"
             class="font-bold underline underline-offset-2 hover:text-accent"
             @click="openExternal(offer.url)"
           >
-            What's new
+            {{ t('updatePrompt.whatsNew') }}
           </button>
         </p>
 
-        <p
+        <!-- The updater's own reason is English, so it sits under Details. -->
+        <ErrorMessage
           v-if="install.state === 'failed'"
-          class="mt-2 text-sm text-negative"
-          role="alert"
-        >
-          Akapela couldn't install this Update ({{ install.message }}). You can download it yourself
-          instead — your library isn't affected either way.
-        </p>
+          class="mt-2"
+          :error="{ message: t('updatePrompt.installFailed'), details: install.message ?? null }"
+        />
         <p
           v-else-if="install.state === 'ready'"
           class="mt-2 text-sm text-text-muted"
         >
-          Downloaded and ready. Akapela restarts to finish, or installs it the next time you quit.
+          {{ t('updatePrompt.ready') }}
         </p>
 
         <p
@@ -83,8 +82,7 @@ function dismiss() {
           class="mt-2 text-sm text-text-muted"
           role="status"
         >
-          A Job is still running — restarting would start it over. You can install on quit, or wait
-          for it to finish.
+          {{ t('updatePrompt.restartBlocked') }}
         </p>
 
         <!-- A determinate bar: electron-updater reports real bytes, so there is
@@ -101,7 +99,7 @@ function dismiss() {
           </div>
           <p class="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
             <Loader2 class="size-3.5 animate-spin" />
-            Downloading… {{ offers.progress ?? 0 }}%
+            {{ t('updatePrompt.downloadingProgress', { progress: offers.progress ?? 0 }) }}
           </p>
         </div>
 
@@ -112,7 +110,7 @@ function dismiss() {
               class="rounded-pill px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
               @click="later"
             >
-              Install when I quit
+              {{ t('updatePrompt.installOnQuit') }}
             </button>
             <button
               type="button"
@@ -120,7 +118,7 @@ function dismiss() {
               :disabled="offers.restartBlocked"
               @click="restartNow"
             >
-              Restart now
+              {{ t('updatePrompt.restartNow') }}
             </button>
           </template>
 
@@ -130,7 +128,7 @@ function dismiss() {
               class="rounded-pill bg-surface-mid px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text-muted"
               disabled
             >
-              Downloading
+              {{ t('updatePrompt.downloading') }}
             </button>
           </template>
 
@@ -140,21 +138,21 @@ function dismiss() {
               class="rounded-pill px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
               @click="skip"
             >
-              Skip this version
+              {{ t('updatePrompt.skip') }}
             </button>
             <button
               type="button"
               class="rounded-pill px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
               @click="later"
             >
-              Later
+              {{ t('updatePrompt.later') }}
             </button>
             <button
               type="button"
               class="rounded-pill bg-text px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-ground transition hover:brightness-90"
               @click="offers.act === 'install' ? installNow() : openReleasePage()"
             >
-              {{ offers.act === 'install' ? 'Update now' : 'Open download page' }}
+              {{ offers.act === 'install' ? t('updatePrompt.updateNow') : t('updatePrompt.openDownloadPage') }}
             </button>
           </template>
         </div>

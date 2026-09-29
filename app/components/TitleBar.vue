@@ -18,6 +18,7 @@ import { ChevronLeft, ChevronRight, Copy, Minus, Settings, Square, X } from 'luc
  * that end clear and takes the overlay's height, which the browser fixes and
  * which is shorter than the Desktop App's; the buttons shrink to fit it.
  */
+const { t } = useI18n()
 const { platform, maximized, minimizeWindow, toggleMaximizeWindow, closeWindow } = useDesktop()
 const { mode } = useTitleBar()
 const { canGoBack, canGoForward, back, forward } = useNavigationHistory()
@@ -49,7 +50,7 @@ const navButton = computed(() => overlay.value ? 'size-7' : 'size-9')
         class="flex items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:opacity-40 disabled:hover:bg-surface-mid"
         :class="navButton"
         :disabled="!canGoBack"
-        aria-label="Back"
+        :aria-label="t('titleBar.back')"
         @click="back"
       >
         <ChevronLeft class="size-4" />
@@ -59,7 +60,7 @@ const navButton = computed(() => overlay.value ? 'size-7' : 'size-9')
         class="flex items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:opacity-40 disabled:hover:bg-surface-mid"
         :class="navButton"
         :disabled="!canGoForward"
-        aria-label="Forward"
+        :aria-label="t('titleBar.forward')"
         @click="forward"
       >
         <ChevronRight class="size-4" />
@@ -78,7 +79,7 @@ const navButton = computed(() => overlay.value ? 'size-7' : 'size-9')
         to="/settings"
         class="flex items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
         :class="navButton"
-        aria-label="Settings"
+        :aria-label="t('titleBar.settings')"
       >
         <Settings :class="overlay ? 'size-4' : 'size-5'" />
       </NuxtLink>
@@ -91,7 +92,7 @@ const navButton = computed(() => overlay.value ? 'size-7' : 'size-9')
       <button
         type="button"
         class="flex w-12 items-center justify-center text-text-muted transition hover:bg-surface-mid hover:text-text"
-        aria-label="Minimize"
+        :aria-label="t('titleBar.minimize')"
         @click="minimizeWindow"
       >
         <Minus class="size-5" />
@@ -99,7 +100,7 @@ const navButton = computed(() => overlay.value ? 'size-7' : 'size-9')
       <button
         type="button"
         class="flex w-12 items-center justify-center text-text-muted transition hover:bg-surface-mid hover:text-text"
-        :aria-label="maximized ? 'Restore' : 'Maximize'"
+        :aria-label="maximized ? t('titleBar.restore') : t('titleBar.maximize')"
         @click="toggleMaximizeWindow"
       >
         <Copy
@@ -114,7 +115,7 @@ const navButton = computed(() => overlay.value ? 'size-7' : 'size-9')
       <button
         type="button"
         class="flex w-12 items-center justify-center text-text-muted transition hover:bg-negative hover:text-white"
-        aria-label="Close"
+        :aria-label="t('titleBar.close')"
         @click="closeWindow"
       >
         <X class="size-5" />

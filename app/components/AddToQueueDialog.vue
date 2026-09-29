@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Check } from 'lucide-vue-next'
+import type { ErrorText } from '~/utils/errors'
 
 /**
  * "Who's singing?" — one optional field. Enter adds with the name; Escape
@@ -8,13 +9,14 @@ import { Check } from 'lucide-vue-next'
  * person. Its shape (teleported, modal, focus on open) follows
  * `ConfirmDialog.vue` rather than inventing a second dialog idiom.
  */
+const { t } = useI18n()
 const { pending, confirmation, cancel } = useAddToQueue()
 const { add: addEntry } = useQueue()
 
 const name = ref('')
 const input = ref<HTMLInputElement | null>(null)
 const busy = ref(false)
-const failure = ref<string | null>(null)
+const failure = ref<ErrorText | null>(null)
 
 watch(pending, async (track) => {
   if (!track) return
@@ -33,10 +35,10 @@ async function add(singerName: string) {
     if (!track) return
     await addEntry(track.id, singerName.trim() || null)
     pending.value = null
-    confirmation.value = `Added ${track.title} to the Queue`
+    confirmation.value = t('addToQueue.added', { title: track.title })
   }
   catch (error) {
-    failure.value = describeError(error)
+    failure.value = describeError(error, t)
   }
   finally {
     busy.value = false
@@ -78,7 +80,7 @@ onBeforeUnmount(() => hide && clearTimeout(hide))
           id="add-to-queue-title"
           class="text-lg font-semibold leading-[1.3]"
         >
-          Add to the Queue
+          {{ t('addToQueue.title') }}
         </h2>
         <p class="mt-1 truncate text-sm text-text-muted">
           {{ pending.title }}
@@ -87,7 +89,7 @@ onBeforeUnmount(() => hide && clearTimeout(hide))
           for="add-to-queue-name"
           class="mt-4 block text-sm font-bold"
         >
-          Who's singing?
+          {{ t('addToQueue.who') }}
         </label>
         <input
           id="add-to-queue-name"
@@ -96,7 +98,7 @@ onBeforeUnmount(() => hide && clearTimeout(hide))
           type="text"
           autocomplete="off"
           maxlength="80"
-          placeholder="Optional"
+          :placeholder="t('addToQueue.optional')"
           class="mt-2 w-full appearance-none rounded-pill bg-surface-mid px-5 py-3 text-base text-text shadow-[var(--shadow-inset-border)] outline-none placeholder:text-text-muted focus:shadow-[var(--shadow-inset-border),0_0_0_2px_var(--color-text)]"
           aria-describedby="add-to-queue-hint"
         >
@@ -104,29 +106,26 @@ onBeforeUnmount(() => hide && clearTimeout(hide))
           id="add-to-queue-hint"
           class="mt-2 text-xs text-text-muted"
         >
-          Enter adds it. Escape adds it with no name.
+          {{ t('addToQueue.hint') }}
         </p>
-        <p
-          v-if="failure"
-          class="mt-3 text-sm text-negative"
-          role="alert"
-        >
-          {{ failure }}
-        </p>
+        <ErrorMessage
+          class="mt-3"
+          :error="failure"
+        />
         <div class="mt-6 flex justify-end gap-2">
           <button
             type="button"
             class="rounded-pill px-5 py-3 text-sm font-bold uppercase tracking-[1.4px] text-text-muted transition hover:text-text"
             @click="cancel"
           >
-            Cancel
+            {{ t('common.cancel') }}
           </button>
           <button
             type="submit"
             class="rounded-pill bg-accent px-6 py-3 text-sm font-bold uppercase tracking-[1.4px] text-accent-ink transition hover:brightness-110 disabled:opacity-60"
             :disabled="busy"
           >
-            Add
+            {{ t('addToQueue.add') }}
           </button>
         </div>
       </form>

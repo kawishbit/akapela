@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ArrowLeft, CloudDownload, CloudUpload, Cpu, Gauge, ExternalLink, FolderOpen, Headphones, Loader2, Minus, Monitor, Moon, Plus, RefreshCw, Search, Settings2, Sun } from 'lucide-vue-next'
-import { LYRICS_PROVIDER_LABELS, type LyricsProviderName } from '~~/shared/lyrics'
-import { AUDIO_FORMAT_DESCRIPTIONS, AUDIO_FORMAT_LABELS } from '~~/shared/audio-format'
+import type { LyricsProviderName } from '~~/shared/lyrics'
+import { AUDIO_FORMAT_LABELS } from '~~/shared/audio-format'
 import { RELEASES_URL } from '~/utils/update-prompt'
-import { THEME_PREFERENCES, THEME_PREFERENCE_LABELS, type ThemePreference } from '~/utils/theme'
+import { THEME_PREFERENCES, type ThemePreference } from '~/utils/theme'
+import { LANGUAGES, LANGUAGE_NAMES } from '~/utils/language'
+import type { ErrorText } from '~/utils/errors'
+
+const { t } = useI18n()
 
 const {
   lyricsProviders,
@@ -37,7 +41,8 @@ onMounted(() => void refreshSettings())
 /** Whose hardware every Separation choice is about — the server's, even from a Connected Desktop App. */
 const hardwareLine = computed(() => {
   const { cores, gpu } = hardware.value
-  return `On this server: ${cores} ${cores === 1 ? 'core' : 'cores'}, ${gpu ? `GPU: ${gpu}` : 'no GPU found'}`
+  const gpuPart = gpu ? t('settings.separation.gpu', { name: gpu }) : t('settings.separation.noGpu')
+  return t('settings.separation.hardware', { cores, gpu: gpuPart }, cores)
 })
 
 const { isDesktop, version: desktopVersion, libraryDir, chooseLibraryDir, revealLibraryDir, openExternal } = useDesktop()
@@ -51,6 +56,8 @@ const {
 } = useUpdates()
 
 const { preference: themePreference, setPreference: setThemePreference } = useTheme()
+const { preference: languagePreference, setPreference: setLanguagePreference } = useLanguage()
+const LANGUAGE_OPTIONS = ['automatic', ...LANGUAGES] as const
 
 const THEME_PREFERENCE_ICONS: Record<ThemePreference, typeof Sun> = {
   light: Sun,
@@ -67,7 +74,7 @@ const restoreInput = ref<HTMLInputElement | null>(null)
 const pendingRestoreFile = ref<File | null>(null)
 const restoring = ref(false)
 const restarting = ref(false)
-const restoreError = ref<string | null>(null)
+const restoreError = ref<ErrorText | null>(null)
 
 function pickRestoreFile() {
   restoreInput.value?.click()
@@ -102,7 +109,7 @@ async function confirmRestore() {
     window.location.reload()
   }
   catch (error) {
-    restoreError.value = describeError(error)
+    restoreError.value = describeError(error, t)
     restoring.value = false
   }
 }
@@ -128,14 +135,12 @@ async function waitForRestart(): Promise<void> {
       // Still down — the expected state until the new process is listening.
     }
   }
-  restoreError.value
-    = 'The app hasn\'t come back on its own after two minutes. If you\'re running this in development, '
-      + 'restart it by hand (`aspire run` or `pnpm dev`) — under `docker compose` it restarts itself.'
+  restoreError.value = errorText(t('settings.backup.notBack'))
   restarting.value = false
 }
 
 const changingLibrary = ref(false)
-const libraryError = ref<string | null>(null)
+const libraryError = ref<ErrorText | null>(null)
 
 async function pickLibraryFolder() {
   changingLibrary.value = true
@@ -143,8 +148,11 @@ async function pickLibraryFolder() {
   try {
     const result = await chooseLibraryDir()
     // A dismissed picker is not an error, and neither is picking the folder
-    // that is already open.
-    if (result && !result.ok && !result.cancelled) libraryError.value = result.error ?? 'That folder could not be used.'
+    // that is already open. The shell's own reason is English, since its
+    // strings aren't translated yet, so it goes under Details.
+    if (result && !result.ok && !result.cancelled) {
+      libraryError.value = { message: t('settings.library.unusable'), details: result.error ?? null }
+    }
   }
   finally {
     changingLibrary.value = false
@@ -153,7 +161,7 @@ async function pickLibraryFolder() {
 
 const updatingYtDlp = ref(false)
 const ytDlpVersion = ref<string | null>(null)
-const ytDlpError = ref<string | null>(null)
+const ytDlpError = ref<ErrorText | null>(null)
 
 /**
  * The click that replaces a rebuild. yt-dlp breaks every few months because
@@ -169,14 +177,14 @@ async function updateYtDlp() {
     ytDlpVersion.value = version
   }
   catch (error) {
-    ytDlpError.value = describeError(error)
+    ytDlpError.value = describeError(error, t)
   }
   finally {
     updatingYtDlp.value = false
   }
 }
 
-useHead({ title: 'Settings · Akapela' })
+useHead(() => ({ title: t('app.pageTitle', { page: t('settings.title') }) }))
 </script>
 
 <template>
@@ -186,25 +194,56 @@ useHead({ title: 'Settings · Akapela' })
       class="mb-4 inline-flex h-11 items-center gap-2 rounded-pill pr-4 text-sm font-bold text-text-muted transition hover:text-text"
     >
       <ArrowLeft class="size-4" />
-      Library
+      {{ t('common.library') }}
     </NuxtLink>
 
     <h1 class="mb-6 text-2xl font-bold tracking-tight">
-      Settings
+      {{ t('settings.title') }}
     </h1>
 
     <div class="flex flex-col gap-4">
       <section class="rounded-[8px] bg-surface p-4 sm:p-5">
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          Appearance
+          {{ t('settings.language.heading') }}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
-          How Akapela looks on this device. "System" follows whatever your OS or browser is set to.
+          {{ t('settings.language.body') }}
+        </p>
+        <!-- Each Language is named in its own words, so a singer who can't
+             read the one on screen can still find theirs. -->
+        <div
+          class="mt-3 flex flex-wrap items-center gap-1 rounded-pill bg-surface-mid p-1"
+          role="group"
+          :aria-label="t('settings.language.heading')"
+        >
+          <button
+            v-for="option in LANGUAGE_OPTIONS"
+            :key="option"
+            type="button"
+            class="inline-flex h-11 items-center rounded-pill px-5 text-xs font-bold uppercase tracking-[1.4px] transition"
+            :class="option === languagePreference
+              ? 'bg-text text-ground'
+              : 'text-text-muted hover:text-text'"
+            :aria-pressed="option === languagePreference"
+            :lang="option === 'automatic' ? undefined : option"
+            @click="setLanguagePreference(option)"
+          >
+            {{ option === 'automatic' ? t('settings.language.automatic') : LANGUAGE_NAMES[option] }}
+          </button>
+        </div>
+      </section>
+
+      <section class="rounded-[8px] bg-surface p-4 sm:p-5">
+        <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
+          {{ t('settings.appearance.heading') }}
+        </h2>
+        <p class="mt-1 text-sm text-text-muted">
+          {{ t('settings.appearance.body') }}
         </p>
         <div
           class="mt-3 flex flex-wrap items-center gap-1 rounded-pill bg-surface-mid p-1"
           role="group"
-          aria-label="Appearance"
+          :aria-label="t('settings.appearance.heading')"
         >
           <button
             v-for="option in THEME_PREFERENCES"
@@ -221,22 +260,22 @@ useHead({ title: 'Settings · Akapela' })
               :is="THEME_PREFERENCE_ICONS[option]"
               class="size-3.5"
             />
-            {{ THEME_PREFERENCE_LABELS[option] }}
+            {{ t(`settings.appearance.options.${option}`) }}
           </button>
         </div>
       </section>
 
       <section class="rounded-[8px] bg-surface p-4 sm:p-5">
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          Default Lyrics Provider
+          {{ t('settings.lyricsProvider.heading') }}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
-          Where a newly imported Track looks its Lyrics up.
+          {{ t('settings.lyricsProvider.body') }}
         </p>
         <div
           class="mt-3 flex flex-wrap items-center gap-1 rounded-pill bg-surface-mid p-1"
           role="group"
-          aria-label="Default Lyrics Provider"
+          :aria-label="t('settings.lyricsProvider.heading')"
         >
           <button
             v-for="provider in lyricsProviders"
@@ -250,18 +289,17 @@ useHead({ title: 'Settings · Akapela' })
             :disabled="saving"
             @click="pickDefaultLyricsProvider(provider)"
           >
-            {{ LYRICS_PROVIDER_LABELS[provider] }}
+            {{ t(`lyricsProviders.${provider}`) }}
           </button>
         </div>
       </section>
 
       <section class="rounded-[8px] bg-surface p-4 sm:p-5">
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          Recording
+          {{ t('settings.recording.heading') }}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
-          What a new recording session on the Sing page starts with. Either can still be
-          switched for that session alone.
+          {{ t('settings.recording.body') }}
         </p>
 
         <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -274,7 +312,7 @@ useHead({ title: 'Settings · Akapela' })
             @click="setMicProcessingDefault(!micProcessingDefault)"
           >
             <Settings2 class="size-3.5" />
-            Processing {{ micProcessingDefault ? 'on' : 'off' }}
+            {{ micProcessingDefault ? t('settings.recording.processingOn') : t('settings.recording.processingOff') }}
           </button>
 
           <button
@@ -286,18 +324,17 @@ useHead({ title: 'Settings · Akapela' })
             @click="setMonitoringDefault(!monitoringDefault)"
           >
             <Headphones class="size-3.5" />
-            Monitoring {{ monitoringDefault ? 'on' : 'off' }}
+            {{ monitoringDefault ? t('settings.recording.monitoringOn') : t('settings.recording.monitoringOff') }}
           </button>
         </div>
       </section>
 
       <section class="rounded-[8px] bg-surface p-4 sm:p-5">
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          Separation
+          {{ t('settings.separation.heading') }}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
-          How vocal removal runs. These describe the machine Akapela runs on, which may not be the one
-          you're looking at.
+          {{ t('settings.separation.body') }}
         </p>
         <p class="mt-3 flex items-center gap-2 text-sm font-bold">
           <Cpu class="size-4 shrink-0 text-text-muted" />
@@ -305,18 +342,17 @@ useHead({ title: 'Settings · Akapela' })
         </p>
 
         <h3 class="mt-4 text-sm font-bold">
-          CPU cores
+          {{ t('settings.separation.coresHeading') }}
         </h3>
         <p class="mt-1 text-sm text-text-muted">
-          How many cores a Separation may use. Leaving one free keeps recording smooth while a Track
-          separates on the same machine. A change applies from the next Separation to start.
+          {{ t('settings.separation.coresBody') }}
         </p>
         <div class="mt-3 flex items-center gap-2">
           <button
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
             :disabled="saving || cpuCores <= 1"
-            aria-label="One core fewer"
+            :aria-label="t('settings.separation.fewerCores')"
             @click="setCpuCores(cpuCores - 1)"
           >
             <Minus class="size-5" />
@@ -324,12 +360,12 @@ useHead({ title: 'Settings · Akapela' })
           <output
             class="min-w-24 text-center text-2xl font-bold tabular-nums"
             aria-live="polite"
-          >{{ cpuCores }} <span class="text-sm font-normal text-text-muted">of {{ hardware.cores }}</span></output>
+          >{{ cpuCores }} <span class="text-sm font-normal text-text-muted">{{ t('settings.separation.coresOf', { total: hardware.cores }) }}</span></output>
           <button
             type="button"
             class="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-mid text-text transition hover:bg-card disabled:text-text-muted disabled:hover:bg-surface-mid"
             :disabled="saving || cpuCores >= hardware.cores"
-            aria-label="One core more"
+            :aria-label="t('settings.separation.moreCores')"
             @click="setCpuCores(cpuCores + 1)"
           >
             <Plus class="size-5" />
@@ -341,11 +377,10 @@ useHead({ title: 'Settings · Akapela' })
              shows nothing, because the server is what separates. -->
         <template v-if="hardware.gpu">
           <h3 class="mt-4 text-sm font-bold">
-            Hardware acceleration
+            {{ t('settings.separation.accelerationHeading') }}
           </h3>
           <p class="mt-1 text-sm text-text-muted">
-            Separate on the GPU. If it fails partway through, the Separation carries on and finishes on
-            the CPU. A change applies from the next Separation to start.
+            {{ t('settings.separation.accelerationBody') }}
           </p>
           <button
             type="button"
@@ -356,22 +391,22 @@ useHead({ title: 'Settings · Akapela' })
             @click="setHardwareAcceleration(!hardwareAcceleration)"
           >
             <Gauge class="size-3.5" />
-            {{ hardware.gpu }} {{ hardwareAcceleration ? 'on' : 'off' }}
+            {{ hardwareAcceleration
+              ? t('settings.separation.accelerationOn', { gpu: hardware.gpu })
+              : t('settings.separation.accelerationOff', { gpu: hardware.gpu }) }}
           </button>
         </template>
 
         <h3 class="mt-4 text-sm font-bold">
-          Separation Model
+          {{ t('settings.separation.modelHeading') }}
         </h3>
         <p class="mt-1 text-sm text-text-muted">
-          What a Track is separated with unless you pick another for it. None come with Akapela: each
-          Separation Model downloads the first time it's used. A Separation already waiting keeps the
-          one it was asked for.
+          {{ t('settings.separation.modelBody') }}
         </p>
         <div
           class="mt-3 flex flex-col gap-1"
           role="radiogroup"
-          aria-label="Separation Model"
+          :aria-label="t('settings.separation.modelHeading')"
         >
           <button
             v-for="model in separationModels"
@@ -389,12 +424,12 @@ useHead({ title: 'Settings · Akapela' })
               <span
                 class="shrink-0 text-xs"
                 :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
-              >{{ separationModelAvailability(model) }}</span>
+              >{{ separationModelAvailability(model, t) }}</span>
             </span>
             <span
               class="text-sm"
               :class="model.name === separationModel ? 'text-ground/80' : 'text-text-muted'"
-            >{{ model.description }}</span>
+            >{{ separationModelDescription(model.name, t) }}</span>
           </button>
         </div>
 
@@ -402,19 +437,18 @@ useHead({ title: 'Settings · Akapela' })
 
       <section class="rounded-[8px] bg-surface p-4 sm:p-5">
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          Storage
+          {{ t('settings.storage.heading') }}
         </h2>
         <h3 class="mt-3 text-sm font-bold">
-          Audio Format
+          {{ t('settings.storage.formatHeading') }}
         </h3>
         <p class="mt-1 text-sm text-text-muted">
-          What each Track's Backing Track and Stems are stored as on the server. Applies to files written
-          from now on; what's already there stays as it is. Takes and Mixes aren't affected.
+          {{ t('settings.storage.formatBody') }}
         </p>
         <div
           class="mt-3 flex flex-col gap-1"
           role="radiogroup"
-          aria-label="Audio Format"
+          :aria-label="t('settings.storage.formatHeading')"
         >
           <button
             v-for="format in audioFormats"
@@ -431,7 +465,7 @@ useHead({ title: 'Settings · Akapela' })
             <span
               class="text-sm"
               :class="format === audioFormat ? 'text-ground/80' : 'text-text-muted'"
-            >{{ AUDIO_FORMAT_DESCRIPTIONS[format] }}</span>
+            >{{ t(`audioFormats.descriptions.${format}`) }}</span>
           </button>
         </div>
       </section>
@@ -443,12 +477,10 @@ useHead({ title: 'Settings · Akapela' })
         class="rounded-[8px] bg-surface p-4 sm:p-5"
       >
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          Library location
+          {{ t('settings.library.heading') }}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
-          The folder holding your database and every Track's files. Choosing another one opens the library
-          that's already there — nothing is moved, copied, or deleted at either end. Akapela restarts to
-          apply it.
+          {{ t('settings.library.body') }}
         </p>
 
         <p class="mt-3 break-all rounded-[6px] bg-surface-mid px-3 py-2 font-mono text-sm text-text">
@@ -463,7 +495,7 @@ useHead({ title: 'Settings · Akapela' })
             @click="pickLibraryFolder"
           >
             <FolderOpen class="size-3.5" />
-            Change folder
+            {{ t('settings.library.change') }}
           </button>
           <button
             type="button"
@@ -471,17 +503,14 @@ useHead({ title: 'Settings · Akapela' })
             @click="revealLibraryDir()"
           >
             <ExternalLink class="size-3.5" />
-            Show in file manager
+            {{ t('settings.library.reveal') }}
           </button>
         </div>
 
-        <p
-          v-if="libraryError"
-          class="mt-3 text-sm text-negative"
-          role="alert"
-        >
-          {{ libraryError }}
-        </p>
+        <ErrorMessage
+          class="mt-3"
+          :error="libraryError"
+        />
       </section>
 
       <section
@@ -489,11 +518,10 @@ useHead({ title: 'Settings · Akapela' })
         class="rounded-[8px] bg-surface p-4 sm:p-5"
       >
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          YouTube imports
+          {{ t('settings.ytDlp.heading') }}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
-          Importing from YouTube uses yt-dlp, which breaks whenever YouTube changes under it. If imports
-          have started failing, fetch the latest version — Akapela keeps its own copy, so this is the whole fix.
+          {{ t('settings.ytDlp.body') }}
         </p>
 
         <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -511,7 +539,7 @@ useHead({ title: 'Settings · Akapela' })
               v-else
               class="size-3.5"
             />
-            Update yt-dlp
+            {{ t('settings.ytDlp.update') }}
           </button>
         </div>
 
@@ -520,24 +548,20 @@ useHead({ title: 'Settings · Akapela' })
           class="mt-3 text-sm font-bold"
           role="status"
         >
-          Updated to yt-dlp {{ ytDlpVersion }}.
+          {{ t('settings.ytDlp.updated', { version: ytDlpVersion }) }}
         </p>
-        <p
-          v-if="ytDlpError"
-          class="mt-3 text-sm text-negative"
-          role="alert"
-        >
-          {{ ytDlpError }}
-        </p>
+        <ErrorMessage
+          class="mt-3"
+          :error="ytDlpError"
+        />
       </section>
 
       <section class="rounded-[8px] bg-surface p-4 sm:p-5">
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          Backup
+          {{ t('settings.backup.heading') }}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
-          Everything that isn't re-downloadable — the database, every Track's audio, every Take
-          and Mix. Restoring replaces your entire library with what's in the file.
+          {{ t('settings.backup.body') }}
         </p>
 
         <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -546,7 +570,7 @@ useHead({ title: 'Settings · Akapela' })
             class="inline-flex h-12 items-center gap-2 rounded-pill bg-surface-mid px-5 text-xs font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
           >
             <CloudDownload class="size-3.5" />
-            Download backup
+            {{ t('settings.backup.download') }}
           </a>
 
           <button
@@ -556,7 +580,7 @@ useHead({ title: 'Settings · Akapela' })
             @click="pickRestoreFile"
           >
             <CloudUpload class="size-3.5" />
-            Restore from backup
+            {{ t('settings.backup.restore') }}
           </button>
           <input
             ref="restoreInput"
@@ -573,16 +597,13 @@ useHead({ title: 'Settings · Akapela' })
           role="status"
         >
           <Loader2 class="size-4 shrink-0 animate-spin text-accent" />
-          Restored. Waiting for the app to come back…
+          {{ t('settings.backup.restarting') }}
         </p>
 
-        <p
-          v-if="restoreError"
-          class="mt-3 text-sm text-negative"
-          role="alert"
-        >
-          {{ restoreError }}
-        </p>
+        <ErrorMessage
+          class="mt-3"
+          :error="restoreError"
+        />
       </section>
 
       <section
@@ -590,30 +611,30 @@ useHead({ title: 'Settings · Akapela' })
         class="rounded-[8px] bg-surface p-4 sm:p-5"
       >
         <h2 class="text-xs font-bold uppercase tracking-[1.4px] text-text-muted">
-          About
+          {{ t('settings.about.heading') }}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
-          Akapela {{ desktopVersion }}.
+          {{ t('settings.about.version', { version: desktopVersion }) }}
         </p>
 
         <p
           v-if="availableUpdate"
           class="mt-3 text-sm"
         >
-          Akapela {{ availableUpdate.version }} is available.
+          {{ t('settings.about.available', { version: availableUpdate.version }) }}
           <button
             type="button"
             class="font-bold underline underline-offset-2 hover:text-accent"
             @click="openExternal(availableUpdate.url)"
           >
-            What's new
+            {{ t('settings.about.whatsNew') }}
           </button>
           <button
             type="button"
             class="font-bold underline underline-offset-2 hover:text-accent"
             @click="openExternal(RELEASES_URL)"
           >
-            Open the download page
+            {{ t('settings.about.openDownloadPage') }}
           </button>
         </p>
 
@@ -626,7 +647,7 @@ useHead({ title: 'Settings · Akapela' })
             @click="setAutomaticUpdateChecks(!automaticUpdateChecks)"
           >
             <CloudDownload class="size-3.5" />
-            Check on launch {{ automaticUpdateChecks ? 'on' : 'off' }}
+            {{ automaticUpdateChecks ? t('settings.about.checkOnLaunchOn') : t('settings.about.checkOnLaunchOff') }}
           </button>
 
           <button
@@ -643,12 +664,12 @@ useHead({ title: 'Settings · Akapela' })
               v-else
               class="size-3.5"
             />
-            Check now
+            {{ t('settings.about.checkNow') }}
           </button>
         </div>
 
         <p class="mt-2 text-sm text-text-muted">
-          With checking off, Akapela never contacts GitHub on its own; Check now still works.
+          {{ t('settings.about.checkingOff') }}
         </p>
 
         <p
@@ -656,38 +677,38 @@ useHead({ title: 'Settings · Akapela' })
           class="mt-3 text-sm text-text-muted"
           role="status"
         >
-          You're on the latest release.
+          {{ t('settings.about.current') }}
         </p>
         <p
           v-else-if="updateCheck?.state === 'failed'"
           class="mt-3 text-sm text-negative"
           role="alert"
         >
-          Akapela couldn't check for an Update. Check your connection and try again, or see the
-          <button
-            type="button"
-            class="font-bold underline underline-offset-2 hover:text-accent"
-            @click="openExternal(RELEASES_URL)"
+          <i18n-t
+            keypath="settings.about.failed"
+            scope="global"
           >
-            releases page
-          </button>.
+            <template #link>
+              <button
+                type="button"
+                class="font-bold underline underline-offset-2 hover:text-accent"
+                @click="openExternal(RELEASES_URL)"
+              >
+                {{ t('settings.about.releasesPage') }}
+              </button>
+            </template>
+          </i18n-t>
         </p>
       </section>
 
-      <p
-        v-if="saveError"
-        class="text-sm text-negative"
-        role="alert"
-      >
-        {{ saveError }}
-      </p>
+      <ErrorMessage :error="saveError" />
     </div>
 
     <ConfirmDialog
       :open="pendingRestoreFile !== null"
-      title="Restore from backup?"
-      :message="`This replaces your entire library — every Track, Take, and Mix — with what's in ${pendingRestoreFile?.name}. This can't be undone, and the app restarts once it's done.`"
-      confirm-label="Restore"
+      :title="t('settings.backup.confirmTitle')"
+      :message="t('settings.backup.confirmMessage', { file: pendingRestoreFile?.name ?? '' })"
+      :confirm-label="t('settings.backup.confirm')"
       :busy="restoring"
       @confirm="confirmRestore"
       @cancel="pendingRestoreFile = null"

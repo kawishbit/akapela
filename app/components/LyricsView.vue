@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { currentLineIndex, plainScrollFraction, type LyricsKind, type LyricsLine } from '~~/shared/lyrics'
 
+const { t } = useI18n()
+
 const props = defineProps<{
   kind: LyricsKind
   lines: LyricsLine[]
@@ -124,7 +126,7 @@ onBeforeUnmount(() => {
     ref="scroller"
     class="h-full overflow-y-auto overscroll-contain px-5 [scrollbar-width:none] sm:px-8 [&::-webkit-scrollbar]:hidden"
     tabindex="0"
-    aria-label="Lyrics"
+    :aria-label="t('lyricsPanel.heading')"
     @wheel="pauseAutoScroll"
     @touchmove="pauseAutoScroll"
     @keydown.up="pauseAutoScroll"

@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, open, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { modelUrl, PARTIAL_MD5_BYTES, type SeparationModel } from './models.ts'
+import { CodedError, failure } from '../../../shared/error-codes.ts'
 
 /**
  * Fetches a Separation Model if it isn't already cached. Mirrors
@@ -19,7 +20,12 @@ import { modelUrl, PARTIAL_MD5_BYTES, type SeparationModel } from './models.ts'
  * than fail, so it is refused instead.
  */
 
-export class ModelDownloadError extends Error {}
+/** A Separation Model that could not be fetched; the singer's card names the model. */
+export class ModelDownloadError extends CodedError<'modelDownloadFailed'> {
+  constructor(model: string, message: string) {
+    super(failure('modelDownloadFailed', { model }), message)
+  }
+}
 
 export interface FetchModelOptions {
   /** How much of the download has arrived, 0 to 1. Only called when the server says how big it is. */
@@ -37,6 +43,7 @@ export async function fetchModel(modelsDir: string, model: SeparationModel, opti
   if (existsSync(dest)) return dest
 
   const fail = (why: string) => new ModelDownloadError(
+    model.name,
     `could not download the Separation Model ${model.name} (${model.fileName}), which is fetched from the network `
     + `the first time a Separation needs it: ${why}`,
   )

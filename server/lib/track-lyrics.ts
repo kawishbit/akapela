@@ -5,7 +5,8 @@
  * Provider meets the words already on the Track.
  */
 
-import { parseManualLyricsText, unavailableProviderMessage, type LyricsProviderName } from '../../shared/lyrics'
+import { LYRICS_PROVIDER_LABELS, parseManualLyricsText, unavailableProviderMessage, type LyricsProviderName } from '../../shared/lyrics'
+import { failure, toCodedFailure, type CodedFailure } from '../../shared/error-codes'
 import { LyricsProviderError, type FetchedLyrics } from '../lyrics/provider'
 import { getLyrics, lyricsProviderNamed, replaceLyrics } from './lyrics'
 import type { Akapela } from './akapela'
@@ -80,15 +81,23 @@ export async function fetchLyricsForTrack(
   const provider = lyricsProviderNamed(akapela, name)
   // The Track was set to a provider this instance has since lost, so the
   // singer is told rather than left wondering why nothing arrived.
-  if (!provider) return { ...trackDetail(akapela, chosen), lyricsError: unavailableProviderMessage(name) }
+  if (!provider) {
+    return {
+      ...trackDetail(akapela, chosen),
+      lyricsError: unavailableProviderMessage(name),
+      lyricsFailure: failure('lyricsProviderUnavailable', { provider: LYRICS_PROVIDER_LABELS[name] }),
+    }
+  }
 
   let found: FetchedLyrics | null = null
   let lyricsError: string | undefined
+  let lyricsFailure: CodedFailure | undefined
   try {
     found = await provider.fetchLyrics(song)
   }
   catch (error) {
     lyricsError = error instanceof LyricsProviderError ? error.message : String(error)
+    lyricsFailure = toCodedFailure(error)
   }
 
   // The Lyrics on a Track always belong to the Song confirmed on it, so the
@@ -96,7 +105,7 @@ export async function fetchLyricsForTrack(
   // Asking again is how a singer retries a provider that was down.
   replaceLyrics(akapela, chosen.id, found && { provider: name, ...found })
   const detail = trackDetail(akapela, chosen)
-  return lyricsError === undefined ? detail : { ...detail, lyricsError }
+  return lyricsError === undefined ? detail : { ...detail, lyricsError, lyricsFailure }
 }
 
 /**

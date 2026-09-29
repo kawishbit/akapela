@@ -10,6 +10,7 @@ import { formatSeparateCliArgs } from '../separators/cli-args'
 import { cliOutputReader } from '../separators/progress'
 import { childEnv, killOnAbort, separateCliPath } from '../tools'
 import { cpuCoresFor } from '../../../shared/separation'
+import type { JobDetail } from '../../../shared/job-detail'
 import { hostCores, type Hardware } from '../hardware'
 import type { Accelerator } from '../separators/accelerator'
 import type { Handler, JobContext } from '../jobs-runner'
@@ -179,7 +180,7 @@ const MODELS_DIRNAME = 'cache/models'
 const LEGACY_MODELS_DIRNAME = 'models'
 
 /** What the Jobs page row says of a Separation the GPU started and the CPU finished. */
-export const GPU_FAILED_DETAIL = 'Finished on CPU: the GPU failed'
+export const GPU_FAILED_DETAIL: JobDetail = 'finishedOnCpu'
 
 // Progress milestones. The model run fills the band between the second and
 // third, a chunk at a time; the runner writes the final 100.
@@ -232,7 +233,7 @@ async function modelsDir(dataDir: string): Promise<string> {
  */
 async function fetchWithDetail(ctx: JobContext, separator: Separator, models: string, model: SeparationModel): Promise<void> {
   if (existsSync(modelPath(models, model))) return
-  ctx.detail(`Downloading ${model.name}`)
+  ctx.detail('downloadingModel' satisfies JobDetail)
   let reported = PROGRESS_STARTED
   try {
     await separator.fetchModel(models, model, {

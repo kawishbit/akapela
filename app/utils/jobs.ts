@@ -1,6 +1,9 @@
 import type { JobType } from '~~/server/db/schema'
+import { DEFAULT_SEPARATION_MODEL } from '~~/server/lib/separators/models'
 import type { JobListEntry } from '~~/server/lib/job-actions'
 import type { Lane } from '~~/server/lib/jobs'
+import { isJobDetail } from '~~/shared/job-detail'
+import type { Translate } from './i18n'
 
 /**
  * What the Jobs page makes of `GET /api/jobs`. Plain functions, so the suite
@@ -36,24 +39,33 @@ export function activeJobCount(jobs: readonly Pick<JobListEntry, 'state'>[]): nu
   return jobs.filter(isActiveJob).length
 }
 
-const ACTIVITIES: Partial<Record<JobType, string>> = {
-  import: 'Importing',
-  separate: 'Separating',
-  render: 'Mixing',
-}
+const ACTIVITIES: readonly string[] = ['import', 'separate', 'render'] satisfies JobType[]
 
 /** What a Job is doing, in a word. A type without one of its own still gets a row. */
-export function jobActivity(type: JobType): string {
-  return ACTIVITIES[type] ?? 'Working'
+export function jobActivity(type: JobType, t: Translate): string {
+  return ACTIVITIES.includes(type) ? t(`jobs.activity.${type}`) : t('jobs.activity.other')
 }
 
 /** What a queued Job waits behind. The UI never says "Lane". */
-export function queuedBehind(lane: Lane): string {
-  return lane === 'heavy' ? 'Waits for other Separations' : 'Waits for imports and Mixes'
+export function queuedBehind(lane: Lane, t: Translate): string {
+  return lane === 'heavy' ? t('jobs.waitsHeavy') : t('jobs.waitsLight')
 }
 
-/** Which Take a Mix is of: "Take 2, 14:03", since a Track can have several queued for mixing at once. */
-export function takeLabel(take: NonNullable<JobListEntry['take']>): string {
-  const time = new Date(take.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  return `Take ${take.number}, ${time}`
+/**
+ * The line a Job adds about what it is doing (`shared/job-detail.ts`), in
+ * words. A row from before the tokens holds English already, shown as it is.
+ */
+export function jobDetailText(job: Pick<JobListEntry, 'detail' | 'separationModel'>, t: Translate): string | null {
+  if (!job.detail) return null
+  if (!isJobDetail(job.detail)) return job.detail
+  return t(`jobs.detail.${job.detail}`, { model: job.separationModel ?? DEFAULT_SEPARATION_MODEL })
+}
+
+/**
+ * Which Take a Mix is of: "Take 2, 14:03", since a Track can have several
+ * queued for mixing at once. The time is written the chosen Language's way.
+ */
+export function takeLabel(take: NonNullable<JobListEntry['take']>, t: Translate, locale: string): string {
+  const time = new Date(take.createdAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+  return t('jobs.takeLabel', { number: take.number, time })
 }

@@ -3,6 +3,7 @@ import { JobsRunner, type Handler } from '../../server/lib/jobs-runner'
 import type { Job } from '../../server/db/schema'
 import type { JobSpan, Telemetry } from '../../server/lib/telemetry'
 import { createJobTestDb, type JobTestDb } from './job-test-db'
+import { CodedError, failure } from '../../shared/error-codes'
 
 const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
 
@@ -93,6 +94,56 @@ describe('JobsRunner', () => {
     expect(job.state).toBe('failed')
     expect(job.error).toContain('yt-dlp exploded')
     expect(job.finished_at).not.toBeNull()
+  })
+
+  it('records a failure without a code as unexpected, keeping the raw text', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const runner = new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers: { noop: failingHandler } })
+
+    await runner.runOnce()
+
+    const job = t.getJob('j1')
+    expect(job.error_code).toBe('unexpected')
+    expect(JSON.parse(job.error_params as string)).toEqual({})
+    expect(job.error).toBe('Error: yt-dlp exploded')
+  })
+
+  it('records a coded failure with its code and parameters, and the English as the error', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const noop: Handler = async () => {
+      throw new CodedError(failure('toolMissing', { tool: 'ffmpeg' }), 'could not start ffmpeg: spawn ffmpeg ENOENT')
+    }
+    const runner = new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers: { noop } })
+
+    await runner.runOnce()
+
+    const job = t.getJob('j1')
+    expect(job.error_code).toBe('toolMissing')
+    expect(JSON.parse(job.error_params as string)).toEqual({ tool: 'ffmpeg' })
+    expect(job.error).toBe('CodedError: could not start ffmpeg: spawn ffmpeg ENOENT')
+  })
+
+  it('records a full disk as such, wherever it surfaced', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    const noop: Handler = async () => {
+      throw Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' })
+    }
+    const runner = new JobsRunner(t.akapela.sqlite, t.dataDir, { handlers: { noop } })
+
+    await runner.runOnce()
+
+    expect(t.getJob('j1').error_code).toBe('diskFull')
+  })
+
+  it('leaves a succeeded job without a code', async () => {
+    const t = setup()
+    t.enqueue('noop', { id: 'j1', createdAt: 1000 })
+    await new JobsRunner(t.akapela.sqlite, t.dataDir).runOnce()
+
+    expect(t.getJob('j1')).toMatchObject({ error_code: null, error_params: null })
   })
 
   it('fails an unknown job type rather than hanging', async () => {

@@ -2,11 +2,6 @@ export type ThemePreference = 'light' | 'dark' | 'system'
 export type Theme = 'light' | 'dark'
 
 export const THEME_PREFERENCES: ThemePreference[] = ['light', 'dark', 'system']
-export const THEME_PREFERENCE_LABELS: Record<ThemePreference, string> = {
-  light: 'Light',
-  dark: 'Dark',
-  system: 'System',
-}
 
 const THEME_STORAGE_KEY = 'akapela:theme'
 
