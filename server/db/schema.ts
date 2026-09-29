@@ -7,7 +7,7 @@ import {
   REVERB_AMOUNT_MIN,
   type Adjustments,
 } from '../../shared/adjustments'
-import { BACKING_SOURCES, DEFAULT_BACKING_SOURCE } from '../../shared/backing-source'
+import { BACKING_SOURCES, DEFAULT_BACKING_SOURCE, DEFAULT_STEM_LEVELS, type StemLevels } from '../../shared/backing-source'
 import { DEFAULT_LYRICS_PROVIDER, LYRICS_KINDS, LYRICS_PROVIDERS, type LyricsLine } from '../../shared/lyrics'
 import type { SongProviderIds } from '../../shared/song'
 import { SEPARATION_MODEL_NAMES } from '../lib/separators/models'
@@ -125,13 +125,23 @@ export const tracks = sqliteTable('tracks', {
   separationState: text('separation_state', { enum: SEPARATION_STATES }).notNull().default('none'),
   /**
    * Which of this Track's audio files is the Backing Track. `original` until a
-   * separation succeeds and flips it to `instrumental`, so the common case
-   * takes no extra tap, and switchable back at any time because separation is
-   * lossy and sometimes loses — a Track imported from a karaoke video often
-   * sounds better on the audio it arrived with than on anything a model
-   * extracts from it. Delete Stems (ticket 04) will put it back to `original`.
+   * separation succeeds and flips it to `stems`, so the common case takes no
+   * extra tap, and switchable back at any time because separation is lossy
+   * and sometimes loses — a Track imported from a karaoke video often sounds
+   * better on the audio it arrived with than on anything a model extracts
+   * from it. Delete Stems puts it back to `original`.
    */
   backingSource: text('backing_source', { enum: BACKING_SOURCES }).notNull().default(DEFAULT_BACKING_SOURCE),
+  /**
+   * The Stem Levels last used on this Track, remembered whatever the Backing
+   * Source is and whether or not there are Stems: switching to Original,
+   * deleting the Stems, and separating again with another model all leave
+   * them alone, so they are there when Stems come back.
+   */
+  stemLevels: text('stem_levels', { mode: 'json' })
+    .$type<StemLevels>()
+    .notNull()
+    .default(DEFAULT_STEM_LEVELS),
   /**
    * The Separation Model that made this Track's Stems, written together with
    * them when a Separation succeeds. Null for Stems made before there was a
@@ -227,6 +237,15 @@ export const takes = sqliteTable('takes', {
    * keeps meaning what it meant (ADR 0003 amendment).
    */
   backingSource: text('backing_source', { enum: BACKING_SOURCES }).notNull().default(DEFAULT_BACKING_SOURCE),
+  /**
+   * The Stem Levels in force when recording started, and afterwards whatever
+   * the Review screen last saved: unlike the Backing Source, which records
+   * what was sung over, these are where the next Mix starts from.
+   */
+  stemLevels: text('stem_levels', { mode: 'json' })
+    .$type<StemLevels>()
+    .notNull()
+    .default(DEFAULT_STEM_LEVELS),
   /** Vocal delay correction in milliseconds, set on the Review screen. */
   latencyNudgeMs: integer('latency_nudge_ms').notNull().default(0),
   /** Linear gain multipliers applied at Mix render; 1 is unity. */
@@ -275,9 +294,14 @@ export const mixes = sqliteTable('mixes', {
    * Which audio this Mix was rendered against, copied onto the row at request
    * time and defaulting to the Take's own — a request may override it, so
    * singing along to the original with the real singer audible can still
-   * render a Mix against the Instrumental Stem (ADR 0003 amendment).
+   * render a Mix against the Stems (ADR 0003 amendment).
    */
   backingSource: text('backing_source', { enum: BACKING_SOURCES }).notNull().default(DEFAULT_BACKING_SOURCE),
+  /** How the two Stems were blended, when the Backing Source is `stems`; copied like the rest. */
+  stemLevels: text('stem_levels', { mode: 'json' })
+    .$type<StemLevels>()
+    .notNull()
+    .default(DEFAULT_STEM_LEVELS),
   latencyNudgeMs: integer('latency_nudge_ms').notNull(),
   vocalGain: real('vocal_gain').notNull(),
   backingGain: real('backing_gain').notNull(),

@@ -22,6 +22,8 @@ Capitalised terms (Track, Job, Separation, Queue, ...) are defined in `CONTEXT.m
 
   Spec in `.scratch/spotify-import/`.
 
+- **Stem Levels.** A separated Track's Backing Source is Original or Stems, and Stems blend the Guide Vocal (the original singer) and the Instrumental, each from silent to as separated. Sliders on the Track page, the Sing screen, and Review change them live. A Take records them as they were when recording started, and a Mix can use others, so you can sing with a faint guide and render without it. Both engines blend before their one stretch (ADR 0003 amendment). Spec in `.scratch/stem-levels/`.
+
 ## 1. More languages
 
 **Decided** (ADR 0014)

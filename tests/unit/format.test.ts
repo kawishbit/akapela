@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '../../shared/take'
-import { formatMegabytes, formatDuration, formatGain, formatLatencyNudge, formatLowpassHz, formatLyricsOffset, formatPitch, formatReverbAmount, formatTempo } from '../../app/utils/format'
+import { formatMegabytes, formatDuration, formatGain, formatLatencyNudge, formatLowpassHz, formatLyricsOffset, formatPitch, formatReverbAmount, formatStemLevel, formatTempo } from '../../app/utils/format'
 
 describe('formatPitch', () => {
   test('shows whole semitones with an explicit sign', () => {
@@ -19,6 +19,15 @@ describe('formatTempo', () => {
   test('shows a percentage', () => {
     expect(formatTempo(100)).toBe('100%')
     expect(formatTempo(85)).toBe('85%')
+  })
+})
+
+describe('formatStemLevel', () => {
+  test('shows a whole percentage of as separated', () => {
+    expect(formatStemLevel(0)).toBe('0%')
+    expect(formatStemLevel(0.3)).toBe('30%')
+    expect(formatStemLevel(0.555)).toBe('56%')
+    expect(formatStemLevel(1)).toBe('100%')
   })
 })
 

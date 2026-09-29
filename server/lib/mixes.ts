@@ -61,6 +61,7 @@ export function createMix(akapela: Akapela, take: Take, input: MixRequest): MixW
     lowpassHz: input.adjustments.lowpassHz,
     effectsTarget: input.adjustments.effectsTarget,
     backingSource: input.backingSource,
+    stemLevels: input.stemLevels,
     latencyNudgeMs: input.latencyNudgeMs,
     vocalGain: input.vocalGain,
     backingGain: input.backingGain,

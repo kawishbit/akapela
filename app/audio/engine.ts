@@ -8,6 +8,14 @@ import {
 } from '~~/shared/adjustments'
 import { EffectsChain } from './effects-chain'
 import { songTimeAfter } from './song-time'
+import {
+  layerGains,
+  needsGuideVocal,
+  primaryFile,
+  trackAudioUrl,
+  type BackingSelection,
+} from './backing-files'
+import type { StemLevels, TrackAudioFile } from '~~/shared/backing-source'
 
 /** Served from `public/`; AudioWorklet modules load by URL and cannot be bundled with the app. */
 const PROCESSOR_URL = '/audio/rubberband-processor.js'
@@ -33,11 +41,20 @@ type WorkletMessage
     | { type: 'ended' }
     | { type: 'error', message: string }
 
+/** Where the worklet's Vocals Stem layer is, for a Backing Source of Stems. */
+const GUIDE_VOCAL_LAYER = 1
+
 /**
  * The browser side of Backing Track playback (ADR 0003, ADR 0004). Fetches
  * and decodes a Backing Track once, hands the samples to the worklet, and
  * forwards transport and Adjustments to it. Positions come back in song
  * time; between reports they are interpolated at the current tempo.
+ *
+ * A Backing Source of Stems is two decoded files, blended by the worklet
+ * before its one stretch at the Stem Levels (`backing-files.ts`). Both in
+ * memory at once is twice what one Backing Track holds, so the Vocals Stem is
+ * only fetched once the Guide Vocal is above zero: the default Stems, and
+ * every Track on Original, hold exactly the one buffer they always did.
  */
 export class BackingTrackEngine {
   private context: AudioContext | undefined
@@ -51,6 +68,10 @@ export class BackingTrackEngine {
   private adjustments: Adjustments = { ...DEFAULT_ADJUSTMENTS }
   private lastReport = { positionMs: 0, atContextTime: 0, playing: false }
   private loaded = false
+  private trackId = ''
+  private selection: BackingSelection | undefined
+  /** Whether the Vocals Stem is in the worklet, on its way, or neither. */
+  private guideVocal: 'none' | 'loading' | 'loaded' = 'none'
 
   durationMs = 0
 
@@ -84,38 +105,53 @@ export class BackingTrackEngine {
   }
 
   /**
-   * Fetches, decodes, and loads a Backing Track. Resolves with its duration,
-   * or with null when another load superseded this one before it finished.
+   * Fetches, decodes, and loads a Track's Backing Track from the Backing
+   * Source `selection` names. Resolves with its duration, or with null when
+   * another load superseded this one before it finished.
    *
    * `startAtMs` is where to leave the transport once it is loaded, which is
    * what makes switching Backing Source mid-song a reload the singer only
    * hears: the other file is fetched and decoded, and playback picks up at the
-   * song position it left.
+   * song position it left. Stem Levels are not a reload: see `setStemLevels`.
    */
-  async load(url: string, adjustments: Adjustments, startAtMs = 0): Promise<number | null> {
+  async load(trackId: string, selection: BackingSelection, adjustments: Adjustments, startAtMs = 0): Promise<number | null> {
     const generation = ++this.loadGeneration
     this.loaded = false
     this.adjustments = { ...adjustments }
+    this.trackId = trackId
+    this.selection = { source: selection.source, stemLevels: { ...selection.stemLevels } }
+    const withGuideVocal = needsGuideVocal(selection)
+    this.guideVocal = withGuideVocal ? 'loading' : 'none'
     const node = await this.ensureNode()
-    const context = this.context!
 
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`Backing Track could not be fetched (${response.status})`)
-    const buffer = await context.decodeAudioData(await response.arrayBuffer())
+    // The Guide Vocal is heard only once it has loaded: a Vocals Stem that
+    // fails leaves the Backing Track playing without it, as the lazy fetch does.
+    const [buffer, guideVocal] = await Promise.all([
+      this.decode(trackId, primaryFile(selection.source)),
+      withGuideVocal ? this.decode(trackId, 'vocals').catch(warnGuideVocal) : null,
+    ])
     if (generation !== this.loadGeneration) return null
 
-    // The AudioBuffer's own storage cannot be transferred, so copy each channel and hand the copies over.
-    const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i).slice())
+    const layers = [buffer, ...(guideVocal ? [guideVocal] : [])].map(copyChannels)
     this.post(node, { type: 'adjust', timeRatio: timeRatio(adjustments), pitchScale: pitchScale(adjustments) })
     this.applyEffects(adjustments)
-    await this.request(node, { type: 'load', channels }, 'loaded', channels.map(channel => channel.buffer))
+    await this.request(
+      node,
+      { type: 'load', layers, gains: layerGains(this.selection) },
+      'loaded',
+      layers.flat().map(channel => channel.buffer),
+    )
     if (generation !== this.loadGeneration) return null
+    this.guideVocal = guideVocal ? 'loaded' : 'none'
+    const context = this.context!
 
     this.durationMs = buffer.duration * 1000
     const startMs = Math.max(0, Math.min(startAtMs, this.durationMs))
     this.lastReport = { positionMs: startMs, atContextTime: context.currentTime, playing: false }
     this.loaded = true
     if (startMs > 0) this.seek(startMs)
+    // The Guide Vocal was raised from zero while this load was under way.
+    if (needsGuideVocal(this.selection) && this.guideVocal === 'none') void this.loadGuideVocal()
     return this.durationMs
   }
 
@@ -158,6 +194,49 @@ export class BackingTrackEngine {
     }
   }
 
+  /**
+   * Changes how loud each Stem is in a Backing Track taken from Stems, live:
+   * no reload, pause, or seek, heard once the stretcher's short buffer has
+   * played out. Raising the Guide Vocal from zero for the first time fetches
+   * the Vocals Stem in the background, and it fades in once it arrives; until
+   * then playback carries on without it. On Original the levels are only
+   * remembered, for the next load that is Stems.
+   */
+  setStemLevels(levels: StemLevels): void {
+    if (!this.selection) return
+    this.selection = { ...this.selection, stemLevels: { ...levels } }
+    if (this.selection.source !== 'stems' || !this.node) return
+    this.post(this.node, { type: 'gains', gains: layerGains(this.selection) })
+    // Mid-load, the load itself fetches it once it is done.
+    if (this.loaded && needsGuideVocal(this.selection) && this.guideVocal === 'none') void this.loadGuideVocal()
+  }
+
+  /** Fetches the Vocals Stem into a Backing Track already playing from Stems, unless a load has replaced it since. */
+  private async loadGuideVocal(): Promise<void> {
+    const generation = this.loadGeneration
+    this.guideVocal = 'loading'
+    try {
+      const buffer = await this.decode(this.trackId, 'vocals')
+      if (generation !== this.loadGeneration || !this.node) return
+      const channels = copyChannels(buffer)
+      this.post(this.node, { type: 'layer', index: GUIDE_VOCAL_LAYER, channels }, channels.map(channel => channel.buffer))
+      this.guideVocal = 'loaded'
+    }
+    catch (error) {
+      if (generation !== this.loadGeneration) return
+      // Playback carries on over the Instrumental Stem alone; the next time a
+      // level moves, the fetch is tried again.
+      this.guideVocal = 'none'
+      warnGuideVocal(error)
+    }
+  }
+
+  private async decode(trackId: string, file: TrackAudioFile): Promise<AudioBuffer> {
+    const response = await fetch(trackAudioUrl(trackId, file))
+    if (!response.ok) throw new Error(`Backing Track could not be fetched (${response.status})`)
+    return this.context!.decodeAudioData(await response.arrayBuffer())
+  }
+
   /** Sets a linear gain stage on the Backing Track's output; 1 is unity. Used by the Review screen's backing gain (ticket 08). */
   setGain(gain: number): void {
     if (this.gainNode) this.gainNode.gain.value = gain
@@ -166,6 +245,8 @@ export class BackingTrackEngine {
   unload(): void {
     this.loadGeneration++
     this.loaded = false
+    this.selection = undefined
+    this.guideVocal = 'none'
     this.durationMs = 0
     this.lastReport = { positionMs: 0, atContextTime: 0, playing: false }
     if (this.node) this.post(this.node, { type: 'unload' })
@@ -262,4 +343,14 @@ export class BackingTrackEngine {
       this.post(node, message, transfer)
     })
   }
+}
+
+function warnGuideVocal(error: unknown): null {
+  console.warn('The Guide Vocal could not be loaded:', error instanceof Error ? error.message : error)
+  return null
+}
+
+/** The AudioBuffer's own storage cannot be transferred, so each channel is copied and the copies handed over. */
+function copyChannels(buffer: AudioBuffer): Float32Array[] {
+  return Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i).slice())
 }

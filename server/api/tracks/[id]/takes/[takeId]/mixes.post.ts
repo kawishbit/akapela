@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   if (request.adjustments.tempoPercent !== take.adjustments.tempoPercent) {
     throw apiError(400, failure('tempoLocked'), MIX_TEMPO_LOCKED_MESSAGE)
   }
-  if (request.backingSource === 'instrumental' && !hasStems(event.context.akapela, track)) {
+  if (request.backingSource === 'stems' && !hasStems(event.context.akapela, track)) {
     throw apiError(409, failure('noStems'), NO_STEMS_MESSAGE)
   }
 

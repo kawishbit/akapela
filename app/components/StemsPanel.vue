@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AudioLines, CircleCheck, Loader2, Trash2, XCircle } from 'lucide-vue-next'
-import { BACKING_SOURCES, type BackingSource } from '~~/shared/backing-source'
+import { BACKING_SOURCES, type BackingSource, type StemLevels } from '~~/shared/backing-source'
 import type { TrackDetail } from '~~/server/lib/tracks'
 import type { SeparationModelName } from '~~/server/lib/separators/models'
 import type { ErrorText } from '~/utils/errors'
@@ -124,6 +124,36 @@ function useSource(backingSource: BackingSource) {
   return ask(() =>
     $fetch<unknown>(`/api/tracks/${props.track.id}/backing-source`, { method: 'PUT', body: { backingSource } }))
 }
+
+/**
+ * The Stem Levels are live on the player, which is where they change and
+ * which remembers them on the Track, so the sliders show the player's while
+ * it holds this Track. Otherwise there is nothing playing to hear them on,
+ * and a move is only remembered.
+ */
+const isCurrent = computed(() => player.state.value.track?.id === props.track.id)
+/** What was last moved here while the player held another Track, until the Track itself says so. */
+const movedLevels = ref<StemLevels | null>(null)
+watch(() => props.track.stemLevels, () => (movedLevels.value = null))
+const stemLevels = computed(() =>
+  isCurrent.value ? player.state.value.stemLevels : movedLevels.value ?? props.track.stemLevels)
+
+const STEM_LEVELS_SAVE_DEBOUNCE_MS = 300
+let stemLevelsSave: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => clearTimeout(stemLevelsSave))
+
+function setStemLevels(levels: StemLevels) {
+  if (isCurrent.value) return player.setStemLevels(levels)
+  movedLevels.value = levels
+  clearTimeout(stemLevelsSave)
+  stemLevelsSave = setTimeout(() => {
+    $fetch<unknown>(`/api/tracks/${props.track.id}/backing-source`, { method: 'PUT', body: { stemLevels: levels } })
+      .then(() => emit('changed'))
+      .catch((error) => {
+        actionError.value = describeError(error, t)
+      })
+  }, STEM_LEVELS_SAVE_DEBOUNCE_MS)
+}
 </script>
 
 <template>
@@ -162,6 +192,14 @@ function useSource(backingSource: BackingSource) {
         </button>
       </div>
     </div>
+
+    <StemLevelSliders
+      v-if="track.hasStems"
+      class="mt-4"
+      :levels="stemLevels"
+      :disabled="track.backingSource !== 'stems'"
+      @change="setStemLevels"
+    />
 
     <button
       v-if="track.hasStems"
@@ -265,8 +303,8 @@ function useSource(backingSource: BackingSource) {
       <template v-if="loading">
         {{ t('stemsPanel.switching') }}
       </template>
-      <template v-else-if="track.backingSource === 'instrumental'">
-        {{ t('stemsPanel.onInstrumental') }}
+      <template v-else-if="track.backingSource === 'stems'">
+        {{ t('stemsPanel.onStems') }}
       </template>
       <template v-else>
         {{ t('stemsPanel.onOriginal') }}

@@ -81,6 +81,8 @@ describe('uploading a Take', () => {
     { startPositionMs: 12.5, durationMs: 8_000, adjustments: VALID_META.adjustments },
     { startPositionMs: 12_000, durationMs: 8_000, adjustments: { pitchSemitones: 99, tempoPercent: 100, linked: false } },
     { startPositionMs: 12_000, durationMs: 8_000, adjustments: VALID_META.adjustments, backingSource: 'nope' },
+    { ...VALID_META, stemLevels: { guideVocal: 1.2, instrumental: 1 } },
+    { ...VALID_META, stemLevels: { guideVocal: 0.5 } },
   ])('invalid metadata %j is rejected and creates no Take', async (meta) => {
     const track = await createTrack()
     const res = await api.uploadTake(track.id, WAV_BYTES, meta)
@@ -97,6 +99,26 @@ describe('uploading a Take', () => {
     const track = await createTrack()
     const take = await (await api.uploadTake(track.id, WAV_BYTES, { ...VALID_META, backingSource: 'original' })).json()
     expect(take.backingSource).toBe('original')
+  })
+
+  test('stores the Stem Levels in force when recording started', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, {
+      ...VALID_META,
+      backingSource: 'stems',
+      stemLevels: { guideVocal: 0.3, instrumental: 1 },
+    })).json()
+
+    expect(take).toMatchObject({ backingSource: 'stems', stemLevels: { guideVocal: 0.3, instrumental: 1 } })
+    expect((await (await api.get(`/api/tracks/${track.id}/takes`)).json())[0].stemLevels)
+      .toEqual({ guideVocal: 0.3, instrumental: 1 })
+  })
+
+  test('a Take sent without Stem Levels, as from before there were any, has the default ones', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, { ...VALID_META, backingSource: 'instrumental' })).json()
+
+    expect(take).toMatchObject({ backingSource: 'stems', stemLevels: { guideVocal: 0, instrumental: 1 } })
   })
 })
 
@@ -226,6 +248,31 @@ describe('updating a Take\'s review parameters', () => {
     expect(list[0]).toMatchObject(REVIEW_UPDATE)
   })
 
+  test('saves the Stem Levels too, when the review names them', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
+
+    const res = await api.put(`/api/tracks/${track.id}/takes/${take.id}`, {
+      ...REVIEW_UPDATE,
+      stemLevels: { guideVocal: 0, instrumental: 0.7 },
+    })
+    expect(res.status).toBe(200)
+    expect((await res.json()).stemLevels).toEqual({ guideVocal: 0, instrumental: 0.7 })
+    expect((await (await api.get(`/api/tracks/${track.id}/takes`)).json())[0].stemLevels)
+      .toEqual({ guideVocal: 0, instrumental: 0.7 })
+  })
+
+  test('keeps the Take\'s Stem Levels when the review leaves them out', async () => {
+    const track = await createTrack()
+    const take = await (await api.uploadTake(track.id, WAV_BYTES, {
+      ...VALID_META,
+      stemLevels: { guideVocal: 0.4, instrumental: 1 },
+    })).json()
+
+    const saved = await (await api.put(`/api/tracks/${track.id}/takes/${take.id}`, REVIEW_UPDATE)).json()
+    expect(saved.stemLevels).toEqual({ guideVocal: 0.4, instrumental: 1 })
+  })
+
   test('accepts a nudge at either end of the widened range', async () => {
     const track = await createTrack()
     const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()
@@ -258,6 +305,10 @@ describe('updating a Take\'s review parameters', () => {
     { latencyNudgeMs: 0, vocalGain: 1, backingGain: 3, adjustments: VALID_META.adjustments },
     { latencyNudgeMs: 0.5, vocalGain: 1, backingGain: 1, adjustments: VALID_META.adjustments },
     { latencyNudgeMs: 0, vocalGain: 1, backingGain: 1, adjustments: { pitchSemitones: 99, tempoPercent: 100, linked: false } },
+    {
+      latencyNudgeMs: 0, vocalGain: 1, backingGain: 1, adjustments: VALID_META.adjustments,
+      stemLevels: { guideVocal: 0, instrumental: 1.5 },
+    },
   ])('invalid review settings %j are rejected', async (body) => {
     const track = await createTrack()
     const take = await (await api.uploadTake(track.id, WAV_BYTES, VALID_META)).json()

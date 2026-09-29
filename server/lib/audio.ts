@@ -12,6 +12,7 @@ import {
 import { audioFormatOf } from './audio-files'
 import { childEnv, ffmpegPath, killOnAbort, rubberBandWasmPath, stretchCliPath } from './tools'
 import type { AudioFormat } from '../../shared/audio-format'
+import type { StemLevels } from '../../shared/backing-source'
 import { CodedError, failure, type CodedFailure } from '../../shared/error-codes'
 
 /**
@@ -171,6 +172,46 @@ export async function decodeToWav(src: string, dst: string, signal?: AbortSignal
     await rm(dst, { force: true })
     throw error instanceof AudioError
       ? reword(error, `ffmpeg could not decode ${src}: ${ffmpegReason(error)}`, failure('audioUndecodable'))
+      : error
+  }
+}
+
+/**
+ * The two Stems summed into one 16-bit WAV at `dst`, each scaled by its Stem
+ * Level first: the Backing Track a Mix against Stems is stretched from, so a
+ * blend is stretched once rather than each Stem on its own (ADR 0003). The
+ * sum is not normalised, so both at 1 is the plain sum the separation split
+ * the original into. The caller removes `dst`.
+ *
+ * 16-bit, because the stretch subprocess reads nothing else. Two Stems at full
+ * level sum to about the original, which already fits, so only a blend
+ * louder than the song itself could clip.
+ */
+export async function blendStems(
+  stems: { vocals: string, instrumental: string },
+  levels: StemLevels,
+  dst: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  try {
+    await run('ffmpeg', [
+      '-y', '-nostdin', '-hide_banner', '-loglevel', 'error',
+      '-i', stems.vocals,
+      '-i', stems.instrumental,
+      '-filter_complex',
+      `[0:a]volume=${levels.guideVocal}[guide];[1:a]volume=${levels.instrumental}[inst];`
+      + `[guide][inst]amix=inputs=2:duration=longest:normalize=0[out]`,
+      '-map', '[out]',
+      '-ar', String(BACKING_SAMPLE_RATE),
+      '-ac', String(BACKING_CHANNELS),
+      '-c:a', 'pcm_s16le',
+      dst,
+    ], signal)
+  }
+  catch (error) {
+    await rm(dst, { force: true })
+    throw error instanceof AudioError
+      ? reword(error, `ffmpeg could not blend the Stems: ${ffmpegReason(error)}`, failure('audioUndecodable'))
       : error
   }
 }

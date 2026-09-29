@@ -13,7 +13,14 @@ import {
   type Track,
 } from '../db/schema'
 import { DEFAULT_ADJUSTMENTS, parseAdjustments, type Adjustments } from '../../shared/adjustments'
-import { DEFAULT_BACKING_SOURCE, type BackingSource } from '../../shared/backing-source'
+import {
+  DEFAULT_BACKING_SOURCE,
+  DEFAULT_STEM_LEVELS,
+  sameStemLevels,
+  type BackingSource,
+  type StemLevels,
+  type TrackAudioFile,
+} from '../../shared/backing-source'
 import { UNSUPPORTED_UPLOAD_MESSAGE, uploadExtension } from '../../shared/upload'
 import {
   INVALID_YOUTUBE_URL_MESSAGE,
@@ -43,16 +50,17 @@ import { DEFAULT_SEPARATION_MODEL, type SeparationModelName } from './separators
 import { listTakes } from './takes'
 
 /**
- * Which file each Backing Source names inside the Track directory, by
- * basename: the import writes the master and the separate Job the Stem, each
- * in the Audio Format in force when it did (ADR 0016), so the extension is
- * whatever is on disk (`audio-files.ts`). The Vocals Stem a separation also
- * writes is kept but nothing plays it, so it is not a Backing Source and is
- * not here — though Delete Stems removes it too.
+ * Which file each of a Track's stored audio files is inside the Track
+ * directory, by basename: the import writes the original and the separate Job
+ * both Stems, each in the Audio Format in force when it did (ADR 0016), so the
+ * extension is whatever is on disk (`audio-files.ts`). A Backing Source of
+ * `stems` names both Stems, blended at the Stem Levels by whoever plays or
+ * renders it.
  */
-export const BACKING_SOURCE_BASENAMES: Record<BackingSource, string> = {
+export const TRACK_AUDIO_BASENAMES: Record<TrackAudioFile, string> = {
   original: BACKING_BASENAME,
   instrumental: INSTRUMENTAL_BASENAME,
+  vocals: VOCALS_BASENAME,
 }
 
 /** A Track together with its most recent import Job, which carries import progress and error. */
@@ -214,6 +222,7 @@ function startImport(
     importState: 'importing',
     separationState: 'none',
     backingSource: DEFAULT_BACKING_SOURCE,
+    stemLevels: { ...DEFAULT_STEM_LEVELS },
     stemsModel: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
     songArtist: input.song?.artist ?? null,
@@ -593,20 +602,21 @@ export function saveAdjustments(akapela: Akapela, track: TrackWithJob, adjustmen
 }
 
 /**
- * Absolute path of the audio a Backing Source names on one Track. `source`
- * overrides what the Track remembers, which is how one is auditioned without
- * changing what the Track sings over next time (`../api/tracks/[id]/backing.get`).
+ * Absolute path of one of a Track's stored audio files: its original audio,
+ * or one Stem (`../api/tracks/[id]/backing.get`). A Backing Source of `stems`
+ * is two files, so it is asked for one Stem at a time.
  */
-export function backingTrackPath(akapela: Akapela, track: Track, source: BackingSource = track.backingSource): string {
+export function trackAudioPath(akapela: Akapela, track: Track, file: TrackAudioFile): string {
   const dir = trackDir(akapela, track.id)
-  const basename = BACKING_SOURCE_BASENAMES[source]
+  const basename = TRACK_AUDIO_BASENAMES[file]
   // A file that is not there yet is named as a WAV, which is what the 404
   // for it says.
   return findAudioFile(dir, basename) ?? join(dir, audioFileName(basename, 'wav'))
 }
 
 /**
- * Whether this Track has an Instrumental Stem to sing over. The file itself is
+ * Whether this Track has Stems to sing over. The Instrumental Stem stands for
+ * both, since a separation writes them together. The file itself is
  * the answer, because `separation_state` cannot be: a Track that was separated,
  * switched back to its original audio, and is now being separated again reads
  * exactly like one being separated for the first time, and yet the Stems of the
@@ -642,9 +652,9 @@ export function stemsBytes(akapela: Akapela, track: Track): number {
  * Removes both Stem files and puts the Track back the way it was before it
  * was ever separated: singing over its original audio, with nothing to
  * choose between. Takes and Mixes are untouched — only the Track's own state
- * and the two files move. A Mix that named the Instrumental Stem still
- * remembers having done so; re-rendering it is what has to notice the Stems
- * are gone, not this.
+ * and the two files move. A Mix that named the Stems still remembers having
+ * done so; re-rendering it is what has to notice the Stems are gone, not
+ * this. The remembered Stem Levels stay, for when Stems come back.
  */
 export function deleteStems(akapela: Akapela, track: TrackWithJob): TrackWithJob {
   for (const path of stemPaths(akapela, track)) rmSync(path, { force: true })
@@ -658,24 +668,42 @@ export function deleteStems(akapela: Akapela, track: TrackWithJob): TrackWithJob
 }
 
 /**
- * Remembers what a Track's Backing Track is taken from, so opening it again
- * gives back whatever was last sung over. The caller has already established
- * that the named source exists — only `original` always does, since a
- * separation never overwrites it.
+ * Remembers what a Track's Backing Track is taken from, and at which Stem
+ * Levels, so opening it again gives back whatever was last sung over. The
+ * caller has already established that the named source exists — only
+ * `original` always does, since a separation never overwrites it. Levels are
+ * kept whatever the source, so ones set while on Original are there when the
+ * singer switches to Stems.
  */
 export function saveBackingSource(
   akapela: Akapela,
   track: TrackWithJob,
   backingSource: BackingSource,
+  stemLevels: StemLevels = track.stemLevels,
 ): TrackWithJob {
-  if (track.backingSource === backingSource) return track
+  if (track.backingSource === backingSource && sameStemLevels(track.stemLevels, stemLevels)) return track
   const now = Date.now()
   akapela.db
     .update(tracks)
-    .set({ backingSource, updatedAt: now })
+    .set({ backingSource, stemLevels, updatedAt: now })
     .where(eq(tracks.id, track.id))
     .run()
-  return { ...track, backingSource, updatedAt: now }
+  return { ...track, backingSource, stemLevels, updatedAt: now }
+}
+
+/**
+ * Remembers a Track's Stem Levels and nothing else. A slider saves through
+ * this rather than `saveBackingSource`, so a switch or a Separation that lands
+ * while the save is in flight is never written back over.
+ */
+export function saveStemLevels(akapela: Akapela, track: TrackWithJob, stemLevels: StemLevels): TrackWithJob {
+  const now = Date.now()
+  akapela.db
+    .update(tracks)
+    .set({ stemLevels, updatedAt: now })
+    .where(eq(tracks.id, track.id))
+    .run()
+  return { ...(getTrack(akapela, track.id) ?? track), stemLevels, updatedAt: now }
 }
 
 /** A Track whose import searches YouTube for its song, and so has no link of its own until it has found one. */

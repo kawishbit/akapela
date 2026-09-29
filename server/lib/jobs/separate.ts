@@ -374,7 +374,7 @@ async function runSeparateWith(ctx: JobContext, separator: Separator, hardware: 
 
     await ensureNotDeleted(ctx.sqlite, trackId, directory, 'separation')
     ctx.sqlite
-      .prepare(`UPDATE tracks SET separation_state = 'ready', backing_source = 'instrumental', stems_model = ?, updated_at = ? WHERE id = ?`)
+      .prepare(`UPDATE tracks SET separation_state = 'ready', backing_source = 'stems', stems_model = ?, updated_at = ? WHERE id = ?`)
       .run(model.name, Date.now(), trackId)
   }
   catch (error) {

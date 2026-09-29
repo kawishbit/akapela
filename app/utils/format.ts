@@ -62,6 +62,11 @@ export function formatGain(gain: number): string {
   return `${Math.round(gain * 100)}%`
 }
 
+/** A Stem Level, from silent to as separated, as a whole percentage. */
+export function formatStemLevel(level: number): string {
+  return formatGain(level)
+}
+
 /** A byte count as megabytes, the unit Stems land in (ADR 0005 puts a pair at about 80 MB). */
 export function formatMegabytes(bytes: number, locale: string): string {
   const mb = bytes / (1024 * 1024)

@@ -10,9 +10,18 @@
  * speeding up both work without a growing buffer, and the song position it
  * reports is song time rather than wall time.
  *
- * Messages in: init (the Rubber Band wasm bytes), load (channel data),
- * play, pause, seek, adjust, unload. Messages out: ready, loaded, position,
- * ended, error. The main-thread side lives in app/audio/engine.ts.
+ * The Backing Track can be more than one layer of audio: a Backing Source of
+ * Stems is the Instrumental Stem (layer 0) and the Vocals Stem (layer 1),
+ * each at its Stem Level. They are summed as they are fed to Rubber Band, so a
+ * blend is stretched once, exactly as the Mix render blends before its
+ * stretch (ADR 0003), and a level change is a gain on the next input rather
+ * than a reload — heard once the stretcher's own buffer has played out.
+ * Layer 0 sets the length; a layer that runs out sooner is silence after it.
+ *
+ * Messages in: init (the Rubber Band wasm bytes), load (layers of channel
+ * data and their gains), layer (one more layer, arriving after the load),
+ * gains, play, pause, seek, adjust, unload. Messages out: ready, loaded,
+ * position, ended, error. The main-thread side lives in app/audio/engine.ts.
  *
  * This file is served as a static asset because AudioWorklet modules cannot
  * be bundled with the app; keep it self-contained.
@@ -41,13 +50,45 @@ const OPTIONS = OPTION_PROCESS_REAL_TIME
 
 const WASI_ENOSYS = 52
 
+/**
+ * Writes `n` frames of one channel of the blend into `out` from `offset`:
+ * each layer's samples from song frame `from`, scaled by a gain that moves in
+ * a straight line from `fromGains[i]` to `toGains[i]` across the run, so a
+ * level change never steps. A missing layer, or one silent at both ends, adds
+ * nothing. One layer at unity is a plain copy, which is the whole of what a
+ * single Backing Track ever was.
+ */
+function blendInto(out, offset, layers, channel, from, n, fromGains, toGains) {
+  const only = layers.length === 1 || layers.slice(1).every((layer, i) => !layer || (!fromGains[i + 1] && !toGains[i + 1]))
+  if (only && layers[0] && fromGains[0] === 1 && toGains[0] === 1) {
+    const source = layers[0][Math.min(channel, layers[0].length - 1)]
+    out.set(source.subarray(from, from + n), offset)
+    return
+  }
+  out.fill(0, offset, offset + n)
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i]
+    const start = fromGains[i] || 0
+    const end = toGains[i] || 0
+    if (!layer || (start === 0 && end === 0)) continue
+    // A mono layer plays on every channel.
+    const source = layer[Math.min(channel, layer.length - 1)]
+    const frames = Math.min(n, source.length - from)
+    const step = (end - start) / n
+    for (let k = 0; k < frames; k++) out[offset + k] += source[from + k] * (start + step * k)
+  }
+}
+
 class BackingTrackProcessor extends AudioWorkletProcessor {
   constructor() {
     super()
     this.wasm = null
     this.heap = { f32: null, u32: null, u8: null }
     this.state = 0
-    this.channels = null
+    this.layers = []
+    /** Each layer's gain as the last input fed was scaled, and the gain it is heading for. */
+    this.appliedGains = []
+    this.gains = []
     this.length = 0
     this.channelCount = 0
     this.inPtrs = []
@@ -74,8 +115,14 @@ class BackingTrackProcessor extends AudioWorkletProcessor {
           this.port.postMessage({ type: 'ready' })
           break
         case 'load':
-          this.load(message.channels)
+          this.load(message.layers, message.gains)
           this.port.postMessage({ type: 'loaded', frames: this.length })
+          break
+        case 'layer':
+          this.addLayer(message.index, message.channels)
+          break
+        case 'gains':
+          this.gains = message.gains.slice()
           break
         case 'play':
           if (this.readFrame >= this.length && this.finalSent) this.seek(0)
@@ -131,10 +178,13 @@ class BackingTrackProcessor extends AudioWorkletProcessor {
     this.wasm = instance.exports
   }
 
-  load(channels) {
+  load(layers, gains) {
     if (!this.wasm) throw new Error('Rubber Band is not initialised')
     this.unload()
-    this.channels = channels
+    const channels = layers[0]
+    this.layers = layers.slice()
+    this.gains = gains.slice()
+    this.appliedGains = gains.slice()
     this.channelCount = channels.length
     this.length = channels[0] ? channels[0].length : 0
 
@@ -156,6 +206,17 @@ class BackingTrackProcessor extends AudioWorkletProcessor {
     this.seek(0)
   }
 
+  /**
+   * A layer that arrived after the load — the Vocals Stem, fetched once the
+   * Guide Vocal was first raised from zero. It fades in from silence to its
+   * gain over the next input, wherever playback has got to.
+   */
+  addLayer(index, channels) {
+    if (!this.state) return
+    this.layers[index] = channels
+    this.appliedGains[index] = 0
+  }
+
   unload() {
     this.playing = false
     if (this.wasm && this.state) {
@@ -170,7 +231,9 @@ class BackingTrackProcessor extends AudioWorkletProcessor {
     this.outPtrs = []
     this.inPtrArray = 0
     this.outPtrArray = 0
-    this.channels = null
+    this.layers = []
+    this.gains = []
+    this.appliedGains = []
     this.length = 0
     this.readFrame = 0
     this.positionFrames = 0
@@ -230,8 +293,9 @@ class BackingTrackProcessor extends AudioWorkletProcessor {
     const required = Math.max(wasm.rb_get_samples_required(this.state), BLOCK)
     const n = Math.min(remaining, CHUNK, required)
     for (let ch = 0; ch < this.channelCount; ch++) {
-      f32.set(this.channels[ch].subarray(this.readFrame, this.readFrame + n), this.inPtrs[ch] >> 2)
+      blendInto(f32, this.inPtrs[ch] >> 2, this.layers, ch, this.readFrame, n, this.appliedGains, this.gains)
     }
+    this.appliedGains = this.gains.slice()
     const final = this.readFrame + n >= this.length
     wasm.rb_process(this.state, this.inPtrArray, n, final ? 1 : 0)
     this.readFrame += n

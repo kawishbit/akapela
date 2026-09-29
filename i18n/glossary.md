@@ -19,6 +19,8 @@ Capitalised as in English: a `CONTEXT.md` term keeps its capital letters whereve
 | Backing Track | Trek Iringan | *Iringan* is accompaniment: what you sing over. | Minus one, instrumental, beat |
 | Backing Source | Sumber Iringan | | Mode iringan |
 | Stems | Stem | The music-production loanword, as singular and plural. Instrumental Stem is *Stem Instrumental*, Vocals Stem is *Stem Vokal*. | Lapisan, audio terpisah |
+| Stem Levels | Level Stem | *Level*, as audio apps say it; each one is shown as a percentage. | Volume stem, campuran, balance |
+| Guide Vocal | Vokal Panduan | The original singer, heard under the Backing Track to sing along to: *panduan* is a guide to follow. Never the singer's own voice. | Vokal latar (backing vocals, in music), vokal asli, referensi |
 | Separation | Pemisahan | The verb is *memisahkan*; the button is *Pisahkan*. | Ekstraksi, isolasi |
 | Separation Model | Model Pemisahan | | Model (alone), kualitas |
 | Audio Format | Format Audio | | Codec, kualitas, jenis berkas |

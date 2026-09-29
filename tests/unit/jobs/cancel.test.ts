@@ -140,7 +140,7 @@ describe('cancelling a running Separation', () => {
     writeSineWav(join(dir, 'backing.wav'), { seconds: 1 })
     writeFileSync(join(dir, 'instrumental.wav'), 'the old instrumental')
     writeFileSync(join(dir, 'vocals.wav'), 'the old vocals')
-    insertTrack(t, { importState: 'ready', separationState: 'separating', backingSource: 'instrumental' })
+    insertTrack(t, { importState: 'ready', separationState: 'separating', backingSource: 'stems' })
     t.enqueue('separate', { id: 'j1', createdAt: 1000, targetId: TRACK_ID })
     const runner = runnerFor(t, { separate: separateHandler(new HangingSeparator()) })
 
@@ -150,7 +150,7 @@ describe('cancelling a running Separation', () => {
     await running
 
     expect(t.getJob('j1').state).toBe('cancelled')
-    expect(trackRow(t)).toMatchObject({ separation_state: 'ready', backing_source: 'instrumental' })
+    expect(trackRow(t)).toMatchObject({ separation_state: 'ready', backing_source: 'stems' })
     expect(readFileSync(join(dir, 'instrumental.wav'), 'utf8')).toBe('the old instrumental')
     expect(readFileSync(join(dir, 'vocals.wav'), 'utf8')).toBe('the old vocals')
     expect(existsSync(join(dir, 'stems.part'))).toBe(false)

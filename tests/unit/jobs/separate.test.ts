@@ -326,7 +326,7 @@ describe('separateHandler', () => {
     await runTheJob(t, new FakeSeparator())
 
     expect(separationState(t)).toBe('ready')
-    expect(backingSource(t)).toBe('instrumental')
+    expect(backingSource(t)).toBe('stems')
   })
 
   it('leaves the Track on its current audio when separation fails', async () => {

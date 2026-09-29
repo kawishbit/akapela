@@ -390,7 +390,7 @@
   },
   "backingSources": {
     "original": "Original",
-    "instrumental": "Instrumental"
+    "stems": "Stems"
   },
   "stemsPanel": {
     "heading": "Stems",
@@ -408,11 +408,21 @@
     "againWith": "Separate again with",
     "againHint": "Separate again with another Separation Model. These Stems stay until the new ones are ready.",
     "switching": "Switching the Backing Track over. It picks up where it was.",
-    "onInstrumental": "Singing over the Instrumental Stem. Separation is lossy, so the audio this Track arrived with is kept untouched and is one tap away.",
-    "onOriginal": "Singing over the audio this Track arrived with, not its Instrumental Stem.",
+    "onStems": "Singing over the Stems. Separation is lossy, so the audio this Track arrived with is kept untouched and is one tap away.",
+    "onOriginal": "Singing over the audio this Track arrived with, not its Stems.",
     "deleteTitle": "Delete these Stems?",
     "deleteMessage": "The Instrumental and Vocals Stem will be removed, reclaiming {size}. The Track and everything sung on it are untouched, and separating again will make Stems anew.",
     "delete": "Delete"
+  },
+  "stemLevels": {
+    "heading": "Stem Levels",
+    "guideVocal": "Guide Vocal",
+    "instrumental": "Instrumental",
+    "guideVocalSlider": "Guide Vocal level, from silent to as separated",
+    "instrumentalSlider": "Instrumental level, from silent to as separated",
+    "hint": "How loud each Stem is in what you sing over. A little Guide Vocal, the original singer, keeps you on pitch.",
+    "waitingForStems": "Used when the Backing Source is Stems.",
+    "summary": "Stems · Guide Vocal {level}"
   },
   "takesPanel": {
     "heading": "Takes",
@@ -491,6 +501,7 @@
     "clocks": "Two clocks, one playhead: this lane runs {from}–{to} of the song — the stretch marked above, out of {length} — and dragging either lane moves both.",
     "vocalVolume": "Vocal volume",
     "backingVolume": "Backing Track volume",
+    "backingVolumeHint": "Scales the whole Backing Track, whatever the Stem Levels have made it.",
     "balance": "The balance between the two, saved on the Take: what you hear here is what the Mix is rendered with.",
     "yourVoice": "Your voice",
     "yourVoiceBody": "Where your recording sits against the Backing Track. What you sang is stored dry and stays that way.",
@@ -504,7 +515,7 @@
     "backingPitchSlider": "Backing Track pitch in semitones",
     "followingTempo": "Following tempo, which is locked — pitch can't move on its own.",
     "backingSource": "Backing Source",
-    "backingSourceHint": "Which audio you sang over, overridden for the next Mix only.",
+    "backingSourceHint": "Which audio you sang over, overridden for the next Mix only. Sing with the Guide Vocal, then mix without it: the Stem Levels are saved on the Take.",
     "tempo": "Tempo",
     "tempoLocked": "· locked, since this Take was sung at this tempo",
     "effects": "Effects",
@@ -542,7 +553,7 @@
   "singChoice": {
     "failedTitle": "Separation failed",
     "separatingTitle": "Still separating",
-    "failedMessage": "{title} has no Instrumental Stem to sing over. {link}, or sing over the original audio now.",
+    "failedMessage": "{title} has no Stems to sing over. {link}, or sing over the original audio now.",
     "retryLink": "Retry it on the Track page",
     "separatingMessage": "{title} is {progress}% separated. Sing it over the original audio now, or let the next person go first.",
     "singOverOriginal": "Sing over the original",

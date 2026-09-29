@@ -52,6 +52,7 @@ export function createTake(
     filePath,
     adjustments: input.adjustments,
     backingSource: input.backingSource,
+    stemLevels: input.stemLevels,
     latencyNudgeMs: 0,
     vocalGain: 1,
     backingGain: 1,
@@ -72,7 +73,7 @@ export function getTake(akapela: Akapela, trackId: string, takeId: string): Take
   return row && withParsedAdjustments(row)
 }
 
-/** Saves what the Review screen (ticket 08) lets a singer change on a Take: latency nudge, the gain pair, and Adjustments. */
+/** Saves what the Review screen (ticket 08) lets a singer change on a Take: latency nudge, the gain pair, Adjustments, and Stem Levels. */
 export function updateTakeReview(akapela: Akapela, take: Take, input: TakeReviewUpdate): Take {
   const now = Date.now()
   akapela.db

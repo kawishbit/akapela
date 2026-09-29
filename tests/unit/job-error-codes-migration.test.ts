@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
@@ -6,6 +6,7 @@ import { createAkapela } from '../../server/lib/akapela'
 import { listJobs } from '../../server/lib/job-actions'
 import { describeJobFailure } from '../../app/utils/errors'
 import { englishTranslate } from './i18n'
+import { migrationsBefore } from './migrations-before'
 
 const MIGRATIONS = join(process.cwd(), 'server/db/migrations')
 const CODES_MIGRATION = '0022_job_error_codes'
@@ -21,15 +22,8 @@ afterEach(() => {
  * the last migration it ran, so leaving one in would skip 0022 on upgrade.
  */
 function migrationsBeforeCodes(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'akapela-migrations-'))
+  const dir = migrationsBefore(CODES_MIGRATION)
   cleanup.push(dir)
-  cpSync(MIGRATIONS, dir, { recursive: true })
-  const journalPath = join(dir, 'meta/_journal.json')
-  const journal = JSON.parse(readFileSync(journalPath, 'utf8'))
-  const cut = journal.entries.findIndex((entry: { tag: string }) => entry.tag === CODES_MIGRATION)
-  for (const entry of journal.entries.slice(cut)) rmSync(join(dir, `${entry.tag}.sql`))
-  journal.entries = journal.entries.slice(0, cut)
-  writeFileSync(journalPath, JSON.stringify(journal))
   return dir
 }
 

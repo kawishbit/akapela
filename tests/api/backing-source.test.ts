@@ -48,10 +48,10 @@ describe('which Backing Source a Track is on', () => {
     expect((await (await api.get('/api/tracks')).json())[0].backingSource).toBe('original')
   })
 
-  test('a succeeded separation flips it to the Instrumental Stem, so the common case takes no tap', async () => {
+  test('a succeeded separation flips it to Stems, so the common case takes no tap', async () => {
     const track = await separatedTrack()
 
-    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).backingSource).toBe('instrumental')
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).backingSource).toBe('stems')
   })
 
   test('a failed separation leaves the Track on the audio it was already singing over', async () => {
@@ -74,30 +74,39 @@ describe('switching Backing Source', () => {
     expect((await (await api.get(`/api/tracks/${track.id}`)).json()).backingSource).toBe('original')
   })
 
-  test('and switching to the Instrumental Stem again persists too', async () => {
+  test('and switching to Stems again persists too', async () => {
     const track = await separatedTrack()
     await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
 
-    const res = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'instrumental' })
+    const res = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems' })
     expect(res.status).toBe(200)
-    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).backingSource).toBe('instrumental')
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).backingSource).toBe('stems')
   })
 
-  test('the Instrumental Stem is refused on a Track with no Stems, saying to separate it first', async () => {
+  test('Stems are refused on a Track with no Stems, saying to separate it first', async () => {
     const track = await importedTrack()
 
-    const res = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'instrumental' })
+    const res = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems' })
     expect(res.status).toBe(409)
     expect(res.statusText).toMatch(/separate it first/i)
 
     expect((await (await api.get(`/api/tracks/${track.id}`)).json()).backingSource).toBe('original')
   })
 
+  test('the name Stems had before there were levels still switches to them', async () => {
+    const track = await separatedTrack()
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
+
+    const res = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'instrumental' })
+    expect(res.status).toBe(200)
+    expect((await res.json()).backingSource).toBe('stems')
+  })
+
   test('a Track still separating for the first time has no Stems yet either', async () => {
     const track = await importedTrack()
     await api.post(`/api/tracks/${track.id}/separate`, {})
 
-    const res = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'instrumental' })
+    const res = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems' })
     expect(res.status).toBe(409)
   })
 
@@ -111,13 +120,13 @@ describe('switching Backing Source', () => {
     await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
     const again = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
 
-    const separating = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'instrumental' })
+    const separating = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems' })
     expect(separating.status).toBe(200)
 
     api.finishSeparation(track.id, again.separationJob.id, 'failed', 'SeparationError: the model refused this audio')
     const failed = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
     expect(failed.status).toBe(200)
-    expect((await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'instrumental' })).status).toBe(200)
+    expect((await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems' })).status).toBe(200)
   })
 
   test('the original audio is always available, even on a Track nobody has separated', async () => {
@@ -140,6 +149,115 @@ describe('switching Backing Source', () => {
   test('an unknown Track is a 404', async () => {
     const res = await api.put('/api/tracks/does-not-exist/backing-source', { backingSource: 'original' })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('Stem Levels', () => {
+  const DEFAULT_LEVELS = { guideVocal: 0, instrumental: 1 }
+
+  async function levelsOf(trackId: string) {
+    return (await (await api.get(`/api/tracks/${trackId}`)).json()).stemLevels
+  }
+
+  test('a Track starts with no Guide Vocal and the whole Instrumental', async () => {
+    const track = await importedTrack()
+
+    expect(track.stemLevels).toEqual(DEFAULT_LEVELS)
+    expect(await levelsOf(track.id)).toEqual(DEFAULT_LEVELS)
+  })
+
+  test('are set beside the Backing Source, persist, and come back on Track detail', async () => {
+    const track = await separatedTrack()
+
+    const res = await api.put(`/api/tracks/${track.id}/backing-source`, {
+      backingSource: 'stems',
+      stemLevels: { guideVocal: 0.3, instrumental: 0.9 },
+    })
+    expect(res.status).toBe(200)
+    expect((await res.json()).stemLevels).toEqual({ guideVocal: 0.3, instrumental: 0.9 })
+    expect(await levelsOf(track.id)).toEqual({ guideVocal: 0.3, instrumental: 0.9 })
+  })
+
+  test('can be saved on their own, keeping whatever source the Track is on', async () => {
+    const track = await separatedTrack()
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
+
+    const res = await api.put(`/api/tracks/${track.id}/backing-source`, { stemLevels: { guideVocal: 0.6, instrumental: 1 } })
+    expect(res.status).toBe(200)
+    const detail = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(detail.backingSource).toBe('original')
+    expect(detail.stemLevels).toEqual({ guideVocal: 0.6, instrumental: 1 })
+  })
+
+  test('are left alone by a switch that does not name them', async () => {
+    const track = await separatedTrack()
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems', stemLevels: { guideVocal: 0.3, instrumental: 1 } })
+
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems' })
+
+    expect(await levelsOf(track.id)).toEqual({ guideVocal: 0.3, instrumental: 1 })
+  })
+
+  test('can be set while on Original, and are remembered for later', async () => {
+    const track = await separatedTrack()
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'original' })
+
+    const res = await api.put(`/api/tracks/${track.id}/backing-source`, {
+      backingSource: 'original',
+      stemLevels: { guideVocal: 0.5, instrumental: 1 },
+    })
+    expect(res.status).toBe(200)
+    const detail = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(detail.backingSource).toBe('original')
+    expect(detail.stemLevels).toEqual({ guideVocal: 0.5, instrumental: 1 })
+  })
+
+  test('outside 0 to 1 are a 400 that says the range, and change nothing', async () => {
+    const track = await separatedTrack()
+
+    for (const stemLevels of [{ guideVocal: 1.5, instrumental: 1 }, { guideVocal: 0, instrumental: -1 }, { guideVocal: 0 }, 'loud']) {
+      const res = await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems', stemLevels })
+      expect(res.status).toBe(400)
+      expect(res.statusText).toMatch(/from 0 to 1/)
+    }
+    expect(await levelsOf(track.id)).toEqual(DEFAULT_LEVELS)
+  })
+
+  test('outlive deleting the Stems, which puts the Track back on Original', async () => {
+    const track = await separatedTrack()
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems', stemLevels: { guideVocal: 0.4, instrumental: 1 } })
+
+    const deleted = await (await api.del(`/api/tracks/${track.id}/stems`)).json()
+    expect(deleted.backingSource).toBe('original')
+    expect(deleted.stemLevels).toEqual({ guideVocal: 0.4, instrumental: 1 })
+    expect(await levelsOf(track.id)).toEqual({ guideVocal: 0.4, instrumental: 1 })
+  })
+
+  test('outlive separating again, which switches the Track back to Stems at them', async () => {
+    const track = await separatedTrack()
+    await api.put(`/api/tracks/${track.id}/backing-source`, { backingSource: 'stems', stemLevels: { guideVocal: 0.2, instrumental: 0.8 } })
+    await api.del(`/api/tracks/${track.id}/stems`)
+
+    const { separationJob } = await (await api.post(`/api/tracks/${track.id}/separate`, {})).json()
+    writeTrackFile(track.id, 'instrumental.wav', 'the instrumental')
+    writeTrackFile(track.id, 'vocals.wav', 'the vocals')
+    api.finishSeparation(track.id, separationJob.id, 'succeeded')
+
+    const detail = await (await api.get(`/api/tracks/${track.id}`)).json()
+    expect(detail.backingSource).toBe('stems')
+    expect(detail.stemLevels).toEqual({ guideVocal: 0.2, instrumental: 0.8 })
+  })
+
+  test('do not make Stems appear on a Track that has none', async () => {
+    const track = await importedTrack()
+
+    const res = await api.put(`/api/tracks/${track.id}/backing-source`, {
+      backingSource: 'stems',
+      stemLevels: { guideVocal: 0.5, instrumental: 1 },
+    })
+    expect(res.status).toBe(409)
+    expect(await levelsOf(track.id)).toEqual(DEFAULT_LEVELS)
   })
 })
 
@@ -186,9 +304,11 @@ describe('what the Backing Track stream serves', () => {
     const track = await separatedTrack()
 
     expect(await (await api.get(`/api/tracks/${track.id}/backing?source=original`)).text()).toBe('the original')
+    expect(await (await api.get(`/api/tracks/${track.id}/backing?source=stems`)).text()).toBe('the instrumental')
+    // The name `stems` had before there were Stem Levels still means the same.
     expect(await (await api.get(`/api/tracks/${track.id}/backing?source=instrumental`)).text()).toBe('the instrumental')
     // Auditioning does not change what the Track sings over next time.
-    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).backingSource).toBe('instrumental')
+    expect((await (await api.get(`/api/tracks/${track.id}`)).json()).backingSource).toBe('stems')
   })
 
   test('the Vocals Stem is not a Backing Source, so it cannot be asked for', async () => {
@@ -197,6 +317,26 @@ describe('what the Backing Track stream serves', () => {
     const res = await api.get(`/api/tracks/${track.id}/backing?source=vocals`)
     expect(res.status).toBe(400)
     expect(res.statusText).toMatch(/original/i)
+  })
+
+  test('each Stem can be asked for by name, since Stems are blended by whoever plays them', async () => {
+    const track = await separatedTrack()
+
+    expect(await (await api.get(`/api/tracks/${track.id}/backing?stem=vocals`)).text()).toBe('the vocals')
+    expect(await (await api.get(`/api/tracks/${track.id}/backing?stem=instrumental`)).text()).toBe('the instrumental')
+
+    const res = await api.get(`/api/tracks/${track.id}/backing?stem=original`)
+    expect(res.status).toBe(400)
+    expect(res.statusText).toMatch(/vocals/i)
+  })
+
+  test('range requests work on a Stem asked for by name', async () => {
+    const track = await separatedTrack()
+    writeTrackFile(track.id, 'vocals.wav', '0123456789')
+
+    const part = await fetch(`${api.baseUrl}/api/tracks/${track.id}/backing?stem=vocals`, { headers: { range: 'bytes=2-5' } })
+    expect(part.status).toBe(206)
+    expect(await part.text()).toBe('2345')
   })
 
   test('a Stem that is not on disk is a 404 rather than the wrong audio', async () => {

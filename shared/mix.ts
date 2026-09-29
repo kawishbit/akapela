@@ -1,5 +1,12 @@
 import { parseAdjustments, type Adjustments, type EffectsTarget } from './adjustments'
-import { parseBackingSource, type BackingSource } from './backing-source'
+import {
+  STEM_LEVEL_MAX,
+  STEM_LEVEL_MIN,
+  parseBackingSource,
+  parseOptionalStemLevels,
+  type BackingSource,
+  type StemLevels,
+} from './backing-source'
 import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from './take'
 
 /**
@@ -11,8 +18,10 @@ import { GAIN_MAX, GAIN_MIN, LATENCY_NUDGE_MS_MAX, LATENCY_NUDGE_MS_MIN } from '
 export interface MixRequest {
   /** Pitch and linked may differ from the Take's own for this render; tempo may not (ADR 0003). */
   adjustments: Adjustments
-  /** May override the Take's own (ADR 0003 amendment); the route rejects `instrumental` on a Track with no Stems. */
+  /** May override the Take's own (ADR 0003 amendment); the route rejects `stems` on a Track with no Stems. */
   backingSource: BackingSource
+  /** How the Stems are blended when `backingSource` is `stems`; the default levels when a request leaves them out. */
+  stemLevels: StemLevels
   latencyNudgeMs: number
   vocalGain: number
   backingGain: number
@@ -35,6 +44,7 @@ export interface MixRequestSource {
   lowpassHz: number
   effectsTarget: EffectsTarget
   backingSource: BackingSource
+  stemLevels: StemLevels
   latencyNudgeMs: number
   vocalGain: number
   backingGain: number
@@ -51,6 +61,7 @@ export function toMixRequest(source: MixRequestSource, wav: boolean): MixRequest
       effectsTarget: source.effectsTarget,
     },
     backingSource: source.backingSource,
+    stemLevels: { ...source.stemLevels },
     latencyNudgeMs: source.latencyNudgeMs,
     vocalGain: source.vocalGain,
     backingGain: source.backingGain,
@@ -59,7 +70,7 @@ export function toMixRequest(source: MixRequestSource, wav: boolean): MixRequest
 }
 
 export const INVALID_MIX_REQUEST_MESSAGE
-  = `A Mix request needs Adjustments, a Backing Source, a whole-number latency nudge from ${LATENCY_NUDGE_MS_MIN} to `
+  = `A Mix request needs Adjustments, a Backing Source and any Stem Levels from ${STEM_LEVEL_MIN} to ${STEM_LEVEL_MAX}, a whole-number latency nudge from ${LATENCY_NUDGE_MS_MIN} to `
     + `${LATENCY_NUDGE_MS_MAX} milliseconds, vocal and backing gain from ${GAIN_MIN} to ${GAIN_MAX}, `
     + `and whether to also render a WAV.`
 
@@ -69,7 +80,7 @@ export const MIX_TEMPO_LOCKED_MESSAGE
 /** Turns a render request into `MixRequest`, or throws with `INVALID_MIX_REQUEST_MESSAGE`. */
 export function parseMixRequest(input: unknown): MixRequest {
   if (!input || typeof input !== 'object') throw new Error(INVALID_MIX_REQUEST_MESSAGE)
-  const { latencyNudgeMs, vocalGain, backingGain, adjustments, backingSource, wav } = input as Record<string, unknown>
+  const { latencyNudgeMs, vocalGain, backingGain, adjustments, backingSource, stemLevels, wav } = input as Record<string, unknown>
   if (
     !isIntegerBetween(latencyNudgeMs, LATENCY_NUDGE_MS_MIN, LATENCY_NUDGE_MS_MAX)
     || !isNumberBetween(vocalGain, GAIN_MIN, GAIN_MAX)
@@ -86,6 +97,7 @@ export function parseMixRequest(input: unknown): MixRequest {
       wav,
       adjustments: parseAdjustments(adjustments),
       backingSource: parseBackingSource(backingSource),
+      stemLevels: parseOptionalStemLevels(stemLevels),
     }
   }
   catch {
