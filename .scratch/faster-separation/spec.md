@@ -1,6 +1,6 @@
 # Spec: Separation — models, acceleration, storage
 
-Status: ready-for-agent
+Status: done
 
 `ROADMAP.md`, item 1. Capitalised terms (Separation, Separation Model, Stems, Track, Take, Job, Lane, Audio Format, Desktop App, Connected) are defined in `CONTEXT.md`. Decisions are recorded in ADR 0016 (Audio Format, superseding 0005), ADR 0013's amendment (acceleration and resources), and ADR 0008's amendment (the Separation Model catalog and the correlation rule).
 
