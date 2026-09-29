@@ -23,12 +23,20 @@ The audio you sing over. Whichever of the Track's audio files the Backing Source
 _Avoid_: Instrumental (ambiguous with the Stem), beat, minus-one
 
 **Backing Source**:
-Which audio a Track's Backing Track is taken from: its original audio, or its Instrumental Stem. Remembered per Track, and recorded on a Take so a Mix can reproduce — or deliberately depart from — what was sung to.
+Which audio a Track's Backing Track is taken from: its original audio, or its Stems blended at the Stem Levels. Remembered per Track, and recorded on a Take so a Mix can reproduce — or deliberately depart from — what was sung to.
 _Avoid_: Backing mode, stem toggle
 
 **Stems**:
 The outputs of vocal removal on a Track: a Vocals Stem and an Instrumental Stem. A Track has them only if vocal removal has been asked for; both are kept, and the original audio is never replaced by them.
 _Avoid_: Separated audio, layers
+
+**Stem Levels**:
+How loud each Stem is in a Backing Track taken from Stems: the Guide Vocal and the Instrumental, each from silent to as separated. Only meaningful when the Backing Source is Stems. Remembered per Track, recorded on a Take as sung, and changeable on Review and for a Mix, since what the singer recorded does not depend on them.
+_Avoid_: Mix levels, stem volume, balance
+
+**Guide Vocal**:
+The Vocals Stem as heard under a Backing Track, turned down or up so the singer can follow the original singer without singing over them. Never the singer's own voice, which is the Vocal of a Take.
+_Avoid_: Backing vocal (harmonies, in music), vocal volume, reference track
 
 **Separation**:
 Running vocal removal on one Track: the Job that makes its Stems, and the state the Track carries while it runs, after it fails, and once it has finished. Asked for per Track rather than done on every import, since it costs minutes of CPU and a Track imported from a karaoke video needs none of it.
