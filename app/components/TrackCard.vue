@@ -6,32 +6,11 @@ const props = defineProps<{ track: TrackWithJob }>()
 const emit = defineEmits<{ delete: [], retry: [], retried: [] }>()
 
 const { t } = useI18n()
-
-const progress = computed(() => {
-  const job = props.track.job
-  if (!job) return 0
-  return job.state === 'running' ? job.progress : 0
-})
-
-const importLabel = computed(() => {
-  const job = props.track.job
-  if (!job || job.state === 'queued') return t('trackCard.waiting')
-  return t('trackCard.importing', { progress: job.progress })
-})
-
-const failure = computed(() => props.track.job ? describeJobFailure(props.track.job, t) : null)
-
-/** A Playlist Import's Track that found nothing on YouTube: retrying it needs a link from the singer. */
-const needsLink = computed(() => props.track.sourceKind === 'youtube' && !props.track.sourceRef)
+const { progress, importLabel, failure, needsLink } = useTrackStatus(() => props.track)
 
 // A separating Track can be queued; its entry says how far along it is. One
 // still importing cannot be sung at all.
 const { ask: askToQueue } = useAddToQueue()
-
-/** A Job's own row on the Jobs page, which highlights it on arrival. */
-function jobLink(jobId: string | null | undefined): string {
-  return jobId ? `/jobs#${jobId}` : '/jobs'
-}
 </script>
 
 <template>

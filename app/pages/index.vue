@@ -1,14 +1,42 @@
 <script setup lang="ts">
-import { Link, Loader2, Music2, Plus, Search, Settings, X } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, LayoutGrid, Link, List, Loader2, Music2, Plus, Search, Settings, X } from 'lucide-vue-next'
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { UPLOAD_ACCEPT, UPLOAD_EXTENSIONS, uploadExtension } from '~~/shared/upload'
 import { youtubeVideoId } from '~~/shared/youtube'
 import { parsePlaylistLink, playlistUrl } from '~~/shared/playlist-link'
 import { failure } from '~~/shared/error-codes'
 import type { ErrorText } from '~/utils/errors'
+import { LIBRARY_VIEWS, type LibraryView, pageLinks, paginate, parseLibraryView, parsePage } from '~/utils/library-view'
 
 const { t, locale } = useI18n()
 const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry, refresh } = useLibrary()
+
+// The view is remembered per device, in a cookie rather than `localStorage`
+// so the server renders the one chosen and hydration never swaps it.
+const viewCookie = useCookie<string | null>('akapela-library-view', { maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
+const view = computed<LibraryView>({
+  get: () => parseLibraryView(viewCookie.value),
+  set: (next) => { viewCookie.value = next },
+})
+const VIEW_ICONS = { grid: LayoutGrid, list: List } as const
+
+// The page lives in the URL, so coming back from a Track lands where the
+// singer left. The whole Library is already here (the import poll needs all
+// of it), so a page is a slice rather than another request.
+const route = useRoute()
+const currentPage = computed(() => paginate(tracks.value, parsePage(route.query.page)))
+
+function pageQuery(page: number) {
+  return { ...route.query, page: page > 1 ? String(page) : undefined }
+}
+
+// A page link keeps the route, which the router does not scroll for.
+watch(() => route.query.page, () => window.scrollTo({ top: 0 }))
+
+// A new search starts from its first page.
+watch(query, () => {
+  if (route.query.page) navigateTo({ query: pageQuery(1) }, { replace: true })
+})
 // Akapela's own title bar carries these links itself (`TitleBar.vue`); a
 // browser tab has no title bar, so this is its only way to the Queue, Jobs,
 // and Settings.
@@ -291,25 +319,51 @@ async function onRetry(track: TrackWithJob) {
       />
     </form>
 
-    <label class="relative mb-6 block">
-      <Search class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-      <input
-        v-model.trim="query"
-        type="search"
-        :placeholder="t('library.search')"
-        class="w-full appearance-none rounded-pill bg-surface-mid py-3 pl-11 pr-11 text-base text-text shadow-[var(--shadow-inset-border)] outline-none placeholder:text-text-muted focus:shadow-[var(--shadow-inset-border),0_0_0_2px_var(--color-text)] [&::-webkit-search-cancel-button]:hidden"
-        :aria-label="t('library.searchLabel')"
+    <div class="mb-6 flex items-center gap-2">
+      <label class="relative block min-w-0 flex-1">
+        <Search class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+        <input
+          v-model.trim="query"
+          type="search"
+          :placeholder="t('library.search')"
+          class="w-full appearance-none rounded-pill bg-surface-mid py-3 pl-11 pr-11 text-base text-text shadow-[var(--shadow-inset-border)] outline-none placeholder:text-text-muted focus:shadow-[var(--shadow-inset-border),0_0_0_2px_var(--color-text)] [&::-webkit-search-cancel-button]:hidden"
+          :aria-label="t('library.searchLabel')"
+        >
+        <button
+          v-if="query"
+          type="button"
+          class="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-text-muted hover:text-text"
+          :aria-label="t('library.clearSearch')"
+          @click="query = ''"
+        >
+          <X class="size-4" />
+        </button>
+      </label>
+      <div
+        class="flex shrink-0 items-center gap-1 rounded-pill bg-surface-mid p-1"
+        role="group"
+        :aria-label="t('library.view')"
       >
-      <button
-        v-if="query"
-        type="button"
-        class="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-text-muted hover:text-text"
-        :aria-label="t('library.clearSearch')"
-        @click="query = ''"
-      >
-        <X class="size-4" />
-      </button>
-    </label>
+        <button
+          v-for="option in LIBRARY_VIEWS"
+          :key="option"
+          type="button"
+          class="flex size-10 items-center justify-center rounded-pill transition"
+          :class="option === view
+            ? 'bg-text text-ground'
+            : 'text-text-muted hover:text-text'"
+          :aria-pressed="option === view"
+          :aria-label="t(`library.views.${option}`)"
+          :title="t(`library.views.${option}`)"
+          @click="view = option"
+        >
+          <component
+            :is="VIEW_ICONS[option]"
+            class="size-4"
+          />
+        </button>
+      </div>
+    </div>
 
     <ErrorMessage
       class="mb-6 whitespace-pre-wrap rounded-[6px] bg-surface p-3"
@@ -320,20 +374,107 @@ async function onRetry(track: TrackWithJob) {
       :error="actionError"
     />
 
-    <section
-      v-if="tracks.length"
-      class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5"
-      :aria-label="t('library.tracks')"
-    >
-      <TrackCard
-        v-for="track in tracks"
-        :key="track.id"
-        :track="track"
-        @delete="pendingDelete = track"
-        @retry="onRetry(track)"
-        @retried="refresh()"
-      />
-    </section>
+    <template v-if="tracks.length">
+      <section
+        v-if="view === 'grid'"
+        class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5"
+        :aria-label="t('library.tracks')"
+      >
+        <TrackCard
+          v-for="track in currentPage.items"
+          :key="track.id"
+          :track="track"
+          @delete="pendingDelete = track"
+          @retry="onRetry(track)"
+          @retried="refresh()"
+        />
+      </section>
+
+      <section
+        v-else
+        class="rounded-[8px] bg-surface p-1 sm:p-2"
+        :aria-label="t('library.tracks')"
+      >
+        <ul class="flex flex-col">
+          <TrackRow
+            v-for="track in currentPage.items"
+            :key="track.id"
+            :track="track"
+            @delete="pendingDelete = track"
+            @retry="onRetry(track)"
+            @retried="refresh()"
+          />
+        </ul>
+      </section>
+
+      <nav
+        v-if="currentPage.pageCount > 1"
+        class="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between"
+        :aria-label="t('library.pagination')"
+      >
+        <p class="text-sm text-text-muted">
+          {{ t('library.showing', { first: currentPage.first, last: currentPage.last, total: currentPage.total }) }}
+        </p>
+        <ul class="flex items-center gap-1">
+          <li>
+            <NuxtLink
+              v-if="currentPage.page > 1"
+              :to="{ query: pageQuery(currentPage.page - 1) }"
+              class="flex size-10 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
+              :aria-label="t('library.previousPage')"
+            >
+              <ChevronLeft class="size-4" />
+            </NuxtLink>
+            <span
+              v-else
+              class="flex size-10 items-center justify-center text-text-muted opacity-40"
+              aria-hidden="true"
+            >
+              <ChevronLeft class="size-4" />
+            </span>
+          </li>
+          <li
+            v-for="(link, index) in pageLinks(currentPage.page, currentPage.pageCount)"
+            :key="link === 'gap' ? `gap-${index}` : link"
+          >
+            <span
+              v-if="link === 'gap'"
+              class="flex size-10 items-center justify-center text-sm text-text-muted"
+              aria-hidden="true"
+            >…</span>
+            <NuxtLink
+              v-else
+              :to="{ query: pageQuery(link) }"
+              class="flex h-10 min-w-10 items-center justify-center rounded-pill px-3 text-sm font-bold tabular-nums transition"
+              :class="link === currentPage.page
+                ? 'bg-text text-ground'
+                : 'text-text-muted hover:bg-surface-mid hover:text-text'"
+              :aria-label="t('library.page', { page: link })"
+              :aria-current="link === currentPage.page ? 'page' : undefined"
+            >
+              {{ link }}
+            </NuxtLink>
+          </li>
+          <li>
+            <NuxtLink
+              v-if="currentPage.page < currentPage.pageCount"
+              :to="{ query: pageQuery(currentPage.page + 1) }"
+              class="flex size-10 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-mid hover:text-text"
+              :aria-label="t('library.nextPage')"
+            >
+              <ChevronRight class="size-4" />
+            </NuxtLink>
+            <span
+              v-else
+              class="flex size-10 items-center justify-center text-text-muted opacity-40"
+              aria-hidden="true"
+            >
+              <ChevronRight class="size-4" />
+            </span>
+          </li>
+        </ul>
+      </nav>
+    </template>
 
     <section
       v-else-if="!loading"
