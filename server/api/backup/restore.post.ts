@@ -1,8 +1,10 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createError, defineEventHandler, readMultipartFormData, setResponseStatus } from 'h3'
+import { defineEventHandler, readMultipartFormData, setResponseStatus } from 'h3'
 import { applyStagedRestore, BackupError, hasLibraryData, stageRestore } from '../../lib/backup'
+import { apiError } from '../../lib/api-error'
+import { failure } from '../../../shared/error-codes'
 
 export const RESTORE_NEEDS_CONFIRMATION_MESSAGE
   = 'Restoring replaces your entire library. Confirm to continue.'
@@ -17,12 +19,12 @@ export const RESTORE_NEEDS_CONFIRMATION_MESSAGE
 export default defineEventHandler(async (event) => {
   const parts = await readMultipartFormData(event)
   const file = parts?.find(part => part.name === 'file' && part.filename)
-  if (!file?.filename) throw createError({ statusCode: 400, statusMessage: 'No backup file uploaded' })
+  if (!file?.filename) throw apiError(400, failure('noFileUploaded'), 'No backup file uploaded')
   const confirmed = parts?.some(part => part.name === 'confirm' && part.data.toString() === 'true') ?? false
 
   const akapela = event.context.akapela
   if (hasLibraryData(akapela) && !confirmed) {
-    throw createError({ statusCode: 409, statusMessage: RESTORE_NEEDS_CONFIRMATION_MESSAGE })
+    throw apiError(409, failure('restoreNeedsConfirmation'), RESTORE_NEEDS_CONFIRMATION_MESSAGE)
   }
 
   const uploadDir = await mkdtemp(join(tmpdir(), 'akapela-restore-upload-'))
@@ -33,7 +35,7 @@ export default defineEventHandler(async (event) => {
       await stageRestore(akapela, archivePath)
     }
     catch (error) {
-      if (error instanceof BackupError) throw createError({ statusCode: 400, statusMessage: error.message })
+      if (error instanceof BackupError) throw apiError(400, failure('invalidBackup'), error.message)
       throw error
     }
     await applyStagedRestore(akapela)

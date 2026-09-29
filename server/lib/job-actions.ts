@@ -14,6 +14,7 @@ import {
 import type { Akapela } from './akapela'
 import { findAudioFile, INSTRUMENTAL_BASENAME } from './audio-files'
 import { DEFAULT_SEPARATION_MODEL } from './separators/models'
+import { CodedError, failure } from '../../shared/error-codes'
 
 /**
  * What the singer can do to a Job from the Jobs page — cancel it, retry it,
@@ -24,7 +25,11 @@ import { DEFAULT_SEPARATION_MODEL } from './separators/models'
  */
 
 /** A request the Job's current state cannot honour; the route answers it with a 409. */
-export class JobActionRefused extends Error {}
+export class JobActionRefused extends CodedError<'jobFinished' | 'notRetryable' | 'jobTargetGone'> {
+  constructor(code: 'jobFinished' | 'notRetryable' | 'jobTargetGone', message: string) {
+    super(failure(code), message)
+  }
+}
 
 /**
  * A newer Job of the same type on the same target, as SQL over an outer
@@ -140,7 +145,7 @@ export async function cancelJob(akapela: Akapela, job: Job): Promise<Job> {
     .prepare(`UPDATE jobs SET state = 'cancelled', error = NULL, finished_at = ? WHERE id = ? AND state IN ('queued', 'running')`)
     .run(Date.now(), job.id)
   if (cancelled.changes === 0) {
-    throw new JobActionRefused('This Job has already finished')
+    throw new JobActionRefused('jobFinished', 'This Job has already finished')
   }
   await akapela.runningJobs.abort(job.id)
   undoJob(akapela, job)
@@ -193,10 +198,10 @@ function undoJob(akapela: Akapela, job: Job): void {
  * latest on its target.
  */
 export function retryJob(akapela: Akapela, job: Job): Job {
-  if (job.state !== 'failed') throw new JobActionRefused('Only a failed Job can be retried')
-  if (hasNewerSibling(akapela, job)) throw new JobActionRefused('This Job has already been retried')
+  if (job.state !== 'failed') throw new JobActionRefused('notRetryable', 'Only a failed Job can be retried')
+  if (hasNewerSibling(akapela, job)) throw new JobActionRefused('notRetryable', 'This Job has already been retried')
 
-  const gone = () => new JobActionRefused('What this Job was working on no longer exists')
+  const gone = () => new JobActionRefused('jobTargetGone', 'What this Job was working on no longer exists')
   switch (job.type) {
     case 'import': {
       const track = job.targetId ? getTrack(akapela, job.targetId) : undefined

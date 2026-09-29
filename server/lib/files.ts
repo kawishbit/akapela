@@ -1,5 +1,7 @@
 import { createReadStream, statSync } from 'node:fs'
-import { createError, getRequestHeader, sendStream, setResponseHeaders, setResponseStatus, type H3Event } from 'h3'
+import { getRequestHeader, sendStream, setResponseHeaders, setResponseStatus, type H3Event } from 'h3'
+import { apiError } from './api-error'
+import { failure } from '../../shared/error-codes'
 
 /**
  * Streams a file from the data directory with HTTP range support, so the
@@ -14,13 +16,13 @@ export async function sendFile(event: H3Event, path: string, contentType: string
     size = stat.size
   }
   catch {
-    throw createError({ statusCode: 404, statusMessage: 'File not found' })
+    throw apiError(404, failure('fileNotFound'), 'File not found')
   }
 
   const range = parseRange(getRequestHeader(event, 'range'), size)
   if (range === 'unsatisfiable') {
     setResponseHeaders(event, { 'content-range': `bytes */${size}` })
-    throw createError({ statusCode: 416, statusMessage: 'Range not satisfiable' })
+    throw apiError(416, failure('invalidRequest'), 'Range not satisfiable')
   }
 
   const headers: Record<string, string> = {

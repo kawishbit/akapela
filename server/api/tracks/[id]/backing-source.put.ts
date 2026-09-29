@@ -1,4 +1,4 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import {
   INVALID_BACKING_SOURCE_MESSAGE,
   NO_STEMS_MESSAGE,
@@ -7,6 +7,8 @@ import {
 } from '../../../../shared/backing-source'
 import { requireTrack } from '../../../lib/require-track'
 import { hasStems, saveBackingSource } from '../../../lib/tracks'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * Switch what this Track's Backing Track is taken from. The body is
@@ -25,10 +27,10 @@ export default defineEventHandler(async (event) => {
     backingSource = parseBackingSource(body?.backingSource)
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_BACKING_SOURCE_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_BACKING_SOURCE_MESSAGE)
   }
   if (backingSource === 'instrumental' && !hasStems(event.context.akapela, track)) {
-    throw createError({ statusCode: 409, statusMessage: NO_STEMS_MESSAGE })
+    throw apiError(409, failure('noStems'), NO_STEMS_MESSAGE)
   }
   return saveBackingSource(event.context.akapela, track, backingSource)
 })

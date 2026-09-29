@@ -1,7 +1,9 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { INVALID_LYRICS_OFFSET_MESSAGE, parseLyricsOffset } from '../../../../shared/lyrics'
 import { requireTrack } from '../../../lib/require-track'
 import { saveLyricsOffset } from '../../../lib/tracks'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * Save the Lyrics Offset that lines this Track's Lyrics up with its Backing
@@ -15,7 +17,7 @@ export default defineEventHandler(async (event) => {
     offsetMs = parseLyricsOffset(body?.offsetMs)
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_LYRICS_OFFSET_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_LYRICS_OFFSET_MESSAGE)
   }
   return saveLyricsOffset(event.context.akapela, track, offsetMs)
 })

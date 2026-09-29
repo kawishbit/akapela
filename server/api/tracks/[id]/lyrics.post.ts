@@ -1,12 +1,15 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import {
   INVALID_LYRICS_PROVIDER_MESSAGE,
+  LYRICS_PROVIDER_LABELS,
   parseLyricsProviderName,
   unavailableProviderMessage,
 } from '../../../../shared/lyrics'
 import { requireTrack } from '../../../lib/require-track'
 import { availableLyricsProviders } from '../../../lib/settings'
 import { ManualLyricsOverwriteError, fetchLyricsForTrack } from '../../../lib/track-lyrics'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * Fetch this Track's Lyrics: `{ provider }` to look them up somewhere else
@@ -25,10 +28,10 @@ export default defineEventHandler(async (event) => {
       provider = parseLyricsProviderName(body.provider)
     }
     catch {
-      throw createError({ statusCode: 400, statusMessage: INVALID_LYRICS_PROVIDER_MESSAGE })
+      throw apiError(400, failure('invalidRequest'), INVALID_LYRICS_PROVIDER_MESSAGE)
     }
     if (!availableLyricsProviders(akapela).includes(provider)) {
-      throw createError({ statusCode: 400, statusMessage: unavailableProviderMessage(provider) })
+      throw apiError(400, failure('lyricsProviderUnavailable', { provider: LYRICS_PROVIDER_LABELS[provider] }), unavailableProviderMessage(provider))
     }
   }
 
@@ -40,7 +43,7 @@ export default defineEventHandler(async (event) => {
   }
   catch (error) {
     if (error instanceof ManualLyricsOverwriteError) {
-      throw createError({ statusCode: 409, statusMessage: error.message })
+      throw apiError(409, failure('manualLyricsOverwrite'), error.message)
     }
     throw error
   }

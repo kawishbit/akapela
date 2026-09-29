@@ -1,7 +1,9 @@
-import { createError, defineEventHandler } from 'h3'
+import { defineEventHandler } from 'h3'
 import { requireTrack } from '../../../../lib/require-track'
 import { DEFAULT_SEPARATION_MODEL } from '../../../../lib/separators/models'
 import { latestSeparationJob, startSeparation } from '../../../../lib/tracks'
+import { apiError } from '../../../../lib/api-error'
+import { failure } from '../../../../../shared/error-codes'
 
 /**
  * Re-enqueue the separate job for a Track whose separation failed, the shape
@@ -11,7 +13,7 @@ import { latestSeparationJob, startSeparation } from '../../../../lib/tracks'
 export default defineEventHandler((event) => {
   const track = requireTrack(event)
   if (track.separationState !== 'failed') {
-    throw createError({ statusCode: 409, statusMessage: 'Only a failed separation can be retried' })
+    throw apiError(409, failure('notRetryable'), 'Only a failed separation can be retried')
   }
   const akapela = event.context.akapela
   const failed = latestSeparationJob(akapela, track.id)

@@ -81,7 +81,9 @@ export function describeError(error: unknown, t: Translate, options: Pick<Descri
   const raw = body.statusMessage || body.message || (error instanceof Error ? error.message : String(error))
   if (coded && isErrorCode(coded.code)) {
     const params = (coded.params && typeof coded.params === 'object' ? coded.params : {}) as CodedFailure['params']
-    return describeFailure({ code: coded.code as ErrorCode, params } as CodedFailure, raw, t, options)
+    // `invalidRequest` means a bug or a hand-made request; its English says which.
+    const keepDetails = coded.code === 'invalidRequest' || coded.code === 'invalidBackup'
+    return describeFailure({ code: coded.code as ErrorCode, params } as CodedFailure, raw, t, { ...options, keepDetails })
   }
   return describeFailure(null, raw, t, options)
 }

@@ -37,10 +37,56 @@ export const ERROR_CODES = {
   audioUndecodable: [],
 
   // API routes: what a request can be refused for.
+  /**
+   * A request the app's own screens never send: a value out of range, a
+   * missing field, a malformed body. Its English, which says which, is kept
+   * as the Details.
+   */
+  invalidRequest: [],
+  /** A request that needed a file came without one. */
+  noFileUploaded: [],
   /** An upload whose type Akapela doesn't import. */
   unsupportedUpload: [],
   /** Text that isn't a link to one YouTube video. */
   invalidYoutubeUrl: [],
+  /** Something that was there is gone, usually deleted on another device. */
+  trackNotFound: [],
+  takeNotFound: [],
+  mixNotFound: [],
+  presetNotFound: [],
+  jobNotFound: [],
+  queueEntryGone: [],
+  fileNotFound: [],
+  /** A Mix whose file isn't there yet: still rendering, or never asked for as WAV. */
+  mixNotReady: [],
+  /** A Track still importing, asked to do what only an imported one can. */
+  trackNotImported: [],
+  /** A Separation asked for while one is already running. */
+  alreadySeparating: [],
+  /** Only a failed import, Separation, render, or Job can be retried, and only once. */
+  notRetryable: [],
+  /** A Job that has already finished can't be cancelled. */
+  jobFinished: [],
+  /** What a Job was working on has been deleted. */
+  jobTargetGone: [],
+  /** The Track has no Stems. */
+  noStems: [],
+  /** A Take's tempo is the one it was sung at. */
+  tempoLocked: [],
+  /** Cover art changes wait for the import, which writes its own. */
+  coverWhileImporting: [],
+  coverTooLarge: ['megabytes'],
+  unsupportedCover: [],
+  presetNameTaken: [],
+  presetBuiltIn: [],
+  /** Fetching Lyrics would replace ones the singer typed; the app asks first. */
+  manualLyricsOverwrite: [],
+  /** Restoring replaces the whole library; the app asks first. */
+  restoreNeedsConfirmation: [],
+  /** The file isn't a backup Akapela can read. */
+  invalidBackup: [],
+  /** yt-dlp is baked into this install's image; rebuilding it is the update. */
+  ytDlpNotManaged: [],
 
   // Lyrics.
   /** A Lyrics Provider answered badly or not at all. */

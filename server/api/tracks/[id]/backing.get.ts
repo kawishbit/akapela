@@ -1,9 +1,11 @@
-import { createError, defineEventHandler, getQuery } from 'h3'
+import { defineEventHandler, getQuery } from 'h3'
 import { INVALID_BACKING_SOURCE_MESSAGE, parseBackingSource } from '../../../../shared/backing-source'
 import { sendFile } from '../../../lib/files'
 import { requireTrack } from '../../../lib/require-track'
 import { audioContentType } from '../../../lib/audio-files'
 import { backingTrackPath } from '../../../lib/tracks'
+import { apiError } from '../../../lib/api-error'
+import { failure } from '../../../../shared/error-codes'
 
 /**
  * The Backing Track, in whichever Audio Format it was stored, with range support so the browser can seek and decode
@@ -19,7 +21,7 @@ export default defineEventHandler((event) => {
     source = requested === undefined ? track.backingSource : parseBackingSource(requested)
   }
   catch {
-    throw createError({ statusCode: 400, statusMessage: INVALID_BACKING_SOURCE_MESSAGE })
+    throw apiError(400, failure('invalidRequest'), INVALID_BACKING_SOURCE_MESSAGE)
   }
   const path = backingTrackPath(event.context.akapela, track, source)
   return sendFile(event, path, audioContentType(path))
