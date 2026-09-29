@@ -71,22 +71,23 @@ export class MdxNetModel {
     this.stft = new Stft(config.nFft, config.hopLength, config.dimF)
   }
 
-  /** One model call: STFT the chunk, zero the first 3 (near-DC) bins, run the ONNX graph, inverse-STFT the result. */
-  private async runModel(chunk: [Float64Array, Float64Array]): Promise<[Float64Array, Float64Array]> {
-    const spek = this.stft.forward(chunk)
-    const { data, dimF, nFrames } = spek
+  /** A chunk as the model takes it: its STFT, with the first 3 (near-DC) bins zeroed, in float32. */
+  private modelInput(chunk: [Float64Array, Float64Array]): ort.Tensor {
+    const { data, dimF, nFrames } = this.stft.forward(chunk)
     for (let channel = 0; channel < 4; channel++) {
       for (let f = 0; f < 3; f++) {
         for (let t = 0; t < nFrames; t++) data[channel * dimF * nFrames + f * nFrames + t] = 0
       }
     }
+    return new ort.Tensor('float32', Float32Array.from(data), [1, 4, dimF, nFrames])
+  }
 
-    const inputTensor = new ort.Tensor('float32', Float32Array.from(data), [1, 4, dimF, nFrames])
-    const results = await this.session.run({ input: inputTensor })
+  /** The model's output for one chunk, back in the time domain. */
+  private modelOutput(results: Record<string, ort.Tensor>): [Float64Array, Float64Array] {
     const output = results.output
     if (!output) throw new Error('the model produced no "output" tensor')
-
-    const outSpec: Spectrogram = { data: Float64Array.from(output.data as Float32Array), dimF, nFrames }
+    const [, , dimF, nFrames] = output.dims as number[]
+    const outSpec: Spectrogram = { data: Float64Array.from(output.data as Float32Array), dimF: dimF!, nFrames: nFrames! }
     return this.stft.inverse(outSpec)
   }
 
@@ -115,23 +116,22 @@ export class MdxNetModel {
     const result: [Float64Array, Float64Array] = [new Float64Array(paddedLength), new Float64Array(paddedLength)]
     const divider: [Float64Array, Float64Array] = [new Float64Array(paddedLength), new Float64Array(paddedLength)]
 
-    const totalChunks = Math.ceil(paddedLength / step)
-    let doneChunks = 0
-    for (let start = 0; start < paddedLength; start += step) {
+    const starts: number[] = []
+    for (let start = 0; start < paddedLength; start += step) starts.push(start)
+    const totalChunks = starts.length
+
+    const chunkAt = (start: number): [Float64Array, Float64Array] => {
       const end = Math.min(start + chunkSize, paddedLength)
-      const actualSize = end - start
+      const left = new Float64Array(chunkSize)
+      const right = new Float64Array(chunkSize)
+      left.set(mixture[0].subarray(start, end))
+      right.set(mixture[1].subarray(start, end))
+      return [left, right]
+    }
+
+    const overlapAdd = (start: number, [tarLeft, tarRight]: [Float64Array, Float64Array]) => {
+      const actualSize = Math.min(start + chunkSize, paddedLength) - start
       const window = overlap !== 0 ? hanningSymmetric(actualSize) : null
-
-      const chunkLeft = new Float64Array(chunkSize)
-      const chunkRight = new Float64Array(chunkSize)
-      chunkLeft.set(mixture[0].subarray(start, end))
-      chunkRight.set(mixture[1].subarray(start, end))
-
-      // Chunks are inherently sequential: each is a full model inference, and
-      // running them concurrently would multiply peak memory for no benefit
-      // on a machine sized for one CPU inference at a time.
-      const [tarLeft, tarRight] = await this.runModel([chunkLeft, chunkRight])
-
       for (let n = 0; n < actualSize; n++) {
         const w = window ? window[n]! : 1
         result[0]![start + n]! += tarLeft[n]! * w
@@ -139,7 +139,19 @@ export class MdxNetModel {
         divider[0]![start + n]! += w
         divider[1]![start + n]! += w
       }
-      options.onChunk?.(++doneChunks, totalChunks)
+    }
+
+    // One chunk at a time, start to finish. Each is a full inference, and two
+    // at once would double peak memory for nothing. Nor does the STFT of the
+    // next chunk overlap this one's model call: onnxruntime-node's `run`
+    // executes on the calling thread (its promise only wraps a synchronous
+    // native call), so overlapping them needs a worker thread, and once the
+    // STFT stopped being Bluestein it was under a tenth of a CPU Separation —
+    // too little to pay for one (ticket 08 of `.scratch/faster-separation/`).
+    for (const [i, start] of starts.entries()) {
+      const results = await this.session.run({ input: this.modelInput(chunkAt(start)) })
+      overlapAdd(start, this.modelOutput(results))
+      options.onChunk?.(i + 1, totalChunks)
     }
 
     const out: [Float64Array, Float64Array] = [new Float64Array(originalLength), new Float64Array(originalLength)]

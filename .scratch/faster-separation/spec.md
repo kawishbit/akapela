@@ -17,7 +17,8 @@ One ticket per file under [`issues/`](issues/), numbered in the order they shoul
 | 05 | [Hardware acceleration in Docker, on NVIDIA](issues/05-acceleration-docker-nvidia.md) | done | 04 |
 | 06 | [Audio Format: FLAC](issues/06-audio-format-flac.md) | done | — |
 | 07 | [Audio Format: MP3](issues/07-audio-format-mp3.md) | done | 06 |
-| 08 | [Using every core](issues/08-using-every-core.md) | ready-for-agent | 01 |
+| 08 | [Using every core](issues/08-using-every-core.md) | done | 01 |
+| 09 | [The STFT's sign convention](issues/09-stft-sign-convention.md) | needs-triage | — |
 
 01, 02, and 06 are independent starting points. 08 lands last on purpose. It's the one change that alters the separation arithmetic itself, and it comes after the settings people asked for.
 

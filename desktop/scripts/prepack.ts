@@ -81,11 +81,10 @@ function stageSeparators(): void {
     '--module', 'nodenext',
     '--moduleResolution', 'nodenext',
     '--target', 'es2022',
-    // The repo typechecks strict, and this has to agree with it. Without it
-    // `noImplicitAny` is off, the untyped `ndarray-fft` subpath import in
-    // `stft.ts` stops being an error, and the `@ts-expect-error` that guards
-    // it fails the build as an unused directive (TS2578) — a packaging-only
-    // failure that `pnpm typecheck` cannot see.
+    // The repo typechecks strict, and this has to agree with it, or code
+    // that is only an error under `strict` (a `@ts-expect-error` that only
+    // `noImplicitAny` makes necessary, say) fails here as an unused directive
+    // (TS2578) — a packaging-only failure that `pnpm typecheck` cannot see.
     '--strict',
     '--skipLibCheck',
     '--allowImportingTsExtensions',
