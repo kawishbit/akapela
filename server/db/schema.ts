@@ -74,6 +74,15 @@ export const jobs = sqliteTable('jobs', {
    * add. Rows written before the tokens hold English, shown as it is.
    */
   detail: text('detail'),
+  /**
+   * The Playlist Import this Job is part of, when it is: an id shared by
+   * every import and Separation one Playlist Import started, and the
+   * playlist's name to show beside it. The playlist itself is kept nowhere
+   * else, so the label goes when its Jobs are cleared. An import with one
+   * runs on the playlist Lane (`../lib/jobs.ts`). Null on every other Job.
+   */
+  playlistImportId: text('playlist_import_id'),
+  playlistImportName: text('playlist_import_name'),
 })
 
 export type Job = typeof jobs.$inferSelect

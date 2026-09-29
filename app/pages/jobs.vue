@@ -2,14 +2,19 @@
 import { ArrowLeft, ListChecks, Loader2 } from 'lucide-vue-next'
 import type { JobListEntry } from '~~/server/lib/job-actions'
 import type { ErrorText } from '~/utils/errors'
+import type { PlaylistImportGroup } from '~/utils/playlist-import'
 
 const { t } = useI18n()
 
 useHead(() => ({ title: t('app.pageTitle', { page: t('jobs.title') }) }))
 
-const { jobs, loaded, error, cancel, retry, clearFinished } = useJobs()
+const { jobs, loaded, error, cancel, retry, clearFinished, cancelPlaylistImport } = useJobs()
 
-const sections = computed(() => jobSections(jobs.value))
+// A Playlist Import's Jobs are one row each; everything else is listed as it always was.
+const grouped = computed(() => playlistImportGroups(jobs.value))
+const sections = computed(() => jobSections(grouped.value.others))
+// Clear finished clears a group's finished Jobs too, so it is offered when only they are left.
+const hasFinishedInGroups = computed(() => grouped.value.groups.some(group => group.jobs.some(job => !isActiveJob(job))))
 
 /**
  * Arriving from a Library card's chip at `/jobs#<jobId>`: scroll to that row
@@ -40,6 +45,27 @@ async function act(job: JobListEntry, action: (job: JobListEntry) => Promise<voi
   }
   finally {
     busyId.value = null
+  }
+}
+
+/** The Playlist Import the singer asked to cancel, held until they confirm. */
+const pendingCancel = ref<PlaylistImportGroup | null>(null)
+const cancellingGroup = ref<string | null>(null)
+
+async function confirmCancelAll() {
+  const group = pendingCancel.value
+  if (!group) return
+  cancellingGroup.value = group.id
+  actionError.value = null
+  try {
+    await cancelPlaylistImport(group.id)
+    pendingCancel.value = null
+  }
+  catch (failure) {
+    actionError.value = describeError(failure, t)
+  }
+  finally {
+    cancellingGroup.value = null
   }
 }
 
@@ -103,6 +129,32 @@ async function onClearFinished() {
 
     <template v-else>
       <section
+        v-if="grouped.groups.length"
+        class="mb-8"
+        aria-labelledby="jobs-playlist-imports"
+      >
+        <h2
+          id="jobs-playlist-imports"
+          class="mb-3 text-lg font-semibold"
+        >
+          {{ t('jobs.playlistImport.heading') }}
+        </h2>
+        <ul class="flex flex-col gap-2">
+          <PlaylistImportRow
+            v-for="group in grouped.groups"
+            :key="group.id"
+            :group="group"
+            :busy-id="busyId"
+            :cancelling="cancellingGroup === group.id"
+            :highlighted-id="highlightedId"
+            @cancel-all="pendingCancel = group"
+            @cancel="job => act(job, cancel)"
+            @retry="job => act(job, retry)"
+          />
+        </ul>
+      </section>
+
+      <section
         v-if="sections.running.length"
         class="mb-8"
         aria-labelledby="jobs-running"
@@ -149,7 +201,7 @@ async function onClearFinished() {
       </section>
 
       <section
-        v-if="sections.finished.length"
+        v-if="sections.finished.length || hasFinishedInGroups"
         aria-labelledby="jobs-finished"
       >
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -184,5 +236,15 @@ async function onClearFinished() {
         </ul>
       </section>
     </template>
+
+    <ConfirmDialog
+      :open="pendingCancel !== null"
+      :title="t('jobs.playlistImport.cancelTitle')"
+      :message="pendingCancel ? t('jobs.playlistImport.cancelMessage', { name: pendingCancel.name }) : ''"
+      :confirm-label="t('jobs.playlistImport.cancelAll')"
+      :busy="cancellingGroup !== null"
+      @confirm="confirmCancelAll"
+      @cancel="pendingCancel = null"
+    />
   </main>
 </template>

@@ -35,6 +35,16 @@ export const ERROR_CODES = {
   modelDownloadFailed: ['model'],
   /** A file could not be read as audio. */
   audioUndecodable: [],
+  /** A Playlist Import's search found nothing on YouTube within ten seconds of the song's length. */
+  noYoutubeMatch: ['artist', 'title'],
+
+  // Playlist Import: reading a playlist or album from another service.
+  /** More songs than one Playlist Import takes. `total` is the count, or "100+" when the service didn't say. */
+  playlistTooLong: ['total'],
+  /** The playlist or album isn't there, or isn't public. */
+  playlistNotFound: [],
+  /** The service's page came back without the shape Akapela reads, which usually means it changed. */
+  playlistUnreadable: [],
 
   // API routes: what a request can be refused for.
   /**
@@ -49,6 +59,10 @@ export const ERROR_CODES = {
   unsupportedUpload: [],
   /** Text that isn't a link to one YouTube video. */
   invalidYoutubeUrl: [],
+  /** Text that isn't a link to a Spotify playlist or album. */
+  invalidPlaylistLink: [],
+  /** A Playlist Import's Track that found nothing on YouTube is retried with a link the singer pastes. */
+  youtubeLinkNeeded: [],
   /** Something that was there is gone, usually deleted on another device. */
   trackNotFound: [],
   takeNotFound: [],
@@ -81,6 +95,11 @@ export const ERROR_CODES = {
   presetBuiltIn: [],
   /** Fetching Lyrics would replace ones the singer typed; the app asks first. */
   manualLyricsOverwrite: [],
+  /**
+   * Another Track already has this Song; no two Tracks share one. The refusal
+   * also carries that Track's id beside the code, so the page can link to it.
+   */
+  songInLibrary: ['title'],
   /** Restoring replaces the whole library; the app asks first. */
   restoreNeedsConfirmation: [],
   /** The file isn't a backup Akapela can read. Its English, which says why, is kept as the Details. */

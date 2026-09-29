@@ -21,6 +21,8 @@ const searchError = ref<ErrorText | null>(null)
 
 const confirmingKey = ref<string | null>(null)
 const confirmError = ref<ErrorText | null>(null)
+/** The other Track that already has the Song just refused, which the refusal links to. */
+const inLibrary = ref<{ id: string, title: string } | null>(null)
 
 /** The Song the singer is being asked about, held until they answer the dialog. */
 const pendingConfirm = ref<{ song: { artist: string, title: string } & Partial<SongMatch>, key: string } | null>(null)
@@ -69,6 +71,7 @@ async function confirm(
 ) {
   confirmingKey.value = key
   confirmError.value = null
+  inLibrary.value = null
   try {
     const detail = await $fetch<TrackDetail>(`/api/tracks/${props.track.id}/song`, {
       method: 'PUT',
@@ -86,13 +89,16 @@ async function confirm(
     search.value = null
   }
   catch (error) {
+    const refusal = (error as { data?: { data?: { code?: unknown, track?: { id: string, title: string } } } }).data?.data
     // Confirming a Song fetches its Lyrics, which would replace ones the
     // singer typed; the server refuses until they have been asked.
-    if ((error as { statusCode?: number }).statusCode === 409) {
+    if (refusal?.code === 'manualLyricsOverwrite') {
       pendingConfirm.value = { song, key }
     }
     else {
       confirmError.value = describeError(error, t)
+      // No two Tracks share a Song: say which one has it, and link to it.
+      inLibrary.value = refusal?.code === 'songInLibrary' && refusal.track ? refusal.track : null
     }
   }
   finally {
@@ -259,6 +265,13 @@ function matchKey(match: SongMatch, index: number) {
         class="mt-3"
         :error="confirmError"
       />
+      <NuxtLink
+        v-if="inLibrary"
+        :to="`/tracks/${inLibrary.id}`"
+        class="mt-2 inline-flex h-11 items-center rounded-pill bg-surface-mid px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card"
+      >
+        {{ t('songPanel.openOther', { title: inLibrary.title }) }}
+      </NuxtLink>
     </div>
 
     <ConfirmDialog

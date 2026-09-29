@@ -99,5 +99,7 @@ export function useLibrary() {
     importUrl,
     remove,
     retry,
+    /** Fetches the list again, and the Jobs with it: after something else started an import. */
+    refresh: () => Promise.all([refresh(), refreshJobs()]),
   }
 }

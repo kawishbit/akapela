@@ -16,3 +16,15 @@ Jobs now run in two **Lanes**, side by side. The heavy Lane runs Separations; th
 - A light Job now runs while a Separation holds the CPU, so it's slower than it would be alone. Imports are mostly waiting on the network and a Mix takes seconds, so this is accepted.
 - A future GPU-backed heavy Lane doesn't change the shape: still one Separation at a time, with batching inside it (`ROADMAP.md`, item 1).
 - "Jobs run one at a time" in `CONTEXT.md` becomes "one at a time per Lane". ADR 0002's SQLite queue stands; only its one-line rule changes.
+
+## Amendment (2026-09-29): a third Lane for Playlist Imports
+
+_Built: `laneOf` and `laneCondition` in `server/lib/jobs.ts`; `server/plugins/jobs-runner.ts` starts a runner for each of the three. See `.scratch/spotify-import/`._
+
+A Playlist Import creates up to a hundred import Jobs at once, one per song, each searching YouTube and downloading. On the light Lane, a Mix asked for a minute later would wait behind all of them. That is the wait this ADR exists to prevent, moved from the heavy Lane to the light one.
+
+So there is a third Lane, the **playlist Lane**. It runs the import Jobs that a Playlist Import started, which are the ones labelled with a Playlist Import id. The light Lane keeps everything else, including an import started by hand. The heavy Lane still runs every Separation, whatever its label, so a playlist's Separations queue behind other Separations as before. Each Lane still runs one Job at a time, in creation order.
+
+- **Why this costs little.** A download is mostly waiting on the network, and normalising takes seconds, so running one beside a Separation and a Mix takes little from either.
+- **Considered: labelled imports jumping to the back of the light Lane.** Rejected. A Mix that arrives while the hundredth import runs still waits for that import, and "in creation order" would stop being true.
+- **The Lane is still derived, never stored.** It comes from the Job's type and whether it has a Playlist Import label. A retried import keeps its label, and so keeps its Lane.

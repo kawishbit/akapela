@@ -21,14 +21,30 @@ export function createJobTestDb() {
     /** Inserts a Job the way the app does: queued, no progress, no timestamps. */
     enqueue(
       type: string,
-      options: { id: string, createdAt: number, targetId?: string | null, traceParent?: string | null },
+      options: {
+        id: string
+        createdAt: number
+        targetId?: string | null
+        traceParent?: string | null
+        /** The Playlist Import it is part of, which puts an import on the playlist Lane. */
+        playlistImportId?: string | null
+      },
     ): void {
       akapela.sqlite
         .prepare(
-          `INSERT INTO jobs (id, type, target_id, state, progress, error, created_at, trace_parent)
-           VALUES (?, ?, ?, 'queued', 0, NULL, ?, ?)`,
+          `INSERT INTO jobs (id, type, target_id, state, progress, error, created_at, trace_parent,
+             playlist_import_id, playlist_import_name)
+           VALUES (?, ?, ?, 'queued', 0, NULL, ?, ?, ?, ?)`,
         )
-        .run(options.id, type, options.targetId ?? null, options.createdAt, options.traceParent ?? null)
+        .run(
+          options.id,
+          type,
+          options.targetId ?? null,
+          options.createdAt,
+          options.traceParent ?? null,
+          options.playlistImportId ?? null,
+          options.playlistImportId ? 'All Out 80s' : null,
+        )
     },
     getJob(id: string) {
       const row = akapela.sqlite.prepare(`SELECT * FROM jobs WHERE id = ?`).get(id) as

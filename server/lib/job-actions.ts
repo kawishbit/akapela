@@ -1,15 +1,17 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { eq } from 'drizzle-orm'
-import { mixes, type Job, type JobType } from '../db/schema'
-import { enqueueJob, getJob, laneOf, type Lane } from './jobs'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { jobs, mixes, type Job, type JobType } from '../db/schema'
+import { enqueueJob, getJob, laneOf, playlistImportOf, type Lane } from './jobs'
 import { retryMix } from './mixes'
 import {
   deleteTrack,
   getTrack,
+  needsYoutubeLink,
   retryImport,
   startSeparation,
   trackDir,
+  YOUTUBE_LINK_NEEDED_MESSAGE,
 } from './tracks'
 import type { Akapela } from './akapela'
 import { findAudioFile, INSTRUMENTAL_BASENAME } from './audio-files'
@@ -25,7 +27,7 @@ import { CodedError, failure } from '../../shared/error-codes'
  */
 
 /** A request the Job's current state cannot honour; the route answers it with a 409. */
-type JobRefusal = 'jobFinished' | 'notRetryable' | 'jobTargetGone'
+type JobRefusal = 'jobFinished' | 'notRetryable' | 'jobTargetGone' | 'youtubeLinkNeeded'
 
 export class JobActionRefused extends CodedError<JobRefusal> {
   constructor(code: JobRefusal, message: string) {
@@ -74,6 +76,8 @@ interface JobListRow {
   trace_parent: string | null
   separation_model: string | null
   detail: string | null
+  playlist_import_id: string | null
+  playlist_import_name: string | null
   track_id: string | null
   track_title: string | null
   track_artist: string | null
@@ -94,6 +98,7 @@ export function listJobs(akapela: Akapela): JobListEntry[] {
     .prepare(
       `SELECT j.id, j.type, j.target_id, j.state, j.progress, j.error, j.error_code, j.error_params, j.created_at,
          j.started_at, j.finished_at, j.trace_parent, j.separation_model, j.detail,
+         j.playlist_import_id, j.playlist_import_name,
          tr.id AS track_id, tr.title AS track_title, tr.artist AS track_artist, tr.updated_at AS track_updated_at,
          tk.id AS take_id, tk.created_at AS take_created_at,
          (SELECT count(*) FROM takes t2 WHERE t2.track_id = tk.track_id
@@ -107,29 +112,36 @@ export function listJobs(akapela: Akapela): JobListEntry[] {
        ORDER BY j.created_at, j.rowid`,
     )
     .all() as JobListRow[]
-  return rows.map(row => ({
-    id: row.id,
-    type: row.type as JobType,
-    targetId: row.target_id,
-    state: row.state as Job['state'],
-    progress: row.progress,
-    error: row.error,
-    errorCode: row.error_code,
-    errorParams: row.error_params === null ? null : JSON.parse(row.error_params),
-    createdAt: row.created_at,
-    startedAt: row.started_at,
-    finishedAt: row.finished_at,
-    traceParent: row.trace_parent,
-    separationModel: row.separation_model as Job['separationModel'],
-    detail: row.detail,
-    lane: laneOf(row.type as JobType),
-    track: row.track_id === null
-      ? null
-      : { id: row.track_id, title: row.track_title!, artist: row.track_artist, updatedAt: row.track_updated_at! },
-    take: row.take_id === null
-      ? null
-      : { id: row.take_id, number: row.take_number!, createdAt: row.take_created_at! },
-  }))
+  return rows.map((row) => {
+    const job: Job = {
+      id: row.id,
+      type: row.type as JobType,
+      targetId: row.target_id,
+      state: row.state as Job['state'],
+      progress: row.progress,
+      error: row.error,
+      errorCode: row.error_code,
+      errorParams: row.error_params === null ? null : JSON.parse(row.error_params),
+      createdAt: row.created_at,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+      traceParent: row.trace_parent,
+      separationModel: row.separation_model as Job['separationModel'],
+      detail: row.detail,
+      playlistImportId: row.playlist_import_id,
+      playlistImportName: row.playlist_import_name,
+    }
+    return {
+      ...job,
+      lane: laneOf(job),
+      track: row.track_id === null
+        ? null
+        : { id: row.track_id, title: row.track_title!, artist: row.track_artist, updatedAt: row.track_updated_at! },
+      take: row.take_id === null
+        ? null
+        : { id: row.take_id, number: row.take_number!, createdAt: row.take_created_at! },
+    }
+  })
 }
 
 /**
@@ -155,6 +167,34 @@ export async function cancelJob(akapela: Akapela, job: Job): Promise<Job> {
 }
 
 /**
+ * Cancels every queued or running Job of one Playlist Import, each the
+ * ordinary way: an import's Track is deleted, and a Separation's Track goes
+ * back to having no Stems. Tracks that already finished importing stay.
+ * Returns how many were cancelled.
+ */
+export async function cancelPlaylistImport(akapela: Akapela, playlistImportId: string): Promise<number> {
+  // Queued first, newest first, so none of them starts while the running ones are being stopped.
+  const active = akapela.db
+    .select()
+    .from(jobs)
+    .where(and(eq(jobs.playlistImportId, playlistImportId), inArray(jobs.state, ['queued', 'running'])))
+    .orderBy(asc(sql`${jobs.state} = 'running'`), desc(jobs.createdAt))
+    .all()
+  let cancelled = 0
+  for (const job of active) {
+    try {
+      await cancelJob(akapela, job)
+      cancelled += 1
+    }
+    catch (error) {
+      // It finished, or went with its Track, while the others were being cancelled.
+      if (!(error instanceof JobActionRefused)) throw error
+    }
+  }
+  return cancelled
+}
+
+/**
  * Puts a cancelled Job's target back the way it was before the Job was asked
  * for, so a Track the singer changed their mind about looks untouched.
  */
@@ -171,10 +211,16 @@ function undoJob(akapela: Akapela, job: Job): void {
         .run(hasStems ? 'ready' : 'none', Date.now(), targetId)
       return
     }
-    case 'import':
+    case 'import': {
       // A half-imported Track nobody wanted is clutter; pasting the link again is trivial.
-      deleteTrack(akapela, targetId, { keepJobId: job.id })
+      // One that has finished importing stays: a Playlist Import's Job is still
+      // running while it fetches the Lyrics of a Track that is already ready.
+      const imported = akapela.sqlite
+        .prepare(`SELECT 1 FROM tracks WHERE id = ? AND import_state = 'ready'`)
+        .get(targetId) !== undefined
+      if (!imported) deleteTrack(akapela, targetId, { keepJobId: job.id })
       return
+    }
     case 'render': {
       const mix = akapela.sqlite
         .prepare(
@@ -208,13 +254,17 @@ export function retryJob(akapela: Akapela, job: Job): Job {
     case 'import': {
       const track = job.targetId ? getTrack(akapela, job.targetId) : undefined
       if (!track) throw gone()
+      // Searching again would find nothing again; the Track's page asks for a link.
+      if (needsYoutubeLink(track)) throw new JobActionRefused('youtubeLinkNeeded', YOUTUBE_LINK_NEEDED_MESSAGE)
       return retryImport(akapela, track).job!
     }
     case 'separate': {
       const track = job.targetId ? getTrack(akapela, job.targetId) : undefined
       if (!track) throw gone()
-      // Asked again with what it was asked for, not whatever the default is now.
-      return startSeparation(akapela, track, job.separationModel ?? DEFAULT_SEPARATION_MODEL).separationJob
+      // Asked again with what it was asked for, not whatever the default is
+      // now, and still part of the Playlist Import it was part of.
+      return startSeparation(akapela, track, job.separationModel ?? DEFAULT_SEPARATION_MODEL, playlistImportOf(job))
+        .separationJob
     }
     case 'render': {
       const mix = job.targetId

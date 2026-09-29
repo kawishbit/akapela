@@ -3,11 +3,12 @@ import { Link, Loader2, Music2, Plus, Search, Settings, X } from 'lucide-vue-nex
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { UPLOAD_ACCEPT, UPLOAD_EXTENSIONS, uploadExtension } from '~~/shared/upload'
 import { youtubeVideoId } from '~~/shared/youtube'
+import { parsePlaylistLink, playlistUrl } from '~~/shared/playlist-link'
 import { failure } from '~~/shared/error-codes'
 import type { ErrorText } from '~/utils/errors'
 
 const { t, locale } = useI18n()
-const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry } = useLibrary()
+const { query, tracks, loading, uploading, uploadError, upload, importUrl, remove, retry, refresh } = useLibrary()
 // Akapela's own title bar carries these links itself (`TitleBar.vue`); a
 // browser tab has no title bar, so this is its only way to the Queue, Jobs,
 // and Settings.
@@ -108,6 +109,13 @@ function closeUrlForm() {
 }
 
 async function submitUrl() {
+  // A Spotify playlist or album is many Tracks, so it opens the checklist
+  // rather than creating one.
+  const playlist = parsePlaylistLink(url.value)
+  if (playlist) {
+    await navigateTo({ path: '/import/playlist', query: { url: playlistUrl(playlist) } })
+    return
+  }
   if (!youtubeVideoId(url.value)) {
     urlError.value = describeFailure(failure('invalidYoutubeUrl'), null, t)
     return
@@ -192,7 +200,7 @@ async function onRetry(track: TrackWithJob) {
           @click="openUrlForm"
         >
           <Link class="size-4" />
-          {{ t('library.fromYoutube') }}
+          {{ t('library.fromLink') }}
         </button>
         <button
           type="button"
@@ -225,29 +233,29 @@ async function onRetry(track: TrackWithJob) {
     <form
       v-if="urlFormOpen"
       class="mb-6 rounded-[8px] bg-surface p-4 shadow-[var(--shadow-medium)]"
-      :aria-label="t('library.importFromYoutube')"
+      :aria-label="t('library.importFromLink')"
       novalidate
       @submit.prevent="submitUrl"
     >
       <label
-        for="youtube-url"
+        for="import-url"
         class="mb-2 block text-sm font-bold"
       >
         {{ t('library.pasteLink') }}
       </label>
       <div class="flex flex-col gap-2 sm:flex-row">
         <input
-          id="youtube-url"
+          id="import-url"
           ref="urlInput"
           v-model.trim="url"
           type="url"
           inputmode="url"
           autocomplete="off"
           spellcheck="false"
-          placeholder="https://www.youtube.com/watch?v="
+          placeholder="https://"
           class="min-w-0 flex-1 appearance-none rounded-pill bg-surface-mid px-5 py-3 text-base text-text shadow-[var(--shadow-inset-border)] outline-none placeholder:text-text-muted focus:shadow-[var(--shadow-inset-border),0_0_0_2px_var(--color-text)]"
           :aria-invalid="urlError !== null"
-          :aria-describedby="urlError ? 'youtube-url-error' : undefined"
+          :aria-describedby="urlError ? 'import-url-error' : undefined"
           @keydown.escape="closeUrlForm"
         >
         <div class="flex gap-2">
@@ -277,7 +285,7 @@ async function onRetry(track: TrackWithJob) {
         </div>
       </div>
       <ErrorMessage
-        id="youtube-url-error"
+        id="import-url-error"
         class="mt-3"
         :error="urlError"
       />
@@ -323,6 +331,7 @@ async function onRetry(track: TrackWithJob) {
         :track="track"
         @delete="pendingDelete = track"
         @retry="onRetry(track)"
+        @retried="refresh()"
       />
     </section>
 
@@ -355,7 +364,7 @@ async function onRetry(track: TrackWithJob) {
             @click="openUrlForm"
           >
             <Link class="size-4" />
-            {{ t('library.fromYoutube') }}
+            {{ t('library.fromLink') }}
           </button>
           <button
             type="button"

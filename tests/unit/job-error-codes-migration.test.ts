@@ -15,15 +15,20 @@ afterEach(() => {
   for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-/** The migrations as they stood before Jobs had codes: everything up to, not including, 0022. */
+/**
+ * The migrations as they stood before Jobs had codes: everything up to, not
+ * including, 0022. Later ones go too: drizzle applies only what is newer than
+ * the last migration it ran, so leaving one in would skip 0022 on upgrade.
+ */
 function migrationsBeforeCodes(): string {
   const dir = mkdtempSync(join(tmpdir(), 'akapela-migrations-'))
   cleanup.push(dir)
   cpSync(MIGRATIONS, dir, { recursive: true })
-  rmSync(join(dir, `${CODES_MIGRATION}.sql`))
   const journalPath = join(dir, 'meta/_journal.json')
   const journal = JSON.parse(readFileSync(journalPath, 'utf8'))
-  journal.entries = journal.entries.filter((entry: { tag: string }) => entry.tag !== CODES_MIGRATION)
+  const cut = journal.entries.findIndex((entry: { tag: string }) => entry.tag === CODES_MIGRATION)
+  for (const entry of journal.entries.slice(cut)) rmSync(join(dir, `${entry.tag}.sql`))
+  journal.entries = journal.entries.slice(0, cut)
   writeFileSync(journalPath, JSON.stringify(journal))
   return dir
 }

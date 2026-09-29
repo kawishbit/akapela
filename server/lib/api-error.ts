@@ -6,6 +6,12 @@ import type { CodedFailure } from '../../shared/error-codes'
  * logs, traces, and anyone calling the API by hand; `data` carries the code
  * the browser turns into the singer's Language (ADR 0014).
  */
-export function apiError(statusCode: number, coded: CodedFailure, statusMessage: string) {
-  return createError({ statusCode, statusMessage, data: coded })
+export function apiError(
+  statusCode: number,
+  coded: CodedFailure,
+  statusMessage: string,
+  /** Anything more the page needs to act on the refusal, such as a Track to link to. */
+  extra: Record<string, unknown> = {},
+) {
+  return createError({ statusCode, statusMessage, data: { ...extra, ...coded } })
 }
