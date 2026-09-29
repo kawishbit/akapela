@@ -1,0 +1,26 @@
+# Akapela on an NVIDIA GPU. Layered over the default compose file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# Builds the Dockerfile's `gpu` target (CUDA 13 and cuDNN 9, several GB more
+# than the default image) and reserves the host's NVIDIA GPU for it. The host
+# needs an NVIDIA driver of 580 or newer, and the NVIDIA Container Toolkit, or
+# Docker Desktop with WSL2 on Windows;
+# without it, compose stops here with Docker's own "could not select device
+# driver" error. See docs/self-hosting.md, "Separating on an NVIDIA GPU".
+#
+# Settings then says "GPU: CUDA", and a Separation runs on it while Hardware
+# acceleration is on.
+
+services:
+  app:
+    build:
+      context: .
+      target: gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

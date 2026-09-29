@@ -117,6 +117,8 @@ export async function detectAccelerator(
   candidates: readonly GpuBackend[],
   open: (bytes: Uint8Array, options: ort.InferenceSession.SessionOptions) => Promise<ort.InferenceSession>
     = (bytes, options) => ort.InferenceSession.create(bytes, options),
+  /** Hears why each adapter or backend that did not count failed, so a missing GPU can be explained. */
+  onFailure: (accelerator: Accelerator, why: string) => void = () => {},
 ): Promise<Accelerator | null> {
   const bytes = probeModelBytes(PROBE_SIZE)
   const input = new Float32Array(PROBE_SIZE * PROBE_SIZE).fill(1 / PROBE_SIZE)
@@ -137,11 +139,15 @@ export async function detectAccelerator(
         await session.release?.()
         // Every element of a matrix of 1/n times itself is 1/n.
         const value = (output?.data as Float32Array | undefined)?.[0]
-        if (value === undefined || Math.abs(value - 1 / PROBE_SIZE) > 1e-4) continue
+        if (value === undefined || Math.abs(value - 1 / PROBE_SIZE) > 1e-4) {
+          onFailure(accelerator, `gave ${value} where the probe expects ${1 / PROBE_SIZE}`)
+          continue
+        }
         if (!best || ms < best.ms) best = { accelerator, ms }
       }
-      catch {
+      catch (error) {
         // No such adapter, or the backend cannot load here: not a candidate.
+        onFailure(accelerator, error instanceof Error ? error.message : String(error))
       }
     }
   }

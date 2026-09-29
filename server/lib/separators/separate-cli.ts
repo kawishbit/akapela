@@ -36,7 +36,15 @@ import * as ort from 'onnxruntime-node'
 
 async function main(): Promise<void> {
   if (process.argv[2] === DETECT_FLAG) {
-    const detected = await detectAccelerator(parseBackendList(process.argv[3] ?? ''))
+    const failures: string[] = []
+    const detected = await detectAccelerator(
+      parseBackendList(process.argv[3] ?? ''),
+      undefined,
+      (accelerator, why) => failures.push(`${formatAccelerator(accelerator)}: ${why}`),
+    )
+    // Why nothing counted, when nothing did. DirectML adapters past the last
+    // real one always fail, so a success needs no explaining.
+    if (!detected) for (const failure of failures) process.stdout.write(formatNotice(failure))
     process.stdout.write(formatDetected(detected ? formatAccelerator(detected) : null))
     return
   }

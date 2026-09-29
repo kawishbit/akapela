@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { availableParallelism } from 'node:os'
 import { candidateBackends, parseAccelerator, type Accelerator } from './separators/accelerator'
 import { formatDetectCliArgs } from './separators/cli-args'
-import { parseDetected } from './separators/progress'
+import { parseDetected, parseNotice } from './separators/progress'
 import { childEnv, separateCliPath } from './tools'
 
 /**
@@ -58,7 +58,12 @@ function detectAccelerator(candidates: readonly string[]): Promise<Accelerator |
     child.on('close', (code) => {
       const detected = parseDetected(stdout)
       if (detected === undefined) return give(stderr.trim() || `detection exited with code ${code}`, null)
-      give(null, detected === null ? null : parseAccelerator(detected))
+      if (detected === null) {
+        // Only said when every candidate failed: why each did.
+        const reasons = stdout.split('\n').map(parseNotice).filter((n): n is string => n !== null)
+        return give(reasons.length > 0 ? `no GPU backend worked (${reasons.join('; ')})` : null, null)
+      }
+      give(null, parseAccelerator(detected))
     })
   })
 }

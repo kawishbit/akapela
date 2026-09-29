@@ -14,6 +14,16 @@ Akapela fetches YouTube audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp). Y
 
 If that gets you nothing newer, the breakage is probably too fresh for a fix. Check [yt-dlp's issue tracker](https://github.com/yt-dlp/yt-dlp/issues) and try again once a fix lands. Importing an audio file is unaffected either way.
 
+## The GPU override won't start, or Settings shows no GPU
+
+If `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up` stops with an error like `could not select device driver "nvidia" with capabilities: [[gpu]]`, Docker can't see the GPU. On Linux, install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) and restart Docker. On Windows, use Docker Desktop's WSL2 backend with a current NVIDIA driver. Check with:
+
+```
+docker run --rm --gpus all ubuntu nvidia-smi
+```
+
+If that lists your card but Settings still says **no GPU found**, either the container started without the GPU image, or the host's driver is too old for CUDA 13. `nvidia-smi` on the host should show driver 580 or newer. Make sure both `-f` files are on the command, and rebuild with `--build`. Either way, vocal removal still works on the CPU.
+
 ## The Sing screen can't reach my microphone
 
 If Akapela is open at an address like `http://192.168.1.20:3000`, the browser won't give it a microphone: recording needs `https://` or `http://localhost`. See [Singing from another device](self-hosting.md#singing-from-another-device) for the three ways round it. Browsing, importing, and queueing work either way.

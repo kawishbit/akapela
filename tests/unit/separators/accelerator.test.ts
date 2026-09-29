@@ -8,7 +8,7 @@ import {
 } from '../../../server/lib/separators/accelerator'
 import { formatSeparateCliArgs, parseSeparateCliArgs } from '../../../server/lib/separators/cli-args'
 import type { ModelSession } from '../../../server/lib/separators/mdx-net'
-import { probeModelBytes } from '../../../server/lib/separators/probe-model'
+import { PROBE_SIZE, probeModelBytes } from '../../../server/lib/separators/probe-model'
 import { cliOutputReader, formatDetected, formatFallback, parseDetected } from '../../../server/lib/separators/progress'
 import { acceleratedSessionOptions, detectAccelerator, FallbackSession } from '../../../server/lib/separators/session'
 
@@ -77,18 +77,17 @@ describe('the probe model', () => {
 })
 
 describe('detectAccelerator', () => {
-  /** Stands in for onnxruntime: adapters that work at the given speed, and fail otherwise. */
+  /** Stands in for onnxruntime: adapters that answer the probe right after the given delay, and fail otherwise. */
   function fakeOpen(working: Record<string, number>) {
-    return async (bytes: Uint8Array, options: ort.InferenceSession.SessionOptions) => {
+    return async (_bytes: Uint8Array, options: ort.InferenceSession.SessionOptions) => {
       const provider = options.executionProviders![0] as string | { name: string, deviceId?: number }
       const key = typeof provider === 'string' ? provider : `${provider.name}:${provider.deviceId}`
       const delay = working[key]
       if (delay === undefined) throw new Error(`no ${key}`)
-      const real = await ort.InferenceSession.create(bytes)
       return {
-        run: async (feeds: Record<string, ort.Tensor>) => {
+        run: async () => {
           await new Promise(resolve => setTimeout(resolve, delay))
-          return real.run(feeds)
+          return { Y: new ort.Tensor('float32', Float32Array.of(1 / PROBE_SIZE), [1]) }
         },
         release: async () => {},
       } as unknown as ort.InferenceSession
@@ -96,7 +95,7 @@ describe('detectAccelerator', () => {
   }
 
   it('keeps the fastest DirectML adapter that works', async () => {
-    expect(await detectAccelerator(['dml'], fakeOpen({ 'dml:0': 30, 'dml:1': 1 }))).toEqual({ backend: 'dml', deviceId: 1 })
+    expect(await detectAccelerator(['dml'], fakeOpen({ 'dml:0': 60, 'dml:1': 0 }))).toEqual({ backend: 'dml', deviceId: 1 })
   })
 
   it('finds nothing when no backend opens', async () => {
