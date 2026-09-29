@@ -16,42 +16,50 @@
     "(ADR 0003 and ADR 0004 amendments). Windows and Linux are still BtbN's `gpl` variant from before",
     "that; whether a slimmer build would do is `.scratch/apple-silicon-release/issues/05-slimmer-bundled-ffmpeg.md`.",
     "",
+    "Every archive the release matrix fetches is mirrored as an asset on this repo's own `bundled-ffmpeg-*`",
+    "prerelease, and `url` points there; `$upstream` records where it came from. A third party's retention",
+    "is not ours to rely on: BtbN deletes its daily autobuilds after about two weeks, and the 1.3.0 release",
+    "failed on a pin that had been pruned. To move a pin, download the new upstream archive, --record it,",
+    "cross-check the publisher's checksum, and upload it to a new mirror release; never edit an existing one.",
+    "",
     "A null sha256 means nobody has verified that build yet, and `fetch-binaries.ts` refuses it. Run it",
     "with --record on a machine that can reach the URL to fill one in."
   ],
   "platforms": {
     "win32-x64": {
       "archive": "zip",
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-10-15-31/ffmpeg-N-126492-gefb0a7e5e7-win64-gpl.zip",
-      "$verified": "Downloaded and checked: `ffmpeg -version` reports --enable-gpl and --enable-librubberband, and `ffmpeg -filters` lists the rubberband filter.",
-      "sha256": "079321027fec0ad26225517b3b66d78336e001dd4cf152e85e5ba2e78f23535d",
+      "url": "https://github.com/kawishbit/akapela/releases/download/bundled-ffmpeg-2026-09-30/ffmpeg-N-126342-gf88b741dbf-win64-gpl.zip",
+      "$upstream": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-31-13-27/ffmpeg-N-126342-gf88b741dbf-win64-gpl.zip",
+      "$verified": "Downloaded, matched against BtbN's checksums.sha256, extracted, and run: `ffmpeg -encoders` lists libmp3lame.",
+      "sha256": "b4da332540eaebc6939181b59e267f163dd57407ef6596f7f3452845921d1d91",
       "members": {
-        "ffmpeg.exe": "ffmpeg-N-126492-gefb0a7e5e7-win64-gpl/bin/ffmpeg.exe"
+        "ffmpeg.exe": "ffmpeg-N-126342-gf88b741dbf-win64-gpl/bin/ffmpeg.exe"
       }
     },
     "win32-arm64": {
       "archive": "zip",
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-10-15-31/ffmpeg-N-126492-gefb0a7e5e7-winarm64-gpl.zip",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-31-13-27/ffmpeg-N-126342-gf88b741dbf-winarm64-gpl.zip",
       "sha256": null,
       "members": {
-        "ffmpeg.exe": "ffmpeg-N-126492-gefb0a7e5e7-winarm64-gpl/bin/ffmpeg.exe"
+        "ffmpeg.exe": "ffmpeg-N-126342-gf88b741dbf-winarm64-gpl/bin/ffmpeg.exe"
       }
     },
     "linux-x64": {
       "archive": "tar.xz",
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-10-15-31/ffmpeg-N-126492-gefb0a7e5e7-linux64-gpl.tar.xz",
-      "$verified": "Downloaded and hashed. Not run — the machine that pinned it was Windows. Same BtbN build matrix and same `gpl` variant as win32-x64, whose `ffmpeg -version` was checked and reports --enable-librubberband.",
-      "sha256": "41e0b9591520fa458917106b60fee083f647f8252423a60ebaf1f3f3db446a30",
+      "url": "https://github.com/kawishbit/akapela/releases/download/bundled-ffmpeg-2026-09-30/ffmpeg-N-126342-gf88b741dbf-linux64-gpl.tar.xz",
+      "$upstream": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-31-13-27/ffmpeg-N-126342-gf88b741dbf-linux64-gpl.tar.xz",
+      "$verified": "Downloaded, hashed, and matched against BtbN's checksums.sha256. Not run — the machine that pinned it was Windows. Same BtbN build and `gpl` variant as win32-x64, which was run.",
+      "sha256": "d1cf19f669510448f18a4cffcdbd8fa9592ee7c15c92feb5b96ad7e9ccc30114",
       "members": {
-        "ffmpeg": "ffmpeg-N-126492-gefb0a7e5e7-linux64-gpl/bin/ffmpeg"
+        "ffmpeg": "ffmpeg-N-126342-gf88b741dbf-linux64-gpl/bin/ffmpeg"
       }
     },
     "linux-arm64": {
       "archive": "tar.xz",
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-10-15-31/ffmpeg-N-126492-gefb0a7e5e7-linuxarm64-gpl.tar.xz",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-31-13-27/ffmpeg-N-126342-gf88b741dbf-linuxarm64-gpl.tar.xz",
       "sha256": null,
       "members": {
-        "ffmpeg": "ffmpeg-N-126492-gefb0a7e5e7-linuxarm64-gpl/bin/ffmpeg"
+        "ffmpeg": "ffmpeg-N-126342-gf88b741dbf-linuxarm64-gpl/bin/ffmpeg"
       }
     },
     "darwin-arm64": {
@@ -60,7 +68,8 @@
       "archive": "zip-per-binary",
       "binaries": {
         "ffmpeg": {
-          "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1787073674_9.0.1/ffmpeg.zip",
+          "url": "https://github.com/kawishbit/akapela/releases/download/bundled-ffmpeg-2026-09-30/ffmpeg-9.0.1-macos-arm64.zip",
+          "$upstream": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1787073674_9.0.1/ffmpeg.zip",
           "sha256": "8287a1b2229e05eb41859f073e18e6c52c60a778f2f5e6881070fe51b79407fe",
           "member": "ffmpeg"
         }
