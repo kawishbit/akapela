@@ -5,7 +5,7 @@ import { runRender } from './jobs/render'
 import { MdxNetSeparator, separateHandler } from './jobs/separate'
 import { YtDlpFetcher } from './sources'
 import type { Telemetry } from './telemetry'
-import { HEAVY_JOB_TYPE, type Lane } from './jobs'
+import { laneCondition, type Lane } from './jobs'
 import { RunningJobs } from './running-jobs'
 import { toCodedFailure } from '../../shared/error-codes'
 
@@ -74,6 +74,8 @@ interface JobRow {
   trace_parent: string | null
   separation_model: string | null
   detail: string | null
+  playlist_import_id: string | null
+  playlist_import_name: string | null
 }
 
 function toJob(row: JobRow): Job {
@@ -92,6 +94,8 @@ function toJob(row: JobRow): Job {
     traceParent: row.trace_parent,
     separationModel: row.separation_model as Job['separationModel'],
     detail: row.detail,
+    playlistImportId: row.playlist_import_id,
+    playlistImportName: row.playlist_import_name,
   }
 }
 
@@ -105,11 +109,9 @@ const NO_TELEMETRY: Telemetry = {
   shutdown: async () => {},
 }
 
-/** The `claimNext` filter for one Lane, or for both when a runner is given none. */
+/** The `claimNext` filter for one Lane, or for every Lane when a runner is given none. */
 function laneFilter(lane: Lane | undefined): string {
-  if (lane === 'heavy') return `AND type = '${HEAVY_JOB_TYPE}'`
-  if (lane === 'light') return `AND type != '${HEAVY_JOB_TYPE}'`
-  return ''
+  return lane ? `AND ${laneCondition(lane)}` : ''
 }
 
 export class JobsRunner {
@@ -126,7 +128,7 @@ export class JobsRunner {
     options: {
       handlers?: Partial<Record<JobType, Handler>>
       telemetry?: Telemetry
-      /** Which Lane this runner claims from. Left out, it claims from both — what a test running one Job wants. */
+      /** Which Lane this runner claims from. Left out, it claims from every Lane — what a test running one Job wants. */
       lane?: Lane
       /** Where a running Job registers, so a cancel can reach it. Shared with the API through `Akapela`. */
       running?: RunningJobs
@@ -142,8 +144,8 @@ export class JobsRunner {
 
   /**
    * Requeues any Job left `running` by a previous process that died. Returns
-   * how many. Across both Lanes, so it is called once at startup before
-   * either loop starts, never per Lane.
+   * how many. Across every Lane, so it is called once at startup before
+   * any loop starts, never per Lane.
    */
   recoverStaleJobs(): number {
     const result = this.sqlite
@@ -162,7 +164,7 @@ export class JobsRunner {
            ORDER BY created_at, rowid LIMIT 1
          )
          RETURNING id, type, target_id, state, progress, error, error_code, error_params, created_at, started_at,
-           finished_at, trace_parent, separation_model, detail`,
+           finished_at, trace_parent, separation_model, detail, playlist_import_id, playlist_import_name`,
       )
       .get(Date.now()) as JobRow | undefined
     return row ? toJob(row) : null

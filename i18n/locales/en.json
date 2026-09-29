@@ -13,6 +13,12 @@
     "ytDlpDownloadFailed": "Akapela couldn't download yt-dlp, which it fetches the first time you import from YouTube. Check the server's connection, then retry.",
     "modelDownloadFailed": "The Separation Model {model} couldn't be downloaded. Check the server's connection, then retry.",
     "audioUndecodable": "That file couldn't be read as audio.",
+    "noYoutubeMatch": "Akapela couldn't find {artist} · {title} on YouTube. Paste a link to it.",
+    "playlistTooLong": "That has {total} songs, and Akapela imports up to 100 at once. Make a shorter playlist from it in Spotify and paste that link.",
+    "playlistNotFound": "Spotify has no public playlist or album at that link. It may be private or deleted.",
+    "playlistUnreadable": "Akapela couldn't read that page from Spotify, which usually means Spotify changed it. Update Akapela, then try again.",
+    "invalidPlaylistLink": "Paste a link to a Spotify playlist or album, like https://open.spotify.com/playlist/…",
+    "youtubeLinkNeeded": "Paste a YouTube link to import this from.",
     "unsupportedUpload": "Akapela can't import that type of file. Import an MP3, M4A, WAV, FLAC, or OGG file.",
     "invalidYoutubeUrl": "Paste a link to a single YouTube video, like https://youtu.be/xxxxxxxxxxx",
     "lyricsProviderUnreachable": "{provider} couldn't be reached. Try again later, or try another Lyrics Provider.",
@@ -40,6 +46,7 @@
     "presetNameTaken": "A Preset with this name already exists.",
     "presetBuiltIn": "This Preset ships with the app and can't be deleted.",
     "manualLyricsOverwrite": "These Lyrics were typed by hand. Fetching from a provider replaces them.",
+    "songInLibrary": "Already in your Library: {title}",
     "restoreNeedsConfirmation": "Restoring replaces your entire library. Confirm to continue.",
     "invalidBackup": "That file isn't an Akapela backup Akapela can read.",
     "ytDlpNotManaged": "This Akapela doesn't manage its own yt-dlp. Rebuild the image to update it."
@@ -241,10 +248,10 @@
     "uploadFailed": "{file}: {reason}",
     "dropToImport": "Drop to import",
     "settings": "Settings",
-    "fromYoutube": "From YouTube",
+    "fromLink": "From a link",
     "importFile": "Import file",
-    "importFromYoutube": "Import from YouTube",
-    "pasteLink": "Paste a YouTube link",
+    "importFromLink": "Import from a link",
+    "pasteLink": "Paste a YouTube link, or a Spotify playlist or album",
     "import": "Import",
     "search": "Search by title or artist",
     "searchLabel": "Search your library",
@@ -254,6 +261,35 @@
     "noMatchesHint": "Try another title or artist.",
     "emptyTitle": "Nothing to sing yet",
     "emptyBody": "Paste a YouTube link or import an audio file ({formats}) to add your first Track."
+  },
+  "playlistImport": {
+    "title": "Import from Spotify",
+    "loading": "Reading it from Spotify…",
+    "kinds": {
+      "playlist": "Playlist",
+      "album": "Album"
+    },
+    "count": "{count} song | {count} songs",
+    "intro": "Each song you tick is found on YouTube, imported, given its Lyrics, and separated. Follow it all on the Jobs page.",
+    "tickAll": "Tick all",
+    "untickAll": "Untick all",
+    "songLabel": "Import {title} by {artist}",
+    "inLibrary": "In your Library",
+    "duplicate": "Already in this list",
+    "summary": "Import {count} song. Separating it will take about {time}. | Import {count} songs. Separating them will take about {time}.",
+    "nothingTicked": "Tick the songs you want to import.",
+    "start": "Start",
+    "back": "Back to the Library",
+    "estimate": {
+      "underMinute": "under a minute",
+      "minutes": "{minutes} min",
+      "hours": "{hours} h",
+      "hoursMinutes": "{hours} h {minutes} min"
+    }
+  },
+  "youtubeLink": {
+    "label": "Paste a YouTube link for {title}",
+    "import": "Import"
   },
   "track": {
     "fromYoutube": "From YouTube",
@@ -282,7 +318,8 @@
     "useWhatITyped": "Use what I typed",
     "replaceTitle": "Replace the Lyrics you typed?",
     "replaceMessage": "Confirming a Song fetches its Lyrics, which replaces the ones typed on this Track.",
-    "replace": "Replace"
+    "replace": "Replace",
+    "openOther": "Open {title}"
   },
   "lyricsPanel": {
     "heading": "Lyrics",
@@ -311,6 +348,7 @@
     },
     "waitsHeavy": "Waits for other Separations",
     "waitsLight": "Waits for imports and Mixes",
+    "waitsPlaylist": "Waits for other imports from playlists",
     "detail": {
       "downloadingModel": "Downloading {model}",
       "finishedOnCpu": "Finished on CPU: the GPU failed"
@@ -334,7 +372,21 @@
     "running": "Running",
     "queued": "Queued",
     "finished": "Finished",
-    "clearFinished": "Clear finished"
+    "clearFinished": "Clear finished",
+    "pasteLink": "Paste a link",
+    "pasteLinkLabel": "Paste a YouTube link for {title}",
+    "playlistImport": {
+      "heading": "Playlist Imports",
+      "eyebrow": "Playlist Import",
+      "progress": "{imported} of {songs} imported · {separated} of {songs} separated",
+      "failed": "{count} failed",
+      "show": "Show its Jobs",
+      "hide": "Hide its Jobs",
+      "cancelAll": "Cancel all",
+      "cancelAllLabel": "Cancel all of {name}",
+      "cancelTitle": "Cancel this Playlist Import?",
+      "cancelMessage": "Every song from {name} that is still waiting or importing is cancelled, and its Track removed. Separations still waiting are cancelled too. Tracks that have finished importing stay."
+    }
   },
   "backingSources": {
     "original": "Original",

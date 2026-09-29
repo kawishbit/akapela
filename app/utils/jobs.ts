@@ -49,7 +49,11 @@ export function jobActivity(type: JobType, t: Translate): string {
 
 /** What a queued Job waits behind. The UI never says "Lane". */
 export function queuedBehind(lane: Lane, t: Translate): string {
-  return lane === 'heavy' ? t('jobs.waitsHeavy') : t('jobs.waitsLight')
+  switch (lane) {
+    case 'heavy': return t('jobs.waitsHeavy')
+    case 'playlist': return t('jobs.waitsPlaylist')
+    case 'light': return t('jobs.waitsLight')
+  }
 }
 
 /**

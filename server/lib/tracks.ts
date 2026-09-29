@@ -31,9 +31,9 @@ import {
 import type { Song } from '../../shared/song'
 import type { TrackDetails } from '../../shared/track-details'
 import type { LyricsProviderName } from '../../shared/lyrics'
-import type { CodedFailure } from '../../shared/error-codes'
+import { CodedError, failure, type CodedFailure } from '../../shared/error-codes'
 import { COVER_BASENAME, coverExtension, placeholderCoverSvg } from './cover'
-import { enqueueJob } from './jobs'
+import { enqueueJob, playlistImportOf, type PlaylistImportLabel } from './jobs'
 import { getLyrics } from './lyrics'
 import { listMixesForTrack, type MixWithJob } from './mixes'
 import type { Akapela } from './akapela'
@@ -159,12 +159,51 @@ export function createTrackFromYoutube(akapela: Akapela, input: { url: string })
 }
 
 /**
+ * Creates a Track for one song of a Playlist Import: a YouTube Source with no
+ * link yet, which its import Job finds by searching, Spotify's title and
+ * length, and its Song confirmed from Spotify's artist and title before
+ * anything is downloaded. Confirming it now is what reserves the Song, so a
+ * second Playlist Import of the same playlist cannot create it again.
+ *
+ * The caller has already checked, in the same transaction, that no other
+ * Track has this Song (`trackWithSong`).
+ */
+export function createTrackFromPlaylistSong(
+  akapela: Akapela,
+  song: { artist: string, title: string, durationMs: number },
+  playlistImport: PlaylistImportLabel,
+): TrackWithJob {
+  const artist = song.artist.trim()
+  const title = song.title.trim()
+  return startImport(akapela, {
+    id: randomUUID(),
+    title,
+    sourceKind: 'youtube',
+    sourceRef: '',
+    artist,
+    durationMs: song.durationMs,
+    song: { artist, title },
+    playlistImport,
+  })
+}
+
+/**
  * Writes a placeholder cover into the Track's directory, inserts the Track in
  * importing state, and enqueues the import job.
  */
 function startImport(
   akapela: Akapela,
-  input: { id: string, title: string, sourceKind: SourceKind, sourceRef: string },
+  input: {
+    id: string
+    title: string
+    sourceKind: SourceKind
+    sourceRef: string
+    artist?: string
+    durationMs?: number
+    /** A Song confirmed as the Track is created, which only a Playlist Import does. */
+    song?: { artist: string, title: string }
+    playlistImport?: PlaylistImportLabel
+  },
 ): TrackWithJob {
   const dir = trackDir(akapela, input.id)
   mkdirSync(dir, { recursive: true })
@@ -175,8 +214,8 @@ function startImport(
   const track: Track = {
     id: input.id,
     title: input.title,
-    artist: null,
-    durationMs: null,
+    artist: input.artist ?? null,
+    durationMs: input.durationMs ?? null,
     coverPath,
     sourceKind: input.sourceKind,
     sourceRef: input.sourceRef,
@@ -186,9 +225,9 @@ function startImport(
     stemLevels: { ...DEFAULT_STEM_LEVELS },
     stemsModel: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
-    songArtist: null,
-    songTitle: null,
-    songProviderIds: null,
+    songArtist: input.song?.artist ?? null,
+    songTitle: input.song?.title ?? null,
+    songProviderIds: input.song ? {} : null,
     songAlbumArtUrl: null,
     // New Tracks start where the singer said Lyrics should come from.
     lyricsProvider: defaultLyricsProviderOf(akapela),
@@ -200,7 +239,7 @@ function startImport(
     updatedAt: now,
   }
   akapela.db.insert(tracks).values(track).run()
-  const job = enqueueJob(akapela, { type: 'import', targetId: input.id })
+  const job = enqueueJob(akapela, { type: 'import', targetId: input.id, playlistImport: input.playlistImport })
   return { ...track, job, separationJobId: null }
 }
 
@@ -300,22 +339,92 @@ export function confirmedSong(track: Track): Song | null {
   }
 }
 
+/** The other Track a Song is already confirmed on, which is what refusing it names. */
+export interface TrackWithSong {
+  id: string
+  title: string
+}
+
+/**
+ * The Track this Song is confirmed on, if any. Two Songs are the same when
+ * their artist and title are, exactly, once the whitespace around each is
+ * trimmed: case, accents, a "feat." or a " - Remastered 2011" all make another
+ * Song (CONTEXT.md). `exceptTrackId` leaves one Track out, so re-confirming a
+ * Track's own Song is not a clash with itself.
+ *
+ * Libraries from before the rule may have two Tracks on one Song; this names
+ * the oldest.
+ */
+export function trackWithSong(
+  akapela: Akapela,
+  song: Pick<Song, 'artist' | 'title'>,
+  exceptTrackId?: string,
+): TrackWithSong | undefined {
+  const row = akapela.sqlite
+    .prepare(
+      `SELECT id, title FROM tracks
+       WHERE coalesce(song_artist, '') = ? AND song_title = ? AND id != ?
+       ORDER BY created_at, rowid LIMIT 1`,
+    )
+    .get(song.artist.trim(), song.title.trim(), exceptTrackId ?? '') as TrackWithSong | undefined
+  return row
+}
+
+export const SONG_IN_LIBRARY_MESSAGE = 'Another Track already has this Song'
+
+/** Refuses a Song another Track already has; nothing about either Track changes. */
+export class SongInLibraryError extends CodedError<'songInLibrary'> {
+  readonly other: TrackWithSong
+
+  constructor(other: TrackWithSong) {
+    super(failure('songInLibrary', { title: other.title }), `${SONG_IN_LIBRARY_MESSAGE}: ${other.title}`)
+    this.other = other
+  }
+}
+
 /**
  * Confirms the Song a Track represents. The Song's artist becomes the Track's
  * too, since confirming one is what gives a Track the artist the library
  * lists it by — unless the singer has typed an artist themselves.
+ *
+ * No two Tracks share a Song, so one another Track already has is refused
+ * with `SongInLibraryError`. The check and the write are one transaction,
+ * so two requests confirming the same Song at once cannot both succeed. It is
+ * checked here rather than by a unique index, because a library from before
+ * the rule may already hold duplicates, and those stay as they are.
  */
 export function saveSong(akapela: Akapela, track: TrackWithJob, song: Song): TrackWithJob {
+  const artist = song.artist.trim()
+  const title = song.title.trim()
   const saved = {
-    songArtist: song.artist,
-    songTitle: song.title,
+    songArtist: artist,
+    songTitle: title,
     songProviderIds: song.providerIds,
     songAlbumArtUrl: song.albumArtUrl,
-    artist: track.artistEdited ? track.artist : song.artist,
+    artist: track.artistEdited ? track.artist : artist,
     updatedAt: Date.now(),
   }
-  akapela.db.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
+  akapela.db.transaction((tx) => {
+    const other = otherTrackWithSong(akapela, track, { artist, title })
+    if (other) throw new SongInLibraryError(other)
+    tx.update(tracks).set(saved).where(eq(tracks.id, track.id)).run()
+  }, { behavior: 'immediate' })
   return { ...track, ...saved }
+}
+
+/**
+ * The other Track that confirming this Song on `track` would clash with. A
+ * Track confirming the Song it already has clashes with nothing, even with a
+ * duplicate from before the rule.
+ */
+export function otherTrackWithSong(
+  akapela: Akapela,
+  track: Track,
+  song: Pick<Song, 'artist' | 'title'>,
+): TrackWithSong | undefined {
+  const current = confirmedSong(track)
+  if (current && current.artist === song.artist.trim() && current.title === song.title.trim()) return undefined
+  return trackWithSong(akapela, song, track.id)
 }
 
 /**
@@ -597,7 +706,31 @@ export function saveStemLevels(akapela: Akapela, track: TrackWithJob, stemLevels
   return { ...(getTrack(akapela, track.id) ?? track), stemLevels, updatedAt: now }
 }
 
-/** Puts a failed Track back into importing state and enqueues a fresh import job. */
+/** A Track whose import searches YouTube for its song, and so has no link of its own until it has found one. */
+export function needsYoutubeLink(track: Track): boolean {
+  return track.sourceKind === 'youtube' && !track.sourceRef
+}
+
+export const YOUTUBE_LINK_NEEDED_MESSAGE = 'Paste a YouTube link to import this Track from'
+
+/**
+ * Retries a failed import from a link the singer pasted: what a Playlist
+ * Import's Track that found nothing on YouTube is retried with. The link
+ * becomes the Track's Source, and the import starts from the download.
+ */
+export function retryImportFromLink(akapela: Akapela, track: TrackWithJob, url: string): TrackWithJob {
+  const videoId = youtubeVideoId(url)
+  if (!videoId) throw new CodedError(failure('invalidYoutubeUrl'), INVALID_YOUTUBE_URL_MESSAGE)
+  const sourceRef = canonicalYoutubeUrl(videoId)
+  akapela.db.update(tracks).set({ sourceRef }).where(eq(tracks.id, track.id)).run()
+  return retryImport(akapela, { ...track, sourceRef })
+}
+
+/**
+ * Puts a failed Track back into importing state and enqueues a fresh import
+ * job. One a Playlist Import started stays part of it, and so stays on its
+ * Lane and in its group on the Jobs page.
+ */
 export function retryImport(akapela: Akapela, track: TrackWithJob): TrackWithJob {
   const now = Date.now()
   akapela.db
@@ -605,7 +738,11 @@ export function retryImport(akapela: Akapela, track: TrackWithJob): TrackWithJob
     .set({ importState: 'importing', updatedAt: now })
     .where(eq(tracks.id, track.id))
     .run()
-  const job = enqueueJob(akapela, { type: 'import', targetId: track.id })
+  const job = enqueueJob(akapela, {
+    type: 'import',
+    targetId: track.id,
+    playlistImport: track.job ? playlistImportOf(track.job) : null,
+  })
   return { ...track, importState: 'importing', updatedAt: now, job }
 }
 
@@ -627,12 +764,14 @@ export function latestSeparationJob(akapela: Akapela, trackId: string): Job | nu
  * deliberately allowed (a better model later should not mean re-importing).
  *
  * The Separation Model is fixed here, when the Separation is asked for — the
- * default unless one was named — and never read again from Settings.
+ * default unless one was named — and never read again from Settings. A
+ * Separation a Playlist Import asked for carries its label.
  */
 export function startSeparation(
   akapela: Akapela,
   track: TrackWithJob,
   separationModel: SeparationModelName = defaultSeparationModelOf(akapela),
+  playlistImport: PlaylistImportLabel | null = null,
 ): TrackWithSeparationJob {
   const now = Date.now()
   akapela.db
@@ -640,6 +779,6 @@ export function startSeparation(
     .set({ separationState: 'separating', updatedAt: now })
     .where(eq(tracks.id, track.id))
     .run()
-  const separationJob = enqueueJob(akapela, { type: 'separate', targetId: track.id, separationModel })
+  const separationJob = enqueueJob(akapela, { type: 'separate', targetId: track.id, separationModel, playlistImport })
   return { ...track, separationState: 'separating', updatedAt: now, separationJob, separationJobId: separationJob.id }
 }

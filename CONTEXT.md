@@ -15,7 +15,7 @@ An entry in the library, created by importing one Source. Owns the original audi
 _Avoid_: Song (reserved for the musical work identity), item, file
 
 **Song**:
-The musical work a Track represents: an artist and a title. Used to look up Lyrics. A Track has at most one confirmed Song.
+The musical work a Track represents: an artist and a title. Used to look up Lyrics. A Track has at most one confirmed Song, and no two Tracks have the same one — the same artist and title, exactly as written. A remaster whose title says so is a different Song.
 _Avoid_: Metadata, match
 
 **Backing Track**:
@@ -51,7 +51,7 @@ The file format Akapela stores a Track's Backing Track master and Stems in: WAV,
 _Avoid_: Codec, quality, file type
 
 **Playlist Import**:
-Importing many Tracks at once from a playlist on another service, such as Spotify. Each chosen song becomes its own YouTube Source and Track; the playlist itself is not kept.
+Importing many Tracks at once from a playlist or an album on another service, such as Spotify. Each chosen song becomes its own YouTube Source and Track, with its Song already confirmed. The playlist itself is not kept; its Jobs only remember its name, so they can be followed and cancelled together.
 _Avoid_: Bulk import, sync, batch
 
 ### Queue
@@ -119,7 +119,7 @@ A unit of long-running work the app runs itself, such as an import or producing 
 _Avoid_: Task, process, operation
 
 **Lane**:
-One of the two lines Jobs wait in, which run side by side: the heavy Lane for Separations, and the light Lane for everything else (ADR 0012).
+One of the three lines Jobs wait in, which run side by side: the heavy Lane for Separations, the playlist Lane for the imports a Playlist Import starts, and the light Lane for everything else (ADR 0012).
 _Avoid_: Worker, queue, channel
 
 ### Interface

@@ -210,6 +210,74 @@ describe('JobsRunner', () => {
     expect(ran).toEqual(['mix', 'imp', 'sep'])
   })
 
+  it('runs a Playlist Import\'s imports in the playlist Lane, beside a Mix and an import started by hand', async () => {
+    const t = setup()
+    t.enqueue('import', { id: 'pl-1', createdAt: 1000, playlistImportId: 'p1' })
+    t.enqueue('import', { id: 'pl-2', createdAt: 1100, playlistImportId: 'p1' })
+    t.enqueue('render', { id: 'mix', createdAt: 2000 })
+    t.enqueue('import', { id: 'by-hand', createdAt: 3000 })
+    let finishImport!: () => void
+    const importHeld = new Promise<void>(resolve => (finishImport = resolve))
+    const ran: string[] = []
+    const handlers: Partial<Record<Job['type'], Handler>> = {
+      import: async (ctx) => {
+        ran.push(ctx.job.id)
+        if (ctx.job.id === 'pl-1') await importHeld
+      },
+      render: async (ctx) => {
+        ran.push(ctx.job.id)
+      },
+    }
+    const playlist = new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'playlist', handlers })
+    const light = new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'light', handlers })
+    const heavy = new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'heavy', handlers })
+
+    const running = playlist.runOnce()
+    await light.runOnce()
+    await light.runOnce()
+
+    // The playlist's first import is still going, and nothing waited for it.
+    expect(t.getJob('pl-1').state).toBe('running')
+    expect(t.getJob('mix').state).toBe('succeeded')
+    expect(t.getJob('by-hand').state).toBe('succeeded')
+    // One at a time: its next import waits for the first, in creation order.
+    expect(t.getJob('pl-2').state).toBe('queued')
+    await expect(light.runOnce()).resolves.toBe(false)
+    await expect(heavy.runOnce()).resolves.toBe(false)
+
+    finishImport()
+    await running
+    await playlist.runOnce()
+    expect(ran).toEqual(['pl-1', 'mix', 'by-hand', 'pl-2'])
+  })
+
+  it('runs a Separation a Playlist Import asked for in the heavy Lane', async () => {
+    const t = setup()
+    t.enqueue('separate', { id: 'sep', createdAt: 1000, playlistImportId: 'p1' })
+
+    await expect(new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'playlist' }).runOnce()).resolves.toBe(false)
+    await expect(new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'light' }).runOnce()).resolves.toBe(false)
+    await expect(
+      new JobsRunner(t.akapela.sqlite, t.dataDir, { lane: 'heavy', handlers: { separate: async () => {} } }).runOnce(),
+    ).resolves.toBe(true)
+  })
+
+  it('hands the handler the Job\'s Playlist Import label', async () => {
+    const t = setup()
+    t.enqueue('import', { id: 'pl', createdAt: 1000, playlistImportId: 'p1' })
+    let seen: Job | undefined
+    const runner = new JobsRunner(t.akapela.sqlite, t.dataDir, {
+      lane: 'playlist',
+      handlers: { import: async (ctx) => {
+        seen = ctx.job
+      } },
+    })
+
+    await runner.runOnce()
+
+    expect(seen).toMatchObject({ playlistImportId: 'p1', playlistImportName: 'All Out 80s' })
+  })
+
   it('puts a Job type it does not know in the light Lane', async () => {
     const t = setup()
     // @ts-expect-error - a type added after this test was written

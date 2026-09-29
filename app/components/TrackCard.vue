@@ -3,7 +3,7 @@ import { AudioLines, ListPlus, Loader2, RotateCcw, Trash2, XCircle } from 'lucid
 import type { TrackWithJob } from '~~/server/lib/tracks'
 
 const props = defineProps<{ track: TrackWithJob }>()
-const emit = defineEmits<{ delete: [], retry: [] }>()
+const emit = defineEmits<{ delete: [], retry: [], retried: [] }>()
 
 const { t } = useI18n()
 
@@ -20,6 +20,9 @@ const importLabel = computed(() => {
 })
 
 const failure = computed(() => props.track.job ? describeJobFailure(props.track.job, t) : null)
+
+/** A Playlist Import's Track that found nothing on YouTube: retrying it needs a link from the singer. */
+const needsLink = computed(() => props.track.sourceKind === 'youtube' && !props.track.sourceRef)
 
 // A separating Track can be queued; its entry says how far along it is. One
 // still importing cannot be sung at all.
@@ -122,7 +125,15 @@ function jobLink(jobId: string | null | undefined): string {
         >
           {{ failure?.message }}
         </p>
+        <YoutubeLinkRetry
+          v-if="needsLink"
+          :track-id="track.id"
+          :title="track.title"
+          compact
+          @retried="emit('retried')"
+        />
         <button
+          v-else
           type="button"
           class="relative inline-flex items-center justify-center gap-2 self-start rounded-pill bg-surface-mid px-4 py-2 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card group-hover:bg-card"
           @click="emit('retry')"

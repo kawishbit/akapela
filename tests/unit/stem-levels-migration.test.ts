@@ -6,14 +6,14 @@ import { createAkapela } from '../../server/lib/akapela'
 import { migrationsBefore } from './migrations-before'
 
 const MIGRATIONS = join(process.cwd(), 'server/db/migrations')
-const STEM_LEVELS_MIGRATION = '0023_stem_levels'
+const STEM_LEVELS_MIGRATION = '0024_stem_levels'
 
 const cleanup: string[] = []
 afterEach(() => {
   for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-/** The migrations as they stood before Stem Levels: everything up to, not including, 0023. */
+/** The migrations as they stood before Stem Levels: everything up to, not including, 0024. */
 function migrationsBeforeStemLevels(): string {
   const dir = migrationsBefore(STEM_LEVELS_MIGRATION)
   cleanup.push(dir)

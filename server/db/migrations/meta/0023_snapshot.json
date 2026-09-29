@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9ffc8c8d-4085-4e7e-bdbb-45463dff7bd8",
+  "id": "51c7ccb5-73f6-4ca3-b844-1382065048e9",
   "prevId": "4cb3ba2b-dafe-4b3f-8031-452d398b618f",
   "tables": {
     "jobs": {
@@ -102,6 +102,20 @@
         },
         "detail": {
           "name": "detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "playlist_import_id": {
+          "name": "playlist_import_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "playlist_import_name": {
+          "name": "playlist_import_name",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -264,14 +278,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'original'"
-        },
-        "stem_levels": {
-          "name": "stem_levels",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{\"guideVocal\":0,\"instrumental\":1}'"
         },
         "latency_nudge_ms": {
           "name": "latency_nudge_ms",
@@ -607,14 +613,6 @@
           "autoincrement": false,
           "default": "'original'"
         },
-        "stem_levels": {
-          "name": "stem_levels",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{\"guideVocal\":0,\"instrumental\":1}'"
-        },
         "latency_nudge_ms": {
           "name": "latency_nudge_ms",
           "type": "integer",
@@ -749,14 +747,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'original'"
-        },
-        "stem_levels": {
-          "name": "stem_levels",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{\"guideVocal\":0,\"instrumental\":1}'"
         },
         "stems_model": {
           "name": "stems_model",

@@ -3,6 +3,7 @@ import { INVALID_SONG_MESSAGE, parseSong, type Song } from '../../../../shared/s
 import { requireTrack } from '../../../lib/require-track'
 import { confirmSong } from '../../../lib/songs'
 import { ManualLyricsOverwriteError } from '../../../lib/track-lyrics'
+import { SongInLibraryError } from '../../../lib/tracks'
 import { apiError } from '../../../lib/api-error'
 import { failure } from '../../../../shared/error-codes'
 
@@ -12,6 +13,7 @@ import { failure } from '../../../../shared/error-codes'
  * Returns the Track with whatever Lyrics came back, or none when the provider
  * has none for this Song. Lyrics the singer typed are only replaced when the
  * body says `overwriteManual`, which is what the page sends once it has asked.
+ * A Song another Track already has is refused, naming that Track.
  */
 export default defineEventHandler(async (event) => {
   const track = requireTrack(event)
@@ -32,6 +34,9 @@ export default defineEventHandler(async (event) => {
   catch (error) {
     if (error instanceof ManualLyricsOverwriteError) {
       throw apiError(409, failure('manualLyricsOverwrite'), error.message)
+    }
+    if (error instanceof SongInLibraryError) {
+      throw apiError(409, error.failure, error.message, { track: error.other })
     }
     throw error
   }

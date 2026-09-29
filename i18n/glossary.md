@@ -38,6 +38,7 @@ Capitalised as in English: a `CONTEXT.md` term keeps its capital letters whereve
 | Mix | Mix | Rendering one is *merender*; the button is the loanword *Render*, as audio apps label it. A judgement call: see ticket 08's comments. | Ekspor, hasil, bounce |
 | Monitoring | Monitoring | Hearing yourself in your headphones while you sing, as audio interfaces label it. | Pemutaran, umpan balik |
 | Job | Tugas | | Proses, operasi, pekerjaan |
+| Playlist Import | Impor Playlist | *Playlist* is the loanword Spotify's own Indonesian uses; a Spotify album is imported the same way and is still one. | Daftar putar, impor massal |
 | Language | Bahasa | | Lokal, terjemahan |
 | Desktop App | Aplikasi Desktop | | Aplikasi Electron |
 | Update | Pembaruan | | Upgrade, patch |

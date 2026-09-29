@@ -61,7 +61,11 @@ import settingsPut from '../../server/api/settings.put'
 import presetsGet from '../../server/api/presets.get'
 import presetsPost from '../../server/api/presets.post'
 import presetsIdDelete from '../../server/api/presets/[id].delete'
+import playlistImportsPost from '../../server/api/playlist-imports.post'
+import playlistImportsPreviewPost from '../../server/api/playlist-imports/preview.post'
+import playlistImportsIdCancelPost from '../../server/api/playlist-imports/[id]/cancel.post'
 import { createFakeLyricsProvider } from './fake-lyrics-provider'
+import { createFakePlaylistReader } from './fake-playlist-reader'
 import { createFakeImages } from './fake-images'
 
 /**
@@ -103,6 +107,7 @@ export async function createTestApi(options: { hardware?: Hardware } = {}) {
   const lrclib = createFakeLyricsProvider('lrclib')
   const genius = createFakeLyricsProvider('genius')
   const images = createFakeImages()
+  const spotify = createFakePlaylistReader()
   const akapela = createAkapela({
     dataDir,
     migrationsDir: join(process.cwd(), 'server/db/migrations'),
@@ -110,6 +115,7 @@ export async function createTestApi(options: { hardware?: Hardware } = {}) {
     fetch: images.fetch,
     // A fixed machine, so what Settings says about it does not depend on the one running the suite.
     hardware: async () => options.hardware ?? { cores: 8, accelerator: null },
+    playlistReader: spotify.reader,
   })
 
   // Telemetry is off in every real test run, so the relay's sink stands in for
@@ -181,6 +187,9 @@ export async function createTestApi(options: { hardware?: Hardware } = {}) {
   router.get('/api/settings', settingsGet)
   router.put('/api/settings', settingsPut)
   router.post('/api/tools/yt-dlp', toolsYtDlpPost)
+  router.post('/api/playlist-imports', playlistImportsPost)
+  router.post('/api/playlist-imports/preview', playlistImportsPreviewPost)
+  router.post('/api/playlist-imports/:id/cancel', playlistImportsIdCancelPost)
   router.get('/api/presets', presetsGet)
   router.post('/api/presets', presetsPost)
   router.delete('/api/presets/:id', presetsIdDelete)
@@ -216,6 +225,8 @@ export async function createTestApi(options: { hardware?: Hardware } = {}) {
     genius: genius.canned,
     /** The album art the stand-in web answers with, and what was asked for. */
     images,
+    /** The playlist the stand-in Spotify answers with, and what it was asked for. */
+    spotify: spotify.canned,
     get: (path: string) => fetch(baseUrl + path),
     post: (path: string, body: unknown) =>
       fetch(baseUrl + path, {

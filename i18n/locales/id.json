@@ -13,6 +13,12 @@
     "ytDlpDownloadFailed": "Akapela tidak bisa mengunduh yt-dlp, yang diambilnya saat pertama kali kamu mengimpor dari YouTube. Periksa koneksi server, lalu coba lagi.",
     "modelDownloadFailed": "Model Pemisahan {model} tidak bisa diunduh. Periksa koneksi server, lalu coba lagi.",
     "audioUndecodable": "Berkas itu tidak bisa dibaca sebagai audio.",
+    "noYoutubeMatch": "Akapela tidak menemukan {artist} · {title} di YouTube. Tempel tautannya.",
+    "playlistTooLong": "Isinya {total} lagu, dan Akapela mengimpor paling banyak 100 sekaligus. Buat playlist yang lebih pendek darinya di Spotify, lalu tempel tautannya.",
+    "playlistNotFound": "Tidak ada playlist atau album publik di Spotify pada tautan itu. Mungkin privat atau sudah dihapus.",
+    "playlistUnreadable": "Akapela tidak bisa membaca halaman itu dari Spotify, biasanya karena Spotify mengubahnya. Perbarui Akapela, lalu coba lagi.",
+    "invalidPlaylistLink": "Tempel tautan ke playlist atau album Spotify, seperti https://open.spotify.com/playlist/…",
+    "youtubeLinkNeeded": "Tempel tautan YouTube untuk mengimpor ini.",
     "unsupportedUpload": "Akapela tidak bisa mengimpor jenis berkas itu. Impor berkas MP3, M4A, WAV, FLAC, atau OGG.",
     "invalidYoutubeUrl": "Tempel tautan ke satu video YouTube, seperti https://youtu.be/xxxxxxxxxxx",
     "lyricsProviderUnreachable": "{provider} tidak bisa dihubungi. Coba lagi nanti, atau coba Penyedia Lirik lain.",
@@ -40,6 +46,7 @@
     "presetNameTaken": "Sudah ada Preset dengan nama ini.",
     "presetBuiltIn": "Preset ini bawaan aplikasi dan tidak bisa dihapus.",
     "manualLyricsOverwrite": "Lirik ini diketik sendiri. Mengambil dari penyedia akan menggantinya.",
+    "songInLibrary": "Sudah ada di Pustaka kamu: {title}",
     "restoreNeedsConfirmation": "Memulihkan akan mengganti seluruh pustakamu. Konfirmasi untuk melanjutkan.",
     "invalidBackup": "Berkas itu bukan cadangan yang bisa dibaca Akapela.",
     "ytDlpNotManaged": "Akapela ini tidak mengelola yt-dlp-nya sendiri. Bangun ulang image-nya untuk memperbaruinya."
@@ -241,10 +248,10 @@
     "uploadFailed": "{file}: {reason}",
     "dropToImport": "Lepas untuk mengimpor",
     "settings": "Pengaturan",
-    "fromYoutube": "Dari YouTube",
+    "fromLink": "Dari tautan",
     "importFile": "Impor berkas",
-    "importFromYoutube": "Impor dari YouTube",
-    "pasteLink": "Tempel tautan YouTube",
+    "importFromLink": "Impor dari tautan",
+    "pasteLink": "Tempel tautan YouTube, atau playlist atau album Spotify",
     "import": "Impor",
     "search": "Cari judul atau artis",
     "searchLabel": "Cari di pustakamu",
@@ -254,6 +261,35 @@
     "noMatchesHint": "Coba judul atau artis lain.",
     "emptyTitle": "Belum ada yang bisa dinyanyikan",
     "emptyBody": "Tempel tautan YouTube atau impor berkas audio ({formats}) untuk menambahkan Trek pertamamu."
+  },
+  "playlistImport": {
+    "title": "Impor dari Spotify",
+    "loading": "Membacanya dari Spotify…",
+    "kinds": {
+      "playlist": "Playlist",
+      "album": "Album"
+    },
+    "count": "{count} lagu",
+    "intro": "Setiap lagu yang kamu centang dicari di YouTube, diimpor, diberi Lirik, lalu dipisahkan. Ikuti semuanya di halaman Tugas.",
+    "tickAll": "Centang semua",
+    "untickAll": "Hapus semua centang",
+    "songLabel": "Impor {title} oleh {artist}",
+    "inLibrary": "Sudah ada di Pustaka kamu",
+    "duplicate": "Sudah ada di daftar ini",
+    "summary": "Impor {count} lagu. Memisahkannya akan makan waktu sekitar {time}.",
+    "nothingTicked": "Centang lagu yang ingin kamu impor.",
+    "start": "Mulai",
+    "back": "Kembali ke Pustaka",
+    "estimate": {
+      "underMinute": "kurang dari semenit",
+      "minutes": "{minutes} menit",
+      "hours": "{hours} jam",
+      "hoursMinutes": "{hours} jam {minutes} menit"
+    }
+  },
+  "youtubeLink": {
+    "label": "Tempel tautan YouTube untuk {title}",
+    "import": "Impor"
   },
   "track": {
     "fromYoutube": "Dari YouTube",
@@ -282,7 +318,8 @@
     "useWhatITyped": "Pakai yang aku ketik",
     "replaceTitle": "Ganti Lirik yang kamu ketik?",
     "replaceMessage": "Mengonfirmasi Lagu akan mengambil Liriknya, yang menggantikan Lirik yang diketik di Trek ini.",
-    "replace": "Ganti"
+    "replace": "Ganti",
+    "openOther": "Buka {title}"
   },
   "lyricsPanel": {
     "heading": "Lirik",
@@ -311,6 +348,7 @@
     },
     "waitsHeavy": "Menunggu Pemisahan lain",
     "waitsLight": "Menunggu impor dan Mix",
+    "waitsPlaylist": "Menunggu impor lain dari playlist",
     "detail": {
       "downloadingModel": "Mengunduh {model}",
       "finishedOnCpu": "Selesai di CPU: GPU gagal"
@@ -334,7 +372,21 @@
     "running": "Berjalan",
     "queued": "Mengantre",
     "finished": "Selesai",
-    "clearFinished": "Bersihkan yang selesai"
+    "clearFinished": "Bersihkan yang selesai",
+    "pasteLink": "Tempel tautan",
+    "pasteLinkLabel": "Tempel tautan YouTube untuk {title}",
+    "playlistImport": {
+      "heading": "Impor Playlist",
+      "eyebrow": "Impor Playlist",
+      "progress": "{imported} dari {songs} diimpor · {separated} dari {songs} dipisahkan",
+      "failed": "{count} gagal",
+      "show": "Tampilkan Tugasnya",
+      "hide": "Sembunyikan Tugasnya",
+      "cancelAll": "Batalkan semua",
+      "cancelAllLabel": "Batalkan semua dari {name}",
+      "cancelTitle": "Batalkan Impor Playlist ini?",
+      "cancelMessage": "Setiap lagu dari {name} yang masih menunggu atau sedang diimpor dibatalkan, dan Treknya dihapus. Pemisahan yang masih menunggu juga dibatalkan. Trek yang sudah selesai diimpor tetap ada."
+    }
   },
   "backingSources": {
     "original": "Asli",

@@ -57,7 +57,7 @@ Roughly in order. Details in [ROADMAP.md](ROADMAP.md).
 - [x] Connect the desktop app to your own server
 - [x] Vocal removal: choice of model, GPU support, smaller files
 - [x] Guide Vocal: keep a little of the original singer to sing along to
-- [ ] Spotify playlist import
+- [x] Spotify playlist import
 - [ ] More languages
 - [ ] Automatic lyrics timing
 - [ ] Lyrics syncing for unsynced lyrics

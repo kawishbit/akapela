@@ -56,6 +56,9 @@ const sourceLabel = computed(() => {
 
 const failure = computed(() => track.value?.job ? describeJobFailure(track.value.job, t) : null)
 
+/** A Playlist Import's Track that found nothing on YouTube: retrying it needs a link from the singer. */
+const needsLink = computed(() => track.value?.sourceKind === 'youtube' && !track.value.sourceRef)
+
 const retrying = ref(false)
 const actionError = ref<ErrorText | null>(null)
 async function retry() {
@@ -205,7 +208,7 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: track.value.tit
               {{ t('common.addToQueue') }}
             </button>
             <button
-              v-if="track.importState === 'failed'"
+              v-if="track.importState === 'failed' && !needsLink"
               type="button"
               class="inline-flex h-12 items-center gap-2 rounded-pill bg-surface-mid px-5 text-sm font-bold uppercase tracking-[1.4px] text-text transition hover:bg-card disabled:opacity-60"
               :disabled="retrying"
@@ -223,6 +226,13 @@ useHead(() => ({ title: track.value ? t('app.pageTitle', { page: track.value.tit
             v-if="track.importState === 'failed'"
             class="mt-3"
             :error="failure"
+          />
+          <YoutubeLinkRetry
+            v-if="track.importState === 'failed' && needsLink"
+            class="mt-4 text-left"
+            :track-id="track.id"
+            :title="track.title"
+            @retried="refresh()"
           />
           <ErrorMessage
             v-if="isCurrent"

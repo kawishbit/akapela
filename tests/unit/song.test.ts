@@ -1,5 +1,31 @@
 import { describe, expect, test } from 'vitest'
-import { guessSongs } from '../../shared/song'
+import { guessSongs, lyricsSearchTitle } from '../../shared/song'
+
+describe('lyricsSearchTitle', () => {
+  test.each([
+    ['Don\'t Stop Me Now - Remastered 2011', 'Don\'t Stop Me Now'],
+    ['Heroes - 2017 Remaster', 'Heroes'],
+    ['Heroes - Remaster', 'Heroes'],
+    ['Fat Bottomed Girls - Single Version', 'Fat Bottomed Girls'],
+    ['Wouldn\'t It Be Nice - Mono', 'Wouldn\'t It Be Nice'],
+    ['Wouldn\'t It Be Nice - Stereo', 'Wouldn\'t It Be Nice'],
+    ['Come Together - 2019 Mix', 'Come Together'],
+    ['Wonderwall (Radio Edit)', 'Wonderwall'],
+    ['Song 2 - Remastered 2012 - Mono', 'Song 2'],
+  ])('searches %s as %s', (title, searched) => {
+    expect(lyricsSearchTitle(title)).toBe(searched)
+  })
+
+  test.each([
+    'Yesterday',
+    'Should I Stay or Should I Go',
+    'Mono',
+    'Blue (Da Ba Dee) - Gabry Ponte Ice Pop Mix',
+    'Under Pressure - Live at Wembley',
+  ])('leaves %s as it is', (title) => {
+    expect(lyricsSearchTitle(title)).toBe(title)
+  })
+})
 
 describe('guessSongs', () => {
   test('splits a dashed video title into artist and title, and offers the reverse order too', () => {

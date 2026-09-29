@@ -16,7 +16,11 @@ afterEach(() => {
   for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-/** The migrations as they stood before Jobs had codes: everything up to, not including, 0022. */
+/**
+ * The migrations as they stood before Jobs had codes: everything up to, not
+ * including, 0022. Later ones go too: drizzle applies only what is newer than
+ * the last migration it ran, so leaving one in would skip 0022 on upgrade.
+ */
 function migrationsBeforeCodes(): string {
   const dir = migrationsBefore(CODES_MIGRATION)
   cleanup.push(dir)

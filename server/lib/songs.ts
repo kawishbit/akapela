@@ -9,7 +9,14 @@ import {
   overwritesManualLyrics,
   withAlbumArt,
 } from './track-lyrics'
-import { confirmedSong, saveSong, type TrackDetail, type TrackWithJob } from './tracks'
+import {
+  confirmedSong,
+  otherTrackWithSong,
+  saveSong,
+  SongInLibraryError,
+  type TrackDetail,
+  type TrackWithJob,
+} from './tracks'
 
 /** What the Track detail page shows: the guess it searched for, where it looked, and what came back. */
 export interface SongSearch extends SongGuess {
@@ -72,7 +79,12 @@ export async function confirmSong(
   song: Song,
   options: { overwriteManual?: boolean } = {},
 ): Promise<TrackDetail> {
-  // Checked before the Song is stored, so a refusal changes nothing at all.
+  // Checked before the Song is stored, so a refusal changes nothing at all —
+  // and a Song another Track has first, so the singer is not asked about
+  // their typed Lyrics only to be refused anyway. `saveSong` checks again,
+  // in the transaction that writes it.
+  const other = otherTrackWithSong(akapela, track, song)
+  if (other) throw new SongInLibraryError(other)
   if (!options.overwriteManual && overwritesManualLyrics(akapela, track, track.lyricsProvider)) {
     throw new ManualLyricsOverwriteError()
   }

@@ -2,6 +2,7 @@ import { defineEventHandler } from 'h3'
 import { requireTrack } from '../../../../lib/require-track'
 import { DEFAULT_SEPARATION_MODEL } from '../../../../lib/separators/models'
 import { latestSeparationJob, startSeparation } from '../../../../lib/tracks'
+import { playlistImportOf } from '../../../../lib/jobs'
 import { apiError } from '../../../../lib/api-error'
 import { failure } from '../../../../../shared/error-codes'
 
@@ -17,5 +18,10 @@ export default defineEventHandler((event) => {
   }
   const akapela = event.context.akapela
   const failed = latestSeparationJob(akapela, track.id)
-  return startSeparation(akapela, track, failed?.separationModel ?? DEFAULT_SEPARATION_MODEL)
+  return startSeparation(
+    akapela,
+    track,
+    failed?.separationModel ?? DEFAULT_SEPARATION_MODEL,
+    failed ? playlistImportOf(failed) : null,
+  )
 })
