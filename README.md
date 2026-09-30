@@ -2,6 +2,15 @@
   <img src="./assets/readme/hero.svg" width="100%" alt="Akapela — self-hosted karaoke: import a song, sing along to synced Lyrics, and mix down your Take">
 </p>
 
+<p align="center">
+  <a href="https://github.com/kawishbit/akapela/releases/latest"><img src="https://img.shields.io/github/v/release/kawishbit/akapela?label=release" alt="Latest release"></a>
+  <a href="https://github.com/kawishbit/akapela/releases"><img src="https://img.shields.io/github/downloads/kawishbit/akapela/total" alt="Downloads"></a>
+  <a href="https://github.com/kawishbit/akapela/actions/workflows/desktop-release.yml"><img src="https://img.shields.io/github/actions/workflow/status/kawishbit/akapela/desktop-release.yml?label=desktop%20build" alt="Desktop build"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-informational" alt="Platforms: Windows, macOS, Linux">
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/kawishbit/akapela" alt="License: GPL-3.0"></a>
+  <a href="https://akapela.kawishbit.com"><img src="https://img.shields.io/badge/website-akapela.kawishbit.com-blue" alt="Website"></a>
+</p>
+
 Self-hosted karaoke. Import a song from YouTube or a file, remove the vocals, sing along to synced lyrics with the pitch and tempo you like, and keep the recording.
 
 Everything stays on your machine. The only outside services Akapela talks to are the lyrics providers you choose to use.
