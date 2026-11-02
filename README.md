@@ -16,8 +16,10 @@ Self-hosted karaoke. Import a song from YouTube or a file, remove the vocals, si
 Everything stays on your machine. The only outside services Akapela talks to are the lyrics providers you choose to use.
 
 <p align="center">
-  <img src="./assets/readme/demo.gif" width="100%" alt="Akapela demo: importing a Track from YouTube, separating its vocals into Stems, singing to synced Lyrics and recording a Take, then reviewing it and rendering a Mix">
+  <img src="./assets/readme/demo.gif" width="100%" alt="Akapela demo: finding a Track in the Library, opening it with its synced Lyrics and Stems, then singing along as the Lyrics follow the Backing Track">
 </p>
+
+Special thanks to [Ultimate Vocal Remover](https://github.com/Anjok07/ultimatevocalremovergui), [MDX-Net](https://github.com/kuielab/mdx-net), [python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org), [Rubber Band](https://breakfastquay.com/rubberband/), [LRCLIB](https://lrclib.net), [Nuxt](https://nuxt.com), [Electron](https://www.electronjs.org), and [Aspire](https://aspire.dev).
 
 ## What it does
 
