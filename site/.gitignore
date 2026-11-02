@@ -3,7 +3,7 @@ dist/
 .astro/
 # Copied in from the rest of the repo on every `astro dev` and `astro build`
 # (see `astro.config.mjs`), never committed a second time.
-public/demo.mp4
+public/demo.gif
 public/fonts/
 public/favicon.ico
 public/logo.svg
