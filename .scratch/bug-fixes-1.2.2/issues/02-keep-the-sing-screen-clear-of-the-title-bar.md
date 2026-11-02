@@ -8,7 +8,7 @@ Follow DESIGN.md's spacing scale rather than adding one-off values.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] In the Desktop App on Windows/Linux, the Sing screen header (back button, Song name, pitch/tempo line) sits fully below the title bar and nothing overlaps it
 - [x] The same holds on macOS, with the traffic lights clear of the header

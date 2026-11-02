@@ -28,7 +28,7 @@ Keep the flat icon as the fallback for macOS 15 and earlier either way.
 
 **Blocked by:** 01, in practice — and an Icon Composer authoring pass on a Mac.
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] The mark exists as a layered Icon Composer document, committed alongside
       the other masters in `logos/`

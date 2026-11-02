@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 (Install an Update in place on Windows and Linux)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] With a Separation running, **Restart now** is disabled with the note, and **Install when I quit** still works
 - [ ] When the Job finishes, **Restart now** becomes available without reopening the prompt

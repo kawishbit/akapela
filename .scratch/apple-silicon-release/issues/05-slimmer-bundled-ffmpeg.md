@@ -10,7 +10,7 @@ Once Rubber Band is out of ffmpeg (ticket 01), none of that needs GPL-only exter
 
 **Blocked by:** 02
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The installer for each platform is measurably smaller than before, with the before and after sizes recorded
 - [ ] Every upload format, a YouTube import, an Adjusted Mix render, and the MP3 export all still work on every platform
