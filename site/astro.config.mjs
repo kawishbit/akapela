@@ -11,8 +11,8 @@ const publicDir = new URL('./public/', import.meta.url)
 // Vercel clones the whole repo, so they are there to copy from even with the
 // project's Root Directory set to `site/`. Every copy is in `site/.gitignore`.
 const shared = {
-  // The README's demo, as it is: not re-encoded.
-  'assets/readme/demo.mp4': 'demo.mp4',
+  // The README's demo, as it is: one gif for both, so they never drift apart.
+  'assets/readme/demo.gif': 'demo.gif',
   // The app's own font, favicon, and logo, so the two never drift apart.
   'app/assets/fonts/figtree-latin.woff2': 'fonts/figtree-latin.woff2',
   'app/assets/fonts/figtree-latin-ext.woff2': 'fonts/figtree-latin-ext.woff2',
