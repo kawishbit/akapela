@@ -17,7 +17,7 @@ suite covers, not buried in window construction (ADR 0009).
 
 **Blocked by:** 01 (the generator is where the icon comes from)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] `pnpm icons:generate` writes a 1024 × 1024 full-bleed desktop icon, and
       running it twice leaves the working tree clean

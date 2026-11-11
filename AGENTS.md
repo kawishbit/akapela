@@ -107,11 +107,11 @@ Do not add a `Co-Authored-By` line, a `Claude-Session` link, or any other agent 
 
 ### Issue tracker
 
-Issues live as local markdown files under `.scratch/<feature-slug>/` in this repo. See `docs/agents/issue-tracker.md`.
+Issues live in this repo's GitHub Issues, through the `gh` CLI. `.scratch/` is the old local tracker, kept read-only as history. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `done`, `wontfix`. See `docs/agents/triage-labels.md`.
+Default vocabulary, as GitHub labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Closing an issue marks it done. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

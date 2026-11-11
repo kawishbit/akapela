@@ -10,7 +10,7 @@ Window chrome is native. The one part that is not optional is the application me
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] `desktop/` exists with its own `package.json`, lockfile, ESLint config, and `tsconfig`, mirroring how `apphost/` is set up
 - [x] The root `package.json`, root lockfile, and root ESLint config gain no Electron dependency and no Electron files to lint; `pnpm install`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` at the root behave exactly as before

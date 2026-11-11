@@ -8,7 +8,7 @@ The existing launch check stays the one thing that decides whether an Update exi
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] An older packaged build, launched while a newer Release exists, shows the prompt with both versions and a working "What's new" link (needs a packaged build)
 - [x] **Update now** opens the Release page in the browser, and **Later** closes the prompt until the next launch

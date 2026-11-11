@@ -8,7 +8,7 @@ Every failure has the same outcome: the prompt says it couldn't update and offer
 
 **Blocked by:** 01 (Prompt the singer about an Update at launch), 04 (Publish the update metadata with every Release)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] On Windows, an installed older Release updates to the latest one through **Update now** → **Restart now**, and relaunches on the new version with its library, port, and window bounds intact
 - [ ] On Linux, a launched older AppImage does the same

@@ -1,6 +1,6 @@
 # 01: A late cancel can still replace a Track's Stems
 
-**Status:** needs-triage
+**Status:** done
 
 **What happens:** `server/lib/jobs/separate.ts` checks `ctx.signal.throwIfAborted()` for the last time just before the two `rename`s that move the new Stems over the Track's existing ones. A cancel that lands between the first and second `rename`, or after both but before the final `UPDATE tracks SET separation_state = 'ready'`, lets the new Stems in. The Job row ends `cancelled`, `undoJob` sees Stems on disk and leaves the Track `ready`, so the Track keeps Stems the singer asked not to have, and a re-separation's old Stems are gone.
 

@@ -12,7 +12,7 @@ Covered by server-side tests for the edit endpoint(s): validation, persistence, 
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Track screen has an edit control that lets the singer change the title and artist and save them
 - [x] An empty title is rejected; an empty artist is saved as no artist

@@ -17,7 +17,7 @@ The README restructure follows from the whole point of the effort: if the deskto
 
 **Blocked by:** 09 (a release has to exist first)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] ADR 0009 and ADR 0010 are written in the shape the existing ADRs use, including the alternatives that were rejected and why
 - [x] `CONTEXT.md` gains **Desktop App** and nothing else

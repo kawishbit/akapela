@@ -1,6 +1,6 @@
 # 03: A tab closed before the Queue loads strands its entry
 
-**Status:** needs-triage
+**Status:** done
 
 **What happens:** `app/composables/useQueueTurn.ts` only uses up the entry once it has seen it in the Queue for that Track (`current` is set). That check is what makes a stale or bogus `?entry=` harmless. But a Sing screen opened with `?entry=…` and closed before `GET /api/queue` has answered never sets `current`, so `pagehide` has nothing to remove and the entry stays in the Queue. A reload recovers, because the page mounts again. A closed tab doesn't.
 

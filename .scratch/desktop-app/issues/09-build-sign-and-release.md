@@ -14,7 +14,7 @@ Notarization requires the hardened runtime, and the hardened runtime is where th
 
 **Blocked by:** 05 (there has to be something to sign)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] A GitHub Actions workflow builds Windows and macOS on a tag, with Linux AppImage included if it comes free
 - [ ] macOS builds are signed and notarized, with credentials in repository secrets and never in the repo; a stapled DMG opens on a machine that has never seen the app

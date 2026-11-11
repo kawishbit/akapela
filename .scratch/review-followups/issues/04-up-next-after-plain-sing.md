@@ -1,6 +1,6 @@
 # 04: Up next after a plain Sing visit
 
-**Status:** needs-triage
+**Status:** done
 
 **What happens:** `app/pages/tracks/[id]/sing.vue` calls `turn.end()` on every visit to the Sing screen, not only one opened from the Queue with `?entry=`. So someone practising a song on their own, with a Queue that isn't empty, is offered **Up next** on Review or on the Track page when they finish.
 

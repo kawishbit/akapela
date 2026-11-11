@@ -24,7 +24,7 @@ undersized under that mask, and that Icon Composer is the eventual answer
 
 **Blocked by:** 01 (the generator is where the icon comes from)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] `pnpm icons:generate` writes a 1024 × 1024 macOS icon with rounded
       corners and transparency outside them, and running it twice leaves the

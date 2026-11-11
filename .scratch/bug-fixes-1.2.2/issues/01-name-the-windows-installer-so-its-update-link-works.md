@@ -10,7 +10,7 @@ Installs on 1.2.2 or earlier only read `latest.yml` from the newest Release, so 
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Windows installer's file name contains no spaces, and the name in `latest.yml` is exactly the name of the uploaded asset
 - [x] The release workflow fails with a clear error when a file named in `latest.yml` or `latest-linux.yml` is not among the Release's assets

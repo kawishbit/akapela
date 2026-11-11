@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (needs the corrected baseline to bump forward from), 02 (needs the label scheme populated to auto-detect from)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] `workflow_dispatch.inputs.version` accepts blank (auto), `major`/`minor`/`patch` (forced bump), or an explicit `X.Y.Z` (full override).
 - [x] Auto mode reads `gh pr list --state merged --search "merged:>$SINCE"` since the previous tag's commit date, takes the highest-precedence `bump:*` label found, defaults to `patch` (covers both an unlabeled PR and a commit landed directly on `main`).

@@ -16,7 +16,7 @@ Verify it end to end against a real second machine: import, sing a Take with mon
 
 **Blocked by:** 01
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] Connected over `http://` to a LAN address, recording a Take works: the mic prompt appears and the AudioWorklet engines start
 - [x] The grant names exactly the one origin; no wildcard and no second host

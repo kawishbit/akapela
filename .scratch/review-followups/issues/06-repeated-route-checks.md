@@ -1,6 +1,6 @@
 # 06: Repeated checks and messages in the Queue and Job routes
 
-**Status:** needs-triage
+**Status:** done
 
 Tidy-up, no behaviour change. Flagged by the Standards half of the review as judgement calls:
 

@@ -19,7 +19,7 @@ That's no case for switching, but synthetic tones and noise aren't what these mo
 
 **Blocked by:** —
 
-**Status:** needs-triage
+**Status:** done
 
 - [ ] A few real songs separated by `audio-separator` (`UVR-MDX-NET-Inst_Main.onnx`), compared with Akapela's output under both conventions
 - [ ] A decision recorded in ADR 0008's amendment: keep the port's convention, or switch and regenerate `tests/fixtures/separation/`'s reference Stems in the same change

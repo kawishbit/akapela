@@ -10,7 +10,7 @@
 
 **Blocked by:** 01 — Website skeleton, in the Hallmark design
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] The Vercel project builds from `site/` on pushes to `main`
 - [ ] `https://akapela.kawishbit.com` serves the page over HTTPS

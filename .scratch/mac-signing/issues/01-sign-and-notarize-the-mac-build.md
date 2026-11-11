@@ -28,7 +28,7 @@ on a tagged release.
 ID Application certificate, and an app-specific password. None of this can
 start or be verified without them.
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] A Developer ID Application certificate is exported and stored as the
       repository secret the workflow already reads

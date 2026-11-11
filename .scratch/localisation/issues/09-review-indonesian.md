@@ -8,7 +8,7 @@
 
 **Blocked by:** 08
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] Glossary signed off
 - [ ] `id.json` signed off

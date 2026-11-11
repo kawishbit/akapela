@@ -6,7 +6,7 @@ A Release that has installers but no metadata looks fine until an installed app 
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Windows and Linux build legs fail with a clear error if their update metadata or blockmap is missing (Windows: `latest.yml` + `*.exe.blockmap`; Linux: `latest-linux.yml`, since an AppImage embeds its blockmap rather than writing one beside it)
 - [x] A dry run's workflow artifacts contain `latest.yml`, `latest-linux.yml`, and the blockmaps next to the installers

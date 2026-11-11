@@ -12,7 +12,7 @@ This needs a human: merging to `main` and publishing a Release are real, visible
 
 **Blocked by:** 03
 
-**Status:** ready-for-human
+**Status:** done
 
 - [ ] Dispatch with a blank version proposes `v1.0.2` and opens its release PR with no manual rescue
 - [ ] Merging that PR tags the merge commit `v1.0.2`, builds all three installers, and publishes the Release in the same workflow run
