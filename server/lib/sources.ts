@@ -6,6 +6,7 @@ import { childEnv, jsRuntimePath, killOnAbort, ytDlpPath } from './tools'
 import { ensureManagedYtDlp } from './ytdlp'
 import { CodedError, failure, type CodedFailure } from '../../shared/error-codes'
 import { canonicalYoutubeUrl } from '../../shared/youtube'
+import { MAX_PLAYLIST_SONGS } from '../../shared/playlist-link'
 import { SEARCH_RESULTS, type YoutubeSearchResult } from './youtube-match'
 
 /**
@@ -34,6 +35,12 @@ export interface SourceMetadata {
   durationMs: number | null
   /** Filename of the Source's artwork written into `directory`; null when it has none. */
   coverFile: string | null
+  /**
+   * The Song YouTube itself names for the video — YouTube Music and an
+   * artist's "Topic" uploads carry an artist and track — or null (or left out)
+   * when it names none. Never guessed from the video's title.
+   */
+  song?: { artist: string, title: string } | null
 }
 
 /** Receives the fraction (0 to 1) of the audio downloaded so far. */
@@ -84,6 +91,7 @@ export class YtDlpFetcher implements SourceFetcher {
       coverFile: options.keepCover
         ? null
         : await downloadThumbnail(typeof info.thumbnail === 'string' ? info.thumbnail : null, directory),
+      song: namedSong(info),
     }
   }
 
@@ -113,6 +121,28 @@ export class YtDlpFetcher implements SourceFetcher {
     )
     return parseYoutubeSearch(stdout)
   }
+}
+
+/**
+ * The artist and track yt-dlp reports for a video, when YouTube names both:
+ * `artists` as a list (newer yt-dlp), or the older comma-joined `artist`.
+ */
+function namedSong(info: Record<string, unknown>): { artist: string, title: string } | null {
+  const track = typeof info.track === 'string' ? info.track.trim() : ''
+  const artists = Array.isArray(info.artists) ? info.artists.filter((a): a is string => typeof a === 'string') : []
+  const artist = (artists.length > 0 ? artists.join(', ') : typeof info.artist === 'string' ? info.artist : '').trim()
+  return track && artist ? { artist, title: track } : null
+}
+
+/**
+ * A YouTube playlist's listing, as yt-dlp's `-J --flat-playlist` prints it:
+ * each video's id, title, channel, and length, without opening any of them.
+ * One past the most a Playlist Import takes is enough to know it is too long;
+ * `playlist_count` still says how many there are in all.
+ */
+export async function listYoutubePlaylist(url: string, signal?: AbortSignal): Promise<string> {
+  await ensureManagedYtDlp()
+  return runYtDlp(['-J', '--flat-playlist', '--playlist-end', String(MAX_PLAYLIST_SONGS + 1), ...jsRuntimeArgs(), url], signal)
 }
 
 /** yt-dlp's `-J --flat-playlist` answer to a `ytsearch`, as results; an entry without an id is left out. */

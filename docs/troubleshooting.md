@@ -14,9 +14,9 @@ Akapela fetches YouTube audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp). Y
 
 If that gets you nothing newer, the breakage is probably too fresh for a fix. Check [yt-dlp's issue tracker](https://github.com/yt-dlp/yt-dlp/issues) and try again once a fix lands. Importing an audio file is unaffected either way.
 
-## A Spotify playlist won't open
+## A playlist won't open
 
-**"Akapela couldn't read that page from Spotify."** Akapela reads a playlist from Spotify's public embed page, with no login. That page is unofficial, and Spotify can change it without warning, the way YouTube changes under yt-dlp. When it does, Akapela needs updating to read the new page:
+**"Akapela couldn't read that playlist."** For Spotify, Akapela reads a playlist from Spotify's public embed page, with no login. That page is unofficial, and Spotify can change it without warning, the way YouTube changes under yt-dlp. When it does, Akapela needs updating to read the new page:
 
 - **Desktop App:** install the latest Update (Settings, under About).
 - **Docker:** pull and rebuild:
@@ -28,9 +28,11 @@ If that gets you nothing newer, the breakage is probably too fresh for a fix. Ch
 
 If you're already on the latest version, the change is probably too new for a fix. Import the songs from YouTube one at a time until one lands.
 
-**"That has 150 songs."** A Playlist Import takes up to 100 songs, from a playlist or an album, because Spotify's embed page lists no more than that. Make a shorter playlist from it in Spotify, and paste that link.
+**"That has 150 songs."** A Playlist Import takes up to 100 songs, from a playlist or an album, because Spotify's embed page lists no more than that. A YouTube playlist has the same limit. Make a shorter playlist from it, and paste that link.
 
-**"Spotify has no public playlist or album at that link."** The playlist is private or has been deleted. Make it public in Spotify, or paste a link to a copy that is.
+**"There's no public playlist or album at that link."** The playlist is private or has been deleted. Make it public (or unlisted, on YouTube), or paste a link to a copy that is.
+
+**"Akapela can't import a YouTube Mix or a channel."** A Mix is made up by YouTube from one video and is different every time, and a channel has no single list to import. Save the songs you want to a playlist of your own, and paste that playlist's link.
 
 ## A song from a playlist found nothing on YouTube
 

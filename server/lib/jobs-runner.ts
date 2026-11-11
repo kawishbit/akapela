@@ -76,6 +76,7 @@ interface JobRow {
   detail: string | null
   playlist_import_id: string | null
   playlist_import_name: string | null
+  playlist_import_separate: number | null
 }
 
 function toJob(row: JobRow): Job {
@@ -96,6 +97,7 @@ function toJob(row: JobRow): Job {
     detail: row.detail,
     playlistImportId: row.playlist_import_id,
     playlistImportName: row.playlist_import_name,
+    playlistImportSeparate: row.playlist_import_separate === null ? null : row.playlist_import_separate === 1,
   }
 }
 
@@ -164,7 +166,7 @@ export class JobsRunner {
            ORDER BY created_at, rowid LIMIT 1
          )
          RETURNING id, type, target_id, state, progress, error, error_code, error_params, created_at, started_at,
-           finished_at, trace_parent, separation_model, detail, playlist_import_id, playlist_import_name`,
+           finished_at, trace_parent, separation_model, detail, playlist_import_id, playlist_import_name, playlist_import_separate`,
       )
       .get(Date.now()) as JobRow | undefined
     return row ? toJob(row) : null

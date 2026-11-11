@@ -5,10 +5,12 @@ import type { ErrorText } from '~/utils/errors'
 
 /**
  * The checklist a Playlist Import starts from, reached from the Library's
- * import field with a Spotify playlist or album link in `?url=`, so it
- * survives a reload. Every song whose Song is new here is ticked; one already
- * in the Library, or earlier in the same list, cannot be. Start creates the
- * Tracks and goes to the Jobs page, where the import is followed.
+ * import field with a Spotify playlist or album link, or a YouTube playlist
+ * link, in `?url=`, so it survives a reload. Every song new here is ticked;
+ * one already in the Library, or earlier in the same list, cannot be. One
+ * switch says whether each is separated once imported: off for a playlist of
+ * karaoke videos, which have no vocals to remove. Start creates the Tracks
+ * and goes to the Jobs page, where the import is followed.
  */
 const { t } = useI18n()
 useHead(() => ({ title: t('app.pageTitle', { page: t('playlistImport.title') }) }))
@@ -16,7 +18,7 @@ useHead(() => ({ title: t('app.pageTitle', { page: t('playlistImport.title') }) 
 const route = useRoute()
 const url = computed(() => (typeof route.query.url === 'string' ? route.query.url : ''))
 
-// In the browser only: reading Spotify takes a moment, and the page says so
+// In the browser only: reading the playlist takes a moment, and the page says so
 // while it does rather than holding the whole page back.
 const { data: preview, error: loadFailure, status } = useAsyncData(
   'playlist-import-preview',
@@ -46,9 +48,12 @@ function toggle(song: PreviewSong) {
     : [...ticked.value, song.serviceId]
 }
 
+const separate = ref(true)
+
 const summary = computed(() => {
   const count = tickedSongs.value.length
   if (!preview.value || count === 0) return t('playlistImport.nothingTicked')
+  if (!separate.value) return t('playlistImport.summaryNoSeparation', { count }, count)
   const estimate = separationEstimateMs(preview.value.separationMsPerAudioMs, tickedSongs.value.map(song => song.durationMs))
   return t('playlistImport.summary', { count, time: formatEstimate(estimate, t) }, count)
 })
@@ -64,7 +69,7 @@ async function start() {
   try {
     await $fetch('/api/playlist-imports', {
       method: 'POST',
-      body: { url: url.value, serviceIds: tickedSongs.value.map(song => song.serviceId) },
+      body: { url: url.value, serviceIds: tickedSongs.value.map(song => song.serviceId), separate: separate.value },
     })
     await refreshJobs()
     await navigateTo('/jobs')
@@ -121,11 +126,28 @@ async function start() {
           {{ preview.name }}
         </h1>
         <p class="mt-2 text-sm text-text-muted">
-          {{ t('playlistImport.intro') }}
+          {{ t(`playlistImport.intro.${preview.service}`) }}
+        </p>
+        <p
+          v-if="preview.leftOut > 0"
+          class="mt-2 text-sm text-text-muted"
+        >
+          {{ t('playlistImport.leftOut', { count: preview.leftOut }, preview.leftOut) }}
         </p>
       </header>
 
       <div class="mb-4 rounded-[8px] bg-surface p-4">
+        <label class="mb-3 flex cursor-pointer items-start gap-3">
+          <input
+            v-model="separate"
+            type="checkbox"
+            class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)]"
+          >
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-bold">{{ t('playlistImport.separate') }}</span>
+            <span class="block text-xs text-text-muted">{{ t('playlistImport.separateHint') }}</span>
+          </span>
+        </label>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
           <p
             class="min-w-0 flex-1 text-sm"
@@ -202,7 +224,10 @@ async function start() {
               >
                 {{ t('playlistImport.duplicate') }}
               </span>
-              <span class="block tabular-nums">{{ formatDuration(song.durationMs) }}</span>
+              <span
+                v-if="song.durationMs > 0"
+                class="block tabular-nums"
+              >{{ formatDuration(song.durationMs) }}</span>
             </span>
           </label>
         </li>

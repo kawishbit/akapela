@@ -22,6 +22,8 @@ Capitalised terms (Track, Job, Separation, Queue, ...) are defined in `CONTEXT.m
 
   Spec in `.scratch/spotify-import/`.
 
+- **YouTube playlist import.** A YouTube or YouTube Music playlist link (or an album) opens the same checklist as Spotify, listed by yt-dlp, with the same cap of 100. Private and deleted videos are left out and counted. Each ticked video becomes a Track with its own link, so there is no search. A video already in the Library, by its link, can't be ticked. A Track gets a Song only when YouTube names its artist and track, as YouTube Music and "Topic" uploads do, and Lyrics are fetched only for those. A video opened inside a playlist still imports alone, with an offer to import the whole playlist. Mixes and channels are refused. Every checklist, Spotify's too, now has a switch to separate each song after it's imported, on by default, for a playlist of karaoke videos that need none. Issue #41.
+
 - **Stem Levels.** A separated Track's Backing Source is Original or Stems, and Stems blend the Guide Vocal (the original singer) and the Instrumental, each from silent to as separated. Sliders on the Track page, the Sing screen, and Review change them live. A Take records them as they were when recording started, and a Mix can use others, so you can sing with a faint guide and render without it. Both engines blend before their one stretch (ADR 0003 amendment). Spec in `.scratch/stem-levels/`.
 
 ## 1. More languages

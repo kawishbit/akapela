@@ -188,6 +188,40 @@ export function createTrackFromPlaylistSong(
 }
 
 /**
+ * Creates a Track for one video of a YouTube Playlist Import: a YouTube
+ * Source with its link known, the video's title and length from the
+ * playlist's listing, and no Song — a video is not a Song, and its import
+ * Job confirms one only if YouTube names it.
+ *
+ * The caller has already checked, in the same transaction, that no other
+ * Track has this Source (`trackWithSource`).
+ */
+export function createTrackFromPlaylistVideo(
+  akapela: Akapela,
+  video: { videoId: string, title: string, durationMs: number },
+  playlistImport: PlaylistImportLabel,
+): TrackWithJob {
+  return startImport(akapela, {
+    id: randomUUID(),
+    title: video.title.trim() || youtubePlaceholderTitle(video.videoId),
+    sourceKind: 'youtube',
+    sourceRef: canonicalYoutubeUrl(video.videoId),
+    durationMs: video.durationMs || undefined,
+    playlistImport,
+  })
+}
+
+/** The Track a YouTube video is already the Source of, if any: what a YouTube Playlist Import does not import twice. */
+export function trackWithSource(akapela: Akapela, videoId: string): TrackWithSong | undefined {
+  return akapela.sqlite
+    .prepare(
+      `SELECT id, title FROM tracks WHERE source_kind = 'youtube' AND source_ref = ?
+       ORDER BY created_at, rowid LIMIT 1`,
+    )
+    .get(canonicalYoutubeUrl(videoId)) as TrackWithSong | undefined
+}
+
+/**
  * Writes a placeholder cover into the Track's directory, inserts the Track in
  * importing state, and enqueues the import job.
  */

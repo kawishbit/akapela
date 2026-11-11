@@ -69,6 +69,7 @@ Roughly in order. Details in [ROADMAP.md](ROADMAP.md).
 - [x] Vocal removal: choice of model, GPU support, smaller files
 - [x] Guide Vocal: keep a little of the original singer to sing along to
 - [x] Spotify playlist import
+- [x] YouTube playlist import
 - [ ] More languages
 - [ ] Automatic lyrics timing
 - [ ] Lyrics syncing for unsynced lyrics

@@ -9,7 +9,7 @@ import { createLrclibProvider } from '../lyrics/lrclib'
 import type { LyricsProvider } from '../lyrics/provider'
 import { hostCores, type Hardware } from './hardware'
 import { RunningJobs } from './running-jobs'
-import { SpotifyEmbedReader, type PlaylistReader } from './playlists'
+import { ServicePlaylistReader, type PlaylistReader } from './playlists'
 
 export interface AkapelaOptions {
   /** Directory holding the database and every Track's files. */
@@ -72,7 +72,7 @@ export function createAkapela(options: AkapelaOptions): Akapela {
     fetch: options.fetch ?? ((...args) => globalThis.fetch(...args)),
     runningJobs: new RunningJobs(),
     hardware: () => (hardware ??= detect()),
-    playlistReader: options.playlistReader ?? new SpotifyEmbedReader(),
+    playlistReader: options.playlistReader ?? new ServicePlaylistReader(),
     close() {
       sqlite.close()
     },

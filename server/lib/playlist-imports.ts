@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { CodedError, failure, type ErrorCode } from '../../shared/error-codes'
-import { parsePlaylistLink, type PlaylistKind, type PlaylistLink } from '../../shared/playlist-link'
+import { parsePlaylistLink, unsupportedYoutubeList, type PlaylistKind, type PlaylistLink, type PlaylistService } from '../../shared/playlist-link'
 import { lyricsSearchTitle, type Song } from '../../shared/song'
 import type { SongMatch } from '../lyrics/provider'
 import type { Akapela } from './akapela'
@@ -12,23 +12,29 @@ import { defaultSeparationModelOf } from './settings'
 import { DEFAULT_SEPARATION_MODEL, type SeparationModelName } from './separators/models'
 import {
   createTrackFromPlaylistSong,
+  createTrackFromPlaylistVideo,
   getTrack,
   replaceCoverWithAlbumArt,
+  saveSong,
+  SongInLibraryError,
   startSeparation,
   trackWithSong,
+  trackWithSource,
   type TrackWithJob,
+  type TrackWithSong,
 } from './tracks'
 
 /**
  * A Playlist Import: many Tracks at once from a playlist or album on another
  * service (CONTEXT.md). The checklist is previewed first, then the chosen
- * songs become Tracks, each with its own import Job; that Job finds the song
- * on YouTube, downloads it, and then `followUp` fetches its Lyrics and queues
- * its Separation. The playlist itself is not kept: its Jobs only remember its
- * name, as their label.
+ * songs become Tracks, each with its own import Job. From Spotify, that Job
+ * finds the song on YouTube first; from YouTube, the video is the entry
+ * itself. Once downloaded, `followUp` fetches its Lyrics and, if the singer
+ * asked for it, queues its Separation. The playlist itself is not kept: its
+ * Jobs only remember its name and that choice, as their label.
  */
 
-export const INVALID_PLAYLIST_LINK_MESSAGE = 'Paste a link to a Spotify playlist or album'
+export const INVALID_PLAYLIST_LINK_MESSAGE = 'Paste a link to a Spotify playlist or album, or a YouTube playlist'
 
 /** Where a song stands in the checklist. */
 export type PreviewSongState = 'new' | 'inLibrary' | 'duplicate'
@@ -42,8 +48,11 @@ export interface PreviewSong extends PlaylistSong {
 /** Everything the checklist page needs, in one request. */
 export interface PlaylistPreview {
   name: string
+  service: PlaylistService
   kind: PlaylistKind
   total: number | null
+  /** How many the service listed that cannot be imported, and are not in `songs`. */
+  leftOut: number
   songs: PreviewSong[]
   /**
    * How long a Separation takes per millisecond of audio on this install, for
@@ -52,9 +61,12 @@ export interface PlaylistPreview {
   separationMsPerAudioMs: number
 }
 
-/** The link in `url`, or a refusal the page shows as `invalidPlaylistLink`. */
+/** The link in `url`, or a refusal the page shows: `unsupportedYoutubeList` for a Mix or a channel, `invalidPlaylistLink` for anything else. */
 export function requirePlaylistLink(url: unknown): PlaylistLink {
   const link = typeof url === 'string' ? parsePlaylistLink(url) : null
+  if (!link && typeof url === 'string' && unsupportedYoutubeList(url)) {
+    throw new CodedError(failure('unsupportedYoutubeList'), 'A YouTube Mix or channel is not a playlist Akapela imports')
+  }
   if (!link) throw new CodedError(failure('invalidPlaylistLink'), INVALID_PLAYLIST_LINK_MESSAGE)
   return link
 }
@@ -65,17 +77,27 @@ function songKey(song: Pick<Song, 'artist' | 'title'>): string {
 }
 
 /**
+ * What makes an entry the same as another, which is what decides it is
+ * already in the Library: from Spotify, its Song; from YouTube, its video,
+ * since a video's channel and title are not a Song.
+ */
+function sameAs(akapela: Akapela, link: PlaylistLink, song: PlaylistSong): { key: string, inLibrary: TrackWithSong | undefined } {
+  if (link.service === 'youtube') return { key: song.serviceId, inLibrary: trackWithSource(akapela, song.serviceId) }
+  return { key: songKey(song), inLibrary: trackWithSong(akapela, song) }
+}
+
+/**
  * Reads the playlist and says, song by song, whether importing it would make
- * a new Track. A Song another Track has is `inLibrary`, with that Track; one
- * that appears earlier in this playlist is `duplicate`. Neither can be ticked.
+ * a new Track. One already in the Library (`sameAs`) is `inLibrary`, with
+ * that Track; one that appears earlier in this playlist is `duplicate`.
+ * Neither can be ticked.
  */
 export async function previewPlaylist(akapela: Akapela, url: unknown, signal?: AbortSignal): Promise<PlaylistPreview> {
   const link = requirePlaylistLink(url)
   const playlist = await akapela.playlistReader.read(link, signal)
   const seen = new Set<string>()
   const songs = playlist.songs.map((song): PreviewSong => {
-    const inLibrary = trackWithSong(akapela, song)
-    const key = songKey(song)
+    const { key, inLibrary } = sameAs(akapela, link, song)
     const duplicate = seen.has(key)
     seen.add(key)
     if (inLibrary) return { ...song, state: 'inLibrary', trackId: inLibrary.id }
@@ -83,8 +105,10 @@ export async function previewPlaylist(akapela: Akapela, url: unknown, signal?: A
   })
   return {
     name: playlist.name,
+    service: link.service,
     kind: playlist.kind,
     total: playlist.total,
+    leftOut: playlist.leftOut,
     songs,
     separationMsPerAudioMs: separationMsPerAudioMs(recentSeparations(akapela, defaultSeparationModelOf(akapela))),
   }
@@ -136,7 +160,7 @@ export function recentSeparations(akapela: Akapela, model: SeparationModelName):
     .all(DEFAULT_SEPARATION_MODEL, model, SEPARATION_SAMPLES) as SeparationSample[]
 }
 
-/** A chosen song that was not imported, because another Track has its Song by now. */
+/** A chosen song that was not imported, because another Track has its Song, or its video, by now. */
 export interface SkippedSong extends PlaylistSong {
   trackId: string
 }
@@ -152,32 +176,35 @@ export interface StartedPlaylistImport {
  * their service ids. The playlist is read again rather than trusting songs
  * sent from the browser.
  *
- * One transaction, song by song: a song whose Song another Track has by now
- * is skipped and said to be — another import of the same playlist may have
- * raced this one — and every other becomes a Track with its Song confirmed
- * and its own import Job, labelled with this Playlist Import.
+ * One transaction, song by song: a song already in the Library by now
+ * (`sameAs`) is skipped and said to be — another import of the same playlist
+ * may have raced this one — and every other becomes a Track with its own
+ * import Job, labelled with this Playlist Import and whether to separate.
+ * From Spotify, its Song is confirmed; from YouTube, it has its video's link.
  */
 export async function startPlaylistImport(
   akapela: Akapela,
-  input: { url: unknown, serviceIds: readonly string[] },
+  input: { url: unknown, serviceIds: readonly string[], separate?: boolean },
   signal?: AbortSignal,
 ): Promise<StartedPlaylistImport> {
   const link = requirePlaylistLink(input.url)
   const playlist = await akapela.playlistReader.read(link, signal)
   const chosen = new Set(input.serviceIds)
-  const label: PlaylistImportLabel = { id: randomUUID(), name: playlist.name }
+  const label: PlaylistImportLabel = { id: randomUUID(), name: playlist.name, separate: input.separate ?? true }
 
   return akapela.db.transaction(() => {
     const created: TrackWithJob[] = []
     const skipped: SkippedSong[] = []
     for (const song of playlist.songs) {
       if (!chosen.delete(song.serviceId)) continue
-      const other = trackWithSong(akapela, song)
+      const other = sameAs(akapela, link, song).inLibrary
       if (other) {
         skipped.push({ ...song, trackId: other.id })
         continue
       }
-      created.push(createTrackFromPlaylistSong(akapela, song, label))
+      created.push(link.service === 'youtube'
+        ? createTrackFromPlaylistVideo(akapela, { videoId: song.serviceId, title: song.title, durationMs: song.durationMs }, label)
+        : createTrackFromPlaylistSong(akapela, song, label))
     }
     return { playlistImportId: label.id, created, skipped }
   }, { behavior: 'immediate' })
@@ -188,26 +215,40 @@ const LYRICS_TIMEOUT_MS = 30_000
 
 /**
  * What a Playlist Import's Track gets once its Backing Track is in place, run
- * by its import Job: Lyrics from its Lyrics Provider, then a Separation with
- * the default Separation Model, carrying the same label. A failure to find
- * Lyrics is logged and the Separation still queued.
+ * by its import Job. A Track with no Song yet — one from a YouTube playlist —
+ * first gets the Song YouTube names for its video, unless another Track has
+ * it. Then Lyrics from its Lyrics Provider, if it has a Song, and a
+ * Separation with the default Separation Model carrying the same label, if
+ * the singer asked the Playlist Import for one. A failure to find Lyrics is
+ * logged and the Separation still queued.
  */
 export function playlistImportFollowUp(akapela: Akapela): PlaylistImportFollowUp {
-  return async (ctx, trackId, spotifyDurationMs) => {
-    const track = getTrack(akapela, trackId)
+  return async (ctx, trackId, listedDurationMs, namedSong) => {
+    let track = getTrack(akapela, trackId)
     if (!track) return
+    if (namedSong && !track.songTitle) {
+      try {
+        track = saveSong(akapela, track, { ...namedSong, providerIds: {}, albumArtUrl: null })
+      }
+      catch (error) {
+        // Another Track has this Song: this one goes on without one.
+        if (!(error instanceof SongInLibraryError)) throw error
+      }
+    }
     try {
-      await fetchPlaylistSongLyrics(akapela, track, spotifyDurationMs)
+      await fetchPlaylistSongLyrics(akapela, track, listedDurationMs)
     }
     catch (error) {
       if (ctx.signal.aborted) return
       console.warn(`Lyrics for Track ${trackId} could not be fetched:`, error)
     }
     ctx.signal.throwIfAborted()
+    const label = playlistImportOf(ctx.job)
+    if (!label?.separate) return
     const current = getTrack(akapela, trackId)
     // The singer may have asked for one already, while the Lyrics were looked up.
     if (!current || current.separationState === 'separating' || current.separationState === 'ready') return
-    startSeparation(akapela, current, defaultSeparationModelOf(akapela), playlistImportOf(ctx.job))
+    startSeparation(akapela, current, defaultSeparationModelOf(akapela), label)
   }
 }
 
@@ -256,6 +297,7 @@ export async function fetchPlaylistSongLyrics(
 /** The HTTP status each refusal to read a playlist answers with. */
 const REFUSAL_STATUS: Partial<Record<ErrorCode, number>> = {
   invalidPlaylistLink: 400,
+  unsupportedYoutubeList: 400,
   playlistNotFound: 404,
   playlistTooLong: 422,
   playlistUnreadable: 502,

@@ -14,7 +14,7 @@ export interface CannedPlaylistReader {
 /** A `PlaylistReader` standing in for Spotify, so no test reaches it. */
 export function createFakePlaylistReader(): { reader: PlaylistReader, canned: CannedPlaylistReader } {
   const canned: CannedPlaylistReader = {
-    playlist: { name: 'Empty', kind: 'playlist', total: 0, songs: [] },
+    playlist: { name: 'Empty', kind: 'playlist', total: 0, leftOut: 0, songs: [] },
     error: null,
     reads: [],
   }

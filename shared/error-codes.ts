@@ -45,6 +45,8 @@ export const ERROR_CODES = {
   playlistNotFound: [],
   /** The service's page came back without the shape Akapela reads, which usually means it changed. */
   playlistUnreadable: [],
+  /** A YouTube Mix or channel: lists Akapela does not import, unlike a playlist. */
+  unsupportedYoutubeList: [],
 
   // API routes: what a request can be refused for.
   /**

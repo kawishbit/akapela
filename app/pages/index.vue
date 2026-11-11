@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, LayoutGrid, Link, List, Loader2, Music2, Plu
 import type { TrackWithJob } from '~~/server/lib/tracks'
 import { UPLOAD_ACCEPT, UPLOAD_EXTENSIONS, uploadExtension } from '~~/shared/upload'
 import { youtubeVideoId } from '~~/shared/youtube'
-import { parsePlaylistLink, playlistUrl } from '~~/shared/playlist-link'
+import { parsePlaylistLink, playlistInVideoLink, playlistUrl, unsupportedYoutubeList, type PlaylistLink } from '~~/shared/playlist-link'
 import { failure } from '~~/shared/error-codes'
 import type { ErrorText } from '~/utils/errors'
 import { LIBRARY_VIEWS, type LibraryView, pageLinks, paginate, parseLibraryView, parsePage } from '~/utils/library-view'
@@ -136,12 +136,23 @@ function closeUrlForm() {
   urlError.value = null
 }
 
+/** The playlist a pasted video link was opened from, offered in place of the one video. */
+const playlistOfVideo = computed(() => playlistInVideoLink(url.value))
+
+async function openPlaylist(playlist: PlaylistLink) {
+  await navigateTo({ path: '/import/playlist', query: { url: playlistUrl(playlist) } })
+}
+
 async function submitUrl() {
-  // A Spotify playlist or album is many Tracks, so it opens the checklist
-  // rather than creating one.
+  // A playlist or album is many Tracks, so it opens the checklist rather
+  // than creating one.
   const playlist = parsePlaylistLink(url.value)
   if (playlist) {
-    await navigateTo({ path: '/import/playlist', query: { url: playlistUrl(playlist) } })
+    await openPlaylist(playlist)
+    return
+  }
+  if (unsupportedYoutubeList(url.value) && !youtubeVideoId(url.value)) {
+    urlError.value = describeFailure(failure('unsupportedYoutubeList'), null, t)
     return
   }
   if (!youtubeVideoId(url.value)) {
@@ -312,6 +323,14 @@ async function onRetry(track: TrackWithJob) {
           </button>
         </div>
       </div>
+      <button
+        v-if="playlistOfVideo"
+        type="button"
+        class="mt-3 inline-flex min-h-11 items-center text-left text-sm font-bold text-text underline-offset-2 hover:underline"
+        @click="openPlaylist(playlistOfVideo)"
+      >
+        {{ t('library.importWholePlaylist') }}
+      </button>
       <ErrorMessage
         id="import-url-error"
         class="mt-3"

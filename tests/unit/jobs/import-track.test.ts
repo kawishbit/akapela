@@ -70,6 +70,7 @@ function buildCtx(
       detail: null,
       playlistImportId: options.playlistImportId ?? null,
       playlistImportName: options.playlistImportId ? 'All Out 80s' : null,
+      playlistImportSeparate: options.playlistImportId ? true : null,
     },
     dataDir: t.dataDir,
     sqlite: t.akapela.sqlite,
@@ -492,6 +493,25 @@ describe('importHandler (a Playlist Import\'s song, with no link yet)', () => {
     expect(getTrack(t).import_state).toBe('ready')
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+
+  it('hands the follow-up the Song YouTube names for the video, or null when it names none', async () => {
+    const t = setup()
+    insertTrack(t, { sourceKind: 'youtube', sourceRef: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ' })
+    const named: unknown[] = []
+    const followUp = async (_ctx: JobContext, _trackId: string, _durationMs: number | null, song: unknown) => {
+      named.push(song)
+    }
+    const song = { artist: 'Queen', title: 'Bohemian Rhapsody' }
+
+    const naming = new FakeFetcher({ metadata: { ...METADATA, song } })
+    await importHandler(naming, { followUp })(buildCtx(t, 'j1', undefined, { playlistImportId: 'p1' }))
+    await importHandler(new FakeFetcher({ metadata: METADATA }), { followUp })(buildCtx(t, 'j2', undefined, { playlistImportId: 'p1' }))
+
+    expect(named).toEqual([song, null])
+    // The video is the playlist's own entry: there is nothing to search for.
+    expect(naming.searches).toEqual([])
+    expect(naming.downloadedFrom).toBe('https://www.youtube.com/watch?v=fJ9rUzIMcZQ')
   })
 
   it('does not follow up an import nobody asked everything of', async () => {

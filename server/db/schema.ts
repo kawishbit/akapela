@@ -83,6 +83,12 @@ export const jobs = sqliteTable('jobs', {
    */
   playlistImportId: text('playlist_import_id'),
   playlistImportName: text('playlist_import_name'),
+  /**
+   * Whether the singer asked the Playlist Import to separate every Track it
+   * imports, chosen once on its checklist. Null on every Job without a label,
+   * and on labelled Jobs from before there was a choice, which separated.
+   */
+  playlistImportSeparate: integer('playlist_import_separate', { mode: 'boolean' }),
 })
 
 export type Job = typeof jobs.$inferSelect

@@ -39,7 +39,7 @@ The Vocals Stem as heard under a Backing Track, turned down or up so the singer 
 _Avoid_: Backing vocal (harmonies, in music), vocal volume, reference track
 
 **Separation**:
-Running vocal removal on one Track: the Job that makes its Stems, and the state the Track carries while it runs, after it fails, and once it has finished. Asked for per Track rather than done on every import, since it costs minutes of CPU and a Track imported from a karaoke video needs none of it.
+Running vocal removal on one Track: the Job that makes its Stems, and the state the Track carries while it runs, after it fails, and once it has finished. Asked for per Track, or once for every Track of a Playlist Import, rather than done on every import, since it costs minutes of CPU and a Track imported from a karaoke video needs none of it.
 _Avoid_: Splitting, extraction, isolation
 
 **Separation Model**:
@@ -51,7 +51,7 @@ The file format Akapela stores a Track's Backing Track master and Stems in: WAV,
 _Avoid_: Codec, quality, file type
 
 **Playlist Import**:
-Importing many Tracks at once from a playlist or an album on another service, such as Spotify. Each chosen song becomes its own YouTube Source and Track, with its Song already confirmed. The playlist itself is not kept; its Jobs only remember its name, so they can be followed and cancelled together.
+Importing many Tracks at once from a Spotify playlist or album, or a YouTube or YouTube Music playlist. Each chosen entry becomes its own YouTube Source and Track. From Spotify, the Song is confirmed from Spotify's artist and title and the video is found by searching. From YouTube, the video is the entry itself, and a Song is confirmed only when YouTube names the artist and title. Whether every imported Track is then separated is chosen once for the whole import. The playlist itself is not kept; its Jobs only remember its name, so they can be followed and cancelled together.
 _Avoid_: Bulk import, sync, batch
 
 ### Queue

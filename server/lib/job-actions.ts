@@ -78,6 +78,7 @@ interface JobListRow {
   detail: string | null
   playlist_import_id: string | null
   playlist_import_name: string | null
+  playlist_import_separate: number | null
   track_id: string | null
   track_title: string | null
   track_artist: string | null
@@ -98,7 +99,7 @@ export function listJobs(akapela: Akapela): JobListEntry[] {
     .prepare(
       `SELECT j.id, j.type, j.target_id, j.state, j.progress, j.error, j.error_code, j.error_params, j.created_at,
          j.started_at, j.finished_at, j.trace_parent, j.separation_model, j.detail,
-         j.playlist_import_id, j.playlist_import_name,
+         j.playlist_import_id, j.playlist_import_name, j.playlist_import_separate,
          tr.id AS track_id, tr.title AS track_title, tr.artist AS track_artist, tr.updated_at AS track_updated_at,
          tk.id AS take_id, tk.created_at AS take_created_at,
          (SELECT count(*) FROM takes t2 WHERE t2.track_id = tk.track_id
@@ -130,6 +131,7 @@ export function listJobs(akapela: Akapela): JobListEntry[] {
       detail: row.detail,
       playlistImportId: row.playlist_import_id,
       playlistImportName: row.playlist_import_name,
+      playlistImportSeparate: row.playlist_import_separate === null ? null : row.playlist_import_separate === 1,
     }
     return {
       ...job,

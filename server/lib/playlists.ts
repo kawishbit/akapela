@@ -1,5 +1,6 @@
 import { CodedError, failure } from '../../shared/error-codes'
-import { MAX_PLAYLIST_SONGS, type PlaylistKind, type PlaylistLink } from '../../shared/playlist-link'
+import { MAX_PLAYLIST_SONGS, playlistUrl, type PlaylistKind, type PlaylistLink, type PlaylistService } from '../../shared/playlist-link'
+import { listYoutubePlaylist } from './sources'
 
 /**
  * Reading a playlist or album from another service, which is where a Playlist
@@ -7,15 +8,21 @@ import { MAX_PLAYLIST_SONGS, type PlaylistKind, type PlaylistLink } from '../../
  * unofficial and can change without warning, so every read sits behind
  * `PlaylistReader` — the guard `SourceFetcher` is for yt-dlp — and a page that
  * no longer has the shape it had is its own failure, `playlistUnreadable`.
+ * A YouTube playlist is listed by yt-dlp.
  */
 
-/** One song as the service lists it, before anything in Akapela is made of it. */
+/**
+ * One song as the service lists it, before anything in Akapela is made of it.
+ * From YouTube it is a video: its id, its title, and the channel that
+ * uploaded it as the artist.
+ */
 export interface PlaylistSong {
-  /** The service's own id for the song, which is how the checklist names what was ticked. */
+  /** The service's own id for the song, which is how the checklist names what was ticked. A YouTube video's id. */
   serviceId: string
-  /** As the service writes it: several artists are one comma-joined string. */
+  /** As the service writes it: several artists are one comma-joined string. A YouTube video's channel. */
   artist: string
   title: string
+  /** 0 when YouTube's listing did not say. */
   durationMs: number
 }
 
@@ -24,6 +31,8 @@ export interface Playlist {
   kind: PlaylistKind
   /** How many songs the service says it has; null when it didn't say. */
   total: number | null
+  /** How many the service listed that cannot be imported and are not in `songs`: unplayable here, private, or deleted. */
+  leftOut: number
   songs: PlaylistSong[]
 }
 
@@ -77,13 +86,14 @@ export class SpotifyEmbedReader implements PlaylistReader {
     if (total !== null && total > MAX_PLAYLIST_SONGS) throw tooLong(total)
     if (total === null && listed >= MAX_PLAYLIST_SONGS) throw tooLong(`${MAX_PLAYLIST_SONGS}+`)
 
+    // A song Spotify won't play where the server is has nothing to match against; it is left out rather than failing the rest.
+    const playable = entity.trackList.filter(song => song.isPlayable !== false)
     return {
       name: entity.name,
       kind: link.kind,
       total,
-      songs: entity.trackList
-        // A song Spotify won't play where the server is has nothing to match against; it is left out rather than failing the rest.
-        .filter(song => song.isPlayable !== false)
+      leftOut: listed - playable.length,
+      songs: playable
         .map(song => ({
           serviceId: song.uri,
           artist: song.subtitle,
@@ -113,6 +123,87 @@ export class SpotifyEmbedReader implements PlaylistReader {
       if (signal?.aborted) throw error
       return null
     }
+  }
+}
+
+/** Lists a YouTube playlist: yt-dlp's `-J --flat-playlist` answer, as text. */
+export type YoutubePlaylistLister = (url: string, signal?: AbortSignal) => Promise<string>
+
+/** What yt-dlp says of a list YouTube has no public copy of. */
+const NO_SUCH_PLAYLIST = /playlist does not exist|playlist.*(?:private|unavailable)|unviewable/i
+
+/** How YouTube's flat listing names an entry nobody can watch. */
+const UNAVAILABLE_TITLE = /^\[(?:private|deleted|unavailable) video\]$/i
+const UNAVAILABLE = new Set(['private', 'needs_auth', 'subscriber_only', 'premium_only'])
+
+/**
+ * A YouTube or YouTube Music playlist, listed by yt-dlp without opening each
+ * video. A private or deleted video is left out and counted. Over 100 is
+ * refused whole, the same as from Spotify, so one paste never queues more.
+ */
+export class YoutubePlaylistReader implements PlaylistReader {
+  private readonly list: YoutubePlaylistLister
+
+  constructor(list: YoutubePlaylistLister = listYoutubePlaylist) {
+    this.list = list
+  }
+
+  async read(link: PlaylistLink, signal?: AbortSignal): Promise<Playlist> {
+    let stdout: string
+    try {
+      stdout = await this.list(playlistUrl(link), signal)
+    }
+    catch (error) {
+      if (error instanceof Error && NO_SUCH_PLAYLIST.test(error.message)) {
+        throw new PlaylistError(failure('playlistNotFound'), `YouTube has no public playlist ${link.id}`)
+      }
+      throw error
+    }
+
+    let info: Record<string, unknown>
+    try {
+      info = JSON.parse(stdout) ?? {}
+    }
+    catch {
+      throw new PlaylistError(failure('playlistUnreadable'), `yt-dlp's listing of ${link.id} is not JSON`)
+    }
+    const entries = Array.isArray(info.entries) ? info.entries as Record<string, unknown>[] : []
+    const total = typeof info.playlist_count === 'number' ? info.playlist_count : entries.length
+    if (Math.max(total, entries.length) > MAX_PLAYLIST_SONGS) throw tooLong(Math.max(total, entries.length))
+
+    const songs = entries.flatMap((entry): PlaylistSong[] => {
+      const { id, title, channel, uploader, duration, availability } = entry ?? {}
+      if (typeof id !== 'string' || !id || typeof title !== 'string') return []
+      if (UNAVAILABLE_TITLE.test(title.trim()) || UNAVAILABLE.has(availability as string)) return []
+      const by = typeof channel === 'string' ? channel : typeof uploader === 'string' ? uploader : ''
+      return [{
+        serviceId: id,
+        // An artist's auto-generated channel is named for them, with this on the end.
+        artist: by.replace(/ - Topic$/, ''),
+        title,
+        durationMs: typeof duration === 'number' ? Math.round(duration * 1000) : 0,
+      }]
+    })
+    return {
+      name: typeof info.title === 'string' && info.title ? info.title : link.id,
+      kind: link.kind,
+      total,
+      leftOut: entries.length - songs.length,
+      songs,
+    }
+  }
+}
+
+/** Reads each link with the reader for its service. */
+export class ServicePlaylistReader implements PlaylistReader {
+  private readonly readers: Record<PlaylistService, PlaylistReader>
+
+  constructor(readers: Record<PlaylistService, PlaylistReader> = { spotify: new SpotifyEmbedReader(), youtube: new YoutubePlaylistReader() }) {
+    this.readers = readers
+  }
+
+  read(link: PlaylistLink, signal?: AbortSignal): Promise<Playlist> {
+    return this.readers[link.service].read(link, signal)
   }
 }
 

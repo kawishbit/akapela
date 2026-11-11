@@ -82,6 +82,14 @@ describe('previewing a Playlist Import', () => {
     expect(songs.map((song: { state: string }) => song.state)).toEqual(['new', 'new', 'duplicate'])
   })
 
+  test('a YouTube Mix is refused as one, without reading it', async () => {
+    const res = await preview('https://www.youtube.com/playlist?list=RDdQw4w9WgXcQ')
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).data).toEqual(failure('unsupportedYoutubeList'))
+    expect(api.spotify.reads).toEqual([])
+  })
+
   test('a link that is not a Spotify playlist or album is refused', async () => {
     const res = await preview('https://open.spotify.com/track/37i9dQZF1DX4UtSsGT1Sbe')
 
@@ -362,5 +370,117 @@ describe('Cancel all', () => {
 
     const listed = await (await api.get('/api/jobs')).json()
     expect(listed.filter((job: { playlistImportId: string | null }) => job.playlistImportId)).toEqual([])
+  })
+})
+
+describe('a Playlist Import from YouTube', () => {
+  const YOUTUBE_URL = 'https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG'
+  const KARAOKE = { serviceId: 'dQw4w9WgXcQ', artist: 'Sing King', title: 'Bohemian Rhapsody (Karaoke Version)', durationMs: 359_000 }
+  const TOPIC = { serviceId: 'fJ9rUzIMcZQ', artist: 'Queen', title: 'Bohemian Rhapsody', durationMs: 354_000 }
+
+  function serveYoutube(songs = [KARAOKE, TOPIC], leftOut = 0) {
+    api.spotify.playlist = { name: 'Karaoke Night', kind: 'playlist', total: songs.length + leftOut, leftOut, songs }
+  }
+
+  test('previews each video as new, and says how many were left out', async () => {
+    serveYoutube([KARAOKE, TOPIC], 2)
+
+    const body = await (await preview(YOUTUBE_URL)).json()
+
+    expect(body).toMatchObject({ name: 'Karaoke Night', service: 'youtube', leftOut: 2 })
+    expect(body.songs).toEqual([{ ...KARAOKE, state: 'new' }, { ...TOPIC, state: 'new' }])
+    expect(api.spotify.reads).toEqual([{ service: 'youtube', kind: 'playlist', id: 'PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG' }])
+  })
+
+  test('a video that is already a Track\'s Source is in the Library, and a repeat is a duplicate', async () => {
+    serveYoutube([KARAOKE, TOPIC, KARAOKE])
+    const existing = await (await api.post('/api/tracks', { url: 'https://youtu.be/fJ9rUzIMcZQ' })).json()
+
+    const { songs } = await (await preview(YOUTUBE_URL)).json()
+
+    expect(songs.map((song: { state: string }) => song.state)).toEqual(['new', 'inLibrary', 'duplicate'])
+    expect(songs[1].trackId).toBe(existing.id)
+  })
+
+  test('two videos with the channel and title of one Song are both new: a video is not a Song', async () => {
+    serveYoutube([KARAOKE, { ...KARAOKE, serviceId: 'aaaaaaaaaaa' }])
+    await trackWithSong('Sing King', 'Bohemian Rhapsody (Karaoke Version)')
+
+    const { songs } = await (await preview(YOUTUBE_URL)).json()
+
+    expect(songs.map((song: { state: string }) => song.state)).toEqual(['new', 'new'])
+  })
+
+  test('makes a Track per chosen video, with its link and title and no Song', async () => {
+    serveYoutube()
+
+    const body = await (await start([KARAOKE.serviceId], YOUTUBE_URL)).json()
+
+    expect(body.created).toHaveLength(1)
+    expect(body.created[0]).toMatchObject({
+      title: 'Bohemian Rhapsody (Karaoke Version)',
+      artist: null,
+      songTitle: null,
+      durationMs: 359_000,
+      sourceKind: 'youtube',
+      sourceRef: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      importState: 'importing',
+    })
+    expect(jobsLabelled(body.playlistImportId).map(job => job.playlist_import_name)).toEqual(['Karaoke Night'])
+  })
+
+  test('skips a video that is a Track\'s Source by now, and says so', async () => {
+    serveYoutube()
+    const existing = await (await api.post('/api/tracks', { url: 'https://youtu.be/dQw4w9WgXcQ' })).json()
+
+    const body = await (await start([KARAOKE.serviceId, TOPIC.serviceId], YOUTUBE_URL)).json()
+
+    expect(body.created.map((track: { title: string }) => track.title)).toEqual(['Bohemian Rhapsody'])
+    expect(body.skipped).toEqual([{ ...KARAOKE, trackId: existing.id }])
+  })
+})
+
+describe('whether a Playlist Import separates', () => {
+  function separateOf(playlistImportId: string) {
+    return (api.akapela.sqlite
+      .prepare(`SELECT playlist_import_separate AS separate FROM jobs WHERE playlist_import_id = ?`)
+      .all(playlistImportId) as { separate: number }[]).map(row => row.separate)
+  }
+
+  test('is remembered on its Jobs when the singer turns it off', async () => {
+    servePlaylist()
+
+    const body = await (await api.post('/api/playlist-imports', { url: URL, serviceIds: [TAKE_ON_ME.serviceId], separate: false })).json()
+
+    expect(separateOf(body.playlistImportId)).toEqual([0])
+    expect(body.created[0].job).toMatchObject({ playlistImportSeparate: false })
+  })
+
+  test('is on unless the singer says otherwise', async () => {
+    servePlaylist()
+
+    const body = await (await start([TAKE_ON_ME.serviceId])).json()
+
+    expect(separateOf(body.playlistImportId)).toEqual([1])
+  })
+
+  test('survives retrying an import from the Jobs page', async () => {
+    servePlaylist()
+    const body = await (await api.post('/api/playlist-imports', { url: URL, serviceIds: [TAKE_ON_ME.serviceId], separate: false })).json()
+    const track = body.created[0]
+    api.akapela.sqlite.prepare(`UPDATE tracks SET source_ref = 'https://www.youtube.com/watch?v=djV11Xbc914' WHERE id = ?`).run(track.id)
+    api.failImport(track.id, track.job.id, 'HTTP Error 403')
+
+    const retried = await (await api.post(`/api/jobs/${track.job.id}/retry`, {})).json()
+
+    expect(retried).toMatchObject({ playlistImportSeparate: false })
+  })
+
+  test('anything but true or false is refused', async () => {
+    servePlaylist()
+
+    const res = await api.post('/api/playlist-imports', { url: URL, serviceIds: [TAKE_ON_ME.serviceId], separate: 'yes' })
+
+    expect(res.status).toBe(400)
   })
 })

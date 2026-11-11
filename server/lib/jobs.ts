@@ -50,10 +50,14 @@ export function isJobType(value: unknown): value is JobType {
   return typeof value === 'string' && (JOB_TYPES as readonly string[]).includes(value)
 }
 
-/** The Playlist Import a Job is part of: its id, and the playlist's name to show beside it. */
+/**
+ * The Playlist Import a Job is part of: its id, the playlist's name to show
+ * beside it, and whether the singer asked it to separate what it imports.
+ */
 export interface PlaylistImportLabel {
   id: string
   name: string
+  separate: boolean
 }
 
 export function enqueueJob(
@@ -85,6 +89,7 @@ export function enqueueJob(
     detail: null,
     playlistImportId: input.playlistImport?.id ?? null,
     playlistImportName: input.playlistImport?.name ?? null,
+    playlistImportSeparate: input.playlistImport ? input.playlistImport.separate : null,
   }
   akapela.db.insert(jobs).values(job).run()
   return job
@@ -111,7 +116,10 @@ export function getJob(akapela: Akapela, id: string): Job | undefined {
   return akapela.db.select().from(jobs).where(eq(jobs.id, id)).get()
 }
 
-/** A Job's Playlist Import label, or null when it has none. */
-export function playlistImportOf(job: Pick<Job, 'playlistImportId' | 'playlistImportName'>): PlaylistImportLabel | null {
-  return job.playlistImportId ? { id: job.playlistImportId, name: job.playlistImportName ?? '' } : null
+/** A Job's Playlist Import label, or null when it has none. A label from before there was a choice separates. */
+export function playlistImportOf(
+  job: Pick<Job, 'playlistImportId' | 'playlistImportName' | 'playlistImportSeparate'>,
+): PlaylistImportLabel | null {
+  if (!job.playlistImportId) return null
+  return { id: job.playlistImportId, name: job.playlistImportName ?? '', separate: job.playlistImportSeparate ?? true }
 }

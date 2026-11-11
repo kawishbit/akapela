@@ -1,0 +1,1 @@
+ALTER TABLE `jobs` ADD `playlist_import_separate` integer;

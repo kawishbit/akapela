@@ -23,10 +23,11 @@ import { CodedError, failure } from '../../../shared/error-codes'
  * Track `failed` and re-throws so the runner records the message on the job
  * row. Nothing retries on its own.
  *
- * A Playlist Import's Track starts with no link: the job searches YouTube for
- * its confirmed Song first (`noYoutubeMatch` when nothing is close enough),
- * and once the Track is ready, fetches its Lyrics and queues its Separation
- * through the follow-up it was given.
+ * A Spotify Playlist Import's Track starts with no link: the job searches
+ * YouTube for its confirmed Song first (`noYoutubeMatch` when nothing is close
+ * enough). A YouTube Playlist Import's Track has its video's link already.
+ * Either way, once the Track is ready, the follow-up it was given fetches its
+ * Lyrics and queues its Separation, if the singer asked for one.
  */
 
 // Progress milestones. The YouTube download fills the gap between the first two.
@@ -42,14 +43,26 @@ async function findOriginal(directory: string): Promise<string> {
   return join(directory, candidates[0]!)
 }
 
+/** The Song YouTube named for a video (`SourceMetadata.song`). */
+export interface NamedSong {
+  artist: string
+  title: string
+}
+
 /**
  * What a Playlist Import's Track gets once its Backing Track is in place:
  * its Lyrics, then its Separation. Run by the import Job, since this is the
  * one import where the singer has asked for everything; it needs the whole
  * app (`../playlist-imports.ts`), which a handler is not given, so it is
- * passed in. `spotifyDurationMs` is the song's length as Spotify listed it.
+ * passed in. `listedDurationMs` is the song's length as the playlist listed
+ * it, and `namedSong` the Song YouTube names for the video, or null.
  */
-export type PlaylistImportFollowUp = (ctx: JobContext, trackId: string, spotifyDurationMs: number | null) => Promise<void>
+export type PlaylistImportFollowUp = (
+  ctx: JobContext,
+  trackId: string,
+  listedDurationMs: number | null,
+  namedSong: NamedSong | null,
+) => Promise<void>
 
 export interface ImportHandlerOptions {
   /** Left out, a Playlist Import's Track is imported and nothing more — what a test of the import alone wants. */
@@ -76,13 +89,16 @@ export function importHandler(fetcher: SourceFetcher, options: ImportHandlerOpti
     const fromPlaylistImport = Boolean(ctx.job.playlistImportId)
 
     const directory = trackDir(ctx.dataDir, trackId)
+    let namedSong: NamedSong | null = null
     try {
       let original: string
       if (row.source_kind === 'youtube') {
-        // A Playlist Import's Track starts with no link: its song is found on YouTube first.
+        // A Spotify Playlist Import's Track starts with no link: its song is found on YouTube first.
         const url = row.source_ref || await matchOnYoutube(ctx, fetcher, row, directory)
-        // Its title is Spotify's, which is the song's own name rather than a video's.
-        original = await fetchFromSource(ctx, fetcher, trackId, url, directory, { keepTitle: fromPlaylistImport })
+        // Its title is the playlist's: Spotify's names the song, and YouTube's listing already gave the video's.
+        const fetched = await fetchFromSource(ctx, fetcher, trackId, url, directory, { keepTitle: fromPlaylistImport })
+        original = fetched.original
+        namedSong = fetched.song
       }
       else if (row.source_kind === 'upload') {
         original = await findOriginal(directory)
@@ -125,7 +141,7 @@ export function importHandler(fetcher: SourceFetcher, options: ImportHandlerOpti
     // original audio, the way a lookup that finds nothing does today.
     if (fromPlaylistImport && options.followUp && !ctx.signal.aborted) {
       try {
-        await options.followUp(ctx, trackId, row.duration_ms)
+        await options.followUp(ctx, trackId, row.duration_ms, namedSong)
       }
       catch (error) {
         if (ctx.signal.aborted) return
@@ -164,6 +180,7 @@ async function matchOnYoutube(ctx: JobContext, fetcher: SourceFetcher, row: Trac
  * Metadata onto the Track first, then the audio, with download progress on
  * the job. `keepTitle` leaves the title alone, which is what a Playlist
  * Import's Track wants: Spotify's title names the song, a video's does not.
+ * Answers with the original audio and the Song YouTube names, if any.
  */
 async function fetchFromSource(
   ctx: JobContext,
@@ -172,7 +189,7 @@ async function fetchFromSource(
   url: string,
   directory: string,
   options: { keepTitle?: boolean } = {},
-): Promise<string> {
+): Promise<{ original: string, song: NamedSong | null }> {
   const edited = ctx.sqlite.prepare(`SELECT cover_edited FROM tracks WHERE id = ?`).get(trackId) as
     { cover_edited: number } | undefined
   const metadata = await fetcher.fetchMetadata(url, directory, { keepCover: Boolean(edited?.cover_edited), signal: ctx.signal })
@@ -206,5 +223,5 @@ async function fetchFromSource(
   ctx.signal.throwIfAborted()
   await ensureNotDeleted(ctx.sqlite, trackId, directory, 'import')
   ctx.progress(PROGRESS_AUDIO_ON_DISK)
-  return original
+  return { original, song: metadata.song ?? null }
 }

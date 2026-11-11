@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test, vi } from 'vitest'
-import { PlaylistError, SpotifyEmbedReader } from '../../server/lib/playlists'
+import { PlaylistError, ServicePlaylistReader, SpotifyEmbedReader, YoutubePlaylistReader, type PlaylistReader } from '../../server/lib/playlists'
+import { SourceError } from '../../server/lib/sources'
+import { failure } from '../../shared/error-codes'
 import type { CodedError } from '../../shared/error-codes'
 import type { PlaylistLink } from '../../shared/playlist-link'
 
@@ -123,7 +125,9 @@ describe('SpotifyEmbedReader', () => {
     const html = fixture('album-embed.html').replace('"isPlayable":true', '"isPlayable":false')
     const reader = new SpotifyEmbedReader(fakeFetch({ [embedUrl(ALBUM)]: html }))
 
-    expect((await reader.read(ALBUM)).songs.map(song => song.title)).not.toContain('Mustapha - Remastered 2011')
+    const album = await reader.read(ALBUM)
+    expect(album.songs.map(song => song.title)).not.toContain('Mustapha - Remastered 2011')
+    expect(album.leftOut).toBe(1)
   })
 
   test('a page without __NEXT_DATA__ is unreadable, and says why in the log', async () => {
@@ -156,5 +160,100 @@ describe('SpotifyEmbedReader', () => {
     const reader = new SpotifyEmbedReader(fakeFetch({ [embedUrl(PLAYLIST_50)]: { status: 503 } }))
 
     await expect(reader.read(PLAYLIST_50)).rejects.toThrow(/HTTP 503/)
+  })
+})
+
+const YOUTUBE_LIST: PlaylistLink = { service: 'youtube', kind: 'playlist', id: 'PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG' }
+
+/** yt-dlp's `-J --flat-playlist` answer for a playlist with these entries. */
+function flatPlaylist(entries: Record<string, unknown>[], extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({ _type: 'playlist', title: 'Karaoke Night', playlist_count: entries.length, entries, ...extra })
+}
+
+function video(id: string, title: string, channel = 'Sing King', duration: number | null = 200) {
+  return { _type: 'url', id, title, channel, duration, availability: null }
+}
+
+/** A stand-in yt-dlp: answers every list with `stdout`, or rejects with `error`, and records what it was asked. */
+function fakeYtDlp(answer: string | Error) {
+  const asked: string[] = []
+  const list = async (url: string) => {
+    asked.push(url)
+    if (answer instanceof Error) throw answer
+    return answer
+  }
+  return { list, asked }
+}
+
+describe('YoutubePlaylistReader', () => {
+  test('reads the name and each video: its id, title, channel, and length', async () => {
+    const ytDlp = fakeYtDlp(flatPlaylist([
+      video('dQw4w9WgXcQ', 'Bohemian Rhapsody (Karaoke Version)', 'Sing King', 359),
+      video('fJ9rUzIMcZQ', 'Bohemian Rhapsody', 'Queen - Topic', 354.6),
+    ]))
+
+    const playlist = await new YoutubePlaylistReader(ytDlp.list).read(YOUTUBE_LIST)
+
+    expect(ytDlp.asked).toEqual(['https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG'])
+    expect(playlist).toEqual({
+      name: 'Karaoke Night',
+      kind: 'playlist',
+      total: 2,
+      leftOut: 0,
+      songs: [
+        { serviceId: 'dQw4w9WgXcQ', artist: 'Sing King', title: 'Bohemian Rhapsody (Karaoke Version)', durationMs: 359_000 },
+        { serviceId: 'fJ9rUzIMcZQ', artist: 'Queen', title: 'Bohemian Rhapsody', durationMs: 354_600 },
+      ],
+    })
+  })
+
+  test('leaves out private and deleted videos, and counts them', async () => {
+    const ytDlp = fakeYtDlp(flatPlaylist([
+      video('dQw4w9WgXcQ', 'Take On Me'),
+      { ...video('aaaaaaaaaaa', '[Private video]', '', null), channel: null },
+      { ...video('bbbbbbbbbbb', '[Deleted video]', '', null), channel: null },
+      { ...video('ccccccccccc', 'Members only', 'Someone'), availability: 'subscriber_only' },
+    ]))
+
+    const playlist = await new YoutubePlaylistReader(ytDlp.list).read(YOUTUBE_LIST)
+
+    expect(playlist.songs.map(song => song.serviceId)).toEqual(['dQw4w9WgXcQ'])
+    expect(playlist.leftOut).toBe(3)
+    expect(playlist.total).toBe(4)
+  })
+
+  test('refuses a playlist of more than 100 videos, with its total', async () => {
+    const entries = Array.from({ length: 101 }, (_, i) => video(`v${String(i).padStart(10, '0')}`, `Song ${i}`))
+    const ytDlp = fakeYtDlp(flatPlaylist(entries, { playlist_count: 240 }))
+
+    const error = await refusal(new YoutubePlaylistReader(ytDlp.list).read(YOUTUBE_LIST))
+
+    expect(error.failure).toEqual({ code: 'playlistTooLong', params: { total: 240 } })
+  })
+
+  test('a playlist yt-dlp says does not exist is not found', async () => {
+    const ytDlp = fakeYtDlp(new SourceError('YouTube said: The playlist does not exist.', failure('ytDlpFailed')))
+
+    const error = await refusal(new YoutubePlaylistReader(ytDlp.list).read(YOUTUBE_LIST))
+
+    expect(error.failure).toEqual(failure('playlistNotFound'))
+  })
+
+  test('any other failure of yt-dlp is passed on as it is', async () => {
+    const failed = new SourceError('HTTP Error 503', failure('ytDlpFailed'))
+
+    await expect(new YoutubePlaylistReader(fakeYtDlp(failed).list).read(YOUTUBE_LIST)).rejects.toBe(failed)
+  })
+})
+
+describe('ServicePlaylistReader', () => {
+  test('reads each link with the reader for its service', async () => {
+    const reading = (name: string): PlaylistReader => ({
+      read: async link => ({ name, kind: link.kind, total: 0, leftOut: 0, songs: [] }),
+    })
+    const reader = new ServicePlaylistReader({ spotify: reading('from Spotify'), youtube: reading('from YouTube') })
+
+    expect((await reader.read(YOUTUBE_LIST)).name).toBe('from YouTube')
+    expect((await reader.read(ALBUM)).name).toBe('from Spotify')
   })
 })
