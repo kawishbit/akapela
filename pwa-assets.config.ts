@@ -4,7 +4,7 @@ import { defineConfig } from '@vite-pwa/assets-generator/config'
 // square with its own built-in safe margin around the glyph, so every size
 // is a plain resize: no extra padding, and a background matching the mark
 // exactly in case rounding ever needs to fill a sliver at the edge.
-const flat = { padding: 0, resizeOptions: { fit: 'contain' as const, background: '#87ea5c' } }
+const flat = { padding: 0, resizeOptions: { fit: 'contain' as const, background: '#0a3033' } }
 
 export default defineConfig({
   preset: {

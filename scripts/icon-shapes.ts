@@ -43,7 +43,7 @@ export const MAC_CORNER_RADIUS = 0.225
  * an otherwise opaque icon. Flattening onto the same colour fills that sliver.
  * `pwa-assets.config.ts` passes the same colour for the same reason.
  */
-export const BACKGROUND = '#87ea5c'
+export const BACKGROUND = '#0a3033'
 
 /** Renders the mark, unchanged, to an opaque square PNG. */
 export async function square(mark: string, size: number = SIZE): Promise<Buffer> {
